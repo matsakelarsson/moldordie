@@ -1,5 +1,6 @@
-exclude: '^docs/|/migrations/|devcontainer.json'
+exclude: '^docs/|/migrations/|devcontainer.json|/static/vendor/'
 default_stages: [pre-commit]
+default_install_hook_types: [pre-commit, pre-push]
 minimum_pre_commit_version: "3.2.0"
 
 default_language_version:
@@ -21,13 +22,6 @@ repos:
       - id: check-merge-conflict
       - id: check-docstring-first
       - id: detect-private-key
-
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
-    hooks:
-      - id: prettier
-        args: ['--tab-width', '2', '--single-quote']
-        exclude: '{{cookiecutter.project_slug}}/templates/'
 
   - repo: https://github.com/adamchainz/django-upgrade
     rev: '1.32.0'
@@ -56,8 +50,24 @@ repos:
       - id: djlint-reformat-django
       - id: djlint-django
 
+  # mypy needs the project's dependencies and Django settings, so it runs from
+  # the project environment on push rather than from an isolated hook environment.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        {%- if cookiecutter.use_docker == 'y' %}
+        entry: docker compose -f docker-compose.local.yml run --rm django mypy .
+        {%- else %}
+        entry: uv run mypy .
+        {%- endif %}
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:
   autoupdate_schedule: weekly
-  skip: []
+  skip: [mypy] # needs the project environment
   submodules: false
