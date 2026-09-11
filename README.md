@@ -28,7 +28,7 @@ production-ready Django projects quickly.
 - Optimized development and production settings
 - Registration via [django-allauth](https://github.com/pennersr/django-allauth)
 - Comes with custom user model ready to go
-- Optional basic ASGI setup for Websockets
+- Served through ASGI with [Uvicorn](https://www.uvicorn.org/), with optional [Django Channels](https://channels.readthedocs.io/) support for websockets
 - Send emails via [Anymail](https://github.com/anymail/django-anymail) (using [Mailgun](http://www.mailgun.com/) by default or Amazon SES if AWS is selected cloud provider, but switchable)
 - Media storage using Amazon S3, Google Cloud Storage, Azure Storage or nginx
 - Docker support using [docker-compose](https://github.com/docker/compose) for development and production (using [Traefik](https://traefik.io/) with [LetsEncrypt](https://letsencrypt.org/) support)
@@ -155,7 +155,10 @@ Answer the prompts with your own desired [options](http://cookiecutter-django.re
     2 - DRF
     3 - Django Ninja
     Choose from 1, 2, 3 [1]: 1
-    use_async [n]: n
+    Select realtime:
+    1 - none
+    2 - channels
+    Choose from 1, 2 [1]: 1
     use_celery [n]: y
     Select mail_catcher:
     1 - None

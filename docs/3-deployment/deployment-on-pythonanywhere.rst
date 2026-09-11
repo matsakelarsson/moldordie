@@ -119,7 +119,7 @@ Go to the PythonAnywhere **Web tab**, hit **Add new web app**, and choose **Manu
 
 When you're redirected back to the web app config screen, set the **path to your virtualenv**, which should be something like ``/home/<your-username>/<your-project-directory>/.venv``.
 
-Click through to the **WSGI configuration file** link (near the top) and edit the wsgi file. Make it look something like this, repeating the environment variables you used earlier:
+Click through to the **WSGI configuration file** link (near the top) and edit the wsgi file. PythonAnywhere web apps are served through WSGI, and the generated project only ships an ASGI entry point (``config/asgi.py``), so this file builds the WSGI application itself. Make it look something like this, repeating the environment variables you used earlier:
 
 .. code-block:: python
 
@@ -129,7 +129,7 @@ Click through to the **WSGI configuration file** link (near the top) and edit th
     if PROJECT_PATH not in sys.path:
         sys.path.append(PROJECT_PATH)
 
-    os.environ['DJANGO_SETTINGS_MODULE='] = 'config.settings.production'
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings.production'
     os.environ['DJANGO_READ_DOT_ENV_FILE'] = '1'
 
     from django.core.wsgi import get_wsgi_application

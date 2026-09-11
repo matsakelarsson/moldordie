@@ -65,13 +65,11 @@ Make sure to have the following on your host:
 
     uv run python manage.py migrate
 
-#. If you're running synchronously, see the application being served through Django development server: ::
-
-    uv run python manage.py runserver 0.0.0.0:8000
-
-   or if you're running asynchronously: ::
+#. See the application being served through Uvicorn, the ASGI server used in development and production: ::
 
     uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
+
+   Django's ``runserver`` still works for plain HTTP, but it does not serve websockets.
 
    There is no frontend build step: htmx and Pico CSS are served as static files. See the :ref:`frontend guide <frontend-guide>` for details.
 
@@ -103,8 +101,8 @@ The project layout looks something like this: ::
     │   │   ├── base.py
     │   │   ├── local.py
     │   │   └── production.py
-    │   ├── urls.py
-    │   └── wsgi.py
+    │   ├── asgi.py
+    │   └── urls.py
     ├── <django_project_root>/
     │   ├── <name_of_the_app>/
     │   │   ├── migrations/

@@ -5,7 +5,7 @@ psycopg[c]==3.3.5  # https://github.com/psycopg/psycopg
 {%- else %}
 psycopg[binary]==3.3.5  # https://github.com/psycopg/psycopg
 {%- endif %}
-{%- if cookiecutter.use_async == 'y' or cookiecutter.use_celery == 'y' %}
+{%- if cookiecutter.use_celery == 'y' %}
 watchfiles==1.2.0  # https://github.com/samuelcolvin/watchfiles
 {%- endif %}
 
@@ -20,6 +20,9 @@ djangorestframework-stubs==3.18.1  # https://github.com/typeddjango/djangorestfr
 {%- endif %}
 {%- if cookiecutter.use_celery == 'y' %}
 celery-types==0.26.0  # https://github.com/sbdchd/celery-types
+{%- endif %}
+{%- if cookiecutter.realtime == 'channels' %}
+types-channels==4.3.0.20260518  # https://github.com/python/typeshed
 {%- endif %}
 
 # Documentation

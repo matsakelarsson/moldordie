@@ -39,7 +39,7 @@ Powered by Cookiecutter_, Cookiecutter Django is a project template for jumpstar
    4-guides/frontend
    4-guides/testing
    4-guides/document
-   4-guides/websocket
+   4-guides/realtime
 
 .. toctree::
    :maxdepth: 2

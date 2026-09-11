@@ -34,6 +34,11 @@ TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url
 MEDIA_URL = "http://media.testserver/"
-
+{% if cookiecutter.realtime == 'channels' %}
+# CHANNELS
+# ------------------------------------------------------------------------------
+# https://channels.readthedocs.io/en/latest/topics/channel_layers.html#in-memory-channel-layer
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+{% endif %}
 # Your stuff...
 # ------------------------------------------------------------------------------

@@ -139,8 +139,10 @@ SUPPORTED_COMBINATIONS = [
     {"rest_api": "None"},
     {"rest_api": "DRF"},
     {"rest_api": "Django Ninja"},
-    {"use_async": "y"},
-    {"use_async": "n"},
+    {"realtime": "none"},
+    {"realtime": "channels"},
+    {"realtime": "channels", "use_docker": "y"},
+    {"realtime": "channels", "use_celery": "y", "use_docker": "y"},
     {"use_celery": "y"},
     {"use_celery": "n"},
     {"mail_catcher": "None"},
@@ -504,6 +506,58 @@ def test_strict_typing_setup(cookies, context, rest_api):
     assert "class AuthenticatedHttpRequest(HttpRequest):" in typedefs
     assert "class AuthenticatedHtmxRequest(" in typedefs
     assert ("class AuthenticatedApiRequest(Request):" in typedefs) is (rest_api == "DRF")
+
+
+@pytest.mark.parametrize("realtime", ["none", "channels"])
+def test_asgi_entrypoint(cookies, context, realtime):
+    """Every project is served through ASGI; the Channels wiring is only generated on request."""
+    context.update({"realtime": realtime, "use_heroku": "y"})
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    config = result.project_path / "config"
+    assert (config / "asgi.py").exists()
+    assert not (config / "wsgi.py").exists()
+    base_settings = (config / "settings" / "base.py").read_text()
+    assert 'ASGI_APPLICATION = "config.asgi.application"' in base_settings
+    assert "WSGI_APPLICATION" not in base_settings
+    procfile = (result.project_path / "Procfile").read_text()
+    assert "web: gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker" in procfile
+
+    uses_channels = realtime == "channels"
+    assert (config / "websocket.py").exists() is uses_channels
+    websocket_test = result.project_path / context["project_slug"] / "tests" / "test_websocket.py"
+    assert websocket_test.exists() is uses_channels
+    assert ('"channels",' in base_settings) is uses_channels
+    assert "CHANNEL_LAYERS" not in base_settings
+    local_settings = (config / "settings" / "local.py").read_text()
+    assert ("InMemoryChannelLayer" in local_settings) is uses_channels
+    test_settings = (config / "settings" / "test.py").read_text()
+    assert ("InMemoryChannelLayer" in test_settings) is uses_channels
+    production_settings = (config / "settings" / "production.py").read_text()
+    assert ("channels_redis.core.RedisChannelLayer" in production_settings) is uses_channels
+    pyproject = (result.project_path / "pyproject.toml").read_text()
+    assert "uvicorn[standard]" in pyproject
+    assert "uvicorn-worker" in pyproject
+    assert ("channels-redis" in pyproject) is uses_channels
+    assert ("types-channels" in pyproject) is uses_channels
+
+
+@pytest.mark.parametrize("realtime", ["none", "channels"])
+def test_docker_serves_asgi(cookies, context, realtime):
+    """The Docker start scripts run Uvicorn; local development needs no Redis for Channels."""
+    context.update({"realtime": realtime, "use_docker": "y"})
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    local_start = (result.project_path / "compose" / "local" / "django" / "start").read_text()
+    assert "exec uvicorn config.asgi:application" in local_start
+    production_start = (result.project_path / "compose" / "production" / "django" / "start").read_text()
+    assert "exec gunicorn config.asgi" in production_start
+    assert "uvicorn_worker.UvicornWorker" in production_start
+
+    compose = yaml.safe_load((result.project_path / "docker-compose.local.yml").read_text())
+    assert "redis" not in compose["services"]
 
 
 def test_pre_commit_without_heroku(cookies, context):
