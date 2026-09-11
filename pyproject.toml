@@ -1,7 +1,7 @@
 [project]
-name = "cookiecutter-django"
+name = "moldordie"
 version = "2026.9.8"
-description = "A Cookiecutter template for creating production-ready Django projects quickly."
+description = "A fork of cookiecutter-django for creating production-ready Django projects quickly."
 readme = "README.md"
 keywords = [
   "cookiecutter",
@@ -48,7 +48,7 @@ dependencies = [
   "tox==4.61.2",
   "tox-uv>=1.17",
 ]
-urls = { Repository = "https://github.com/cookiecutter/cookiecutter-django" }
+urls = { Repository = "https://github.com/matsakelarsson/moldordie" }
 
 [dependency-groups]
 docs = [
