@@ -1,4 +1,4 @@
-# cookiecutter-django documentation build configuration file.
+# moldordie documentation build configuration file.
 #
 # This file is execfile()d with the current directory set to its containing dir.
 #
@@ -41,7 +41,7 @@ source_suffix = {
 master_doc = "index"
 
 # General information about the project.
-project = "Cookiecutter Django"
+project = "moldordie"
 copyright = f"2013-{now.year}, Daniel Roy Greenfeld"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -166,7 +166,7 @@ html_static_path = ["_static"]
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "cookiecutter-djangodoc"
+htmlhelp_basename = "moldordiedoc"
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -185,9 +185,9 @@ latex_elements = {
 latex_documents = [
     (
         "index",
-        "cookiecutter-django.tex",
-        "cookiecutter-django Documentation",
-        "cookiecutter-django",
+        "moldordie.tex",
+        "moldordie Documentation",
+        "moldordie",
         "manual",
     ),
 ]
@@ -220,8 +220,8 @@ latex_documents = [
 man_pages = [
     (
         "index",
-        "Cookiecutter Django",
-        "Cookiecutter Django documentation",
+        "moldordie",
+        "moldordie documentation",
         ["Daniel Roy Greenfeld"],
         1,
     ),
@@ -239,11 +239,11 @@ man_pages = [
 texinfo_documents = [
     (
         "index",
-        "Cookiecutter Django",
-        "Cookiecutter Django documentation",
+        "moldordie",
+        "moldordie documentation",
         "Daniel Roy Greenfeld",
-        "Cookiecutter Django",
-        "A Cookiecutter template for creating production-ready Django projects quickly.",
+        "moldordie",
+        "A fork of cookiecutter-django for creating production-ready Django projects quickly.",
         "Miscellaneous",
     )
 ]

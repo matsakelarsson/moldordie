@@ -251,4 +251,4 @@ You can also use Django admin to queue up tasks, thanks to the `django-celerybea
 Summary
 -------
 
-Congratulations, you have made it! Keep on reading to unleash full potential of Cookiecutter Django.
+Congratulations, you have made it! Keep on reading to unleash full potential of moldordie.
