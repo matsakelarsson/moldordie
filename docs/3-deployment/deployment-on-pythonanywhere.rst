@@ -113,7 +113,7 @@ Configure the PythonAnywhere Web Tab
 
 Go to the PythonAnywhere **Web tab**, hit **Add new web app**, and choose **Manual Config**, and then the newest Python version offered between 3.12 and 3.14 (the project supports all three and defaults to 3.14 in ``.python-version``).
 
-.. note:: The production settings store background tasks in the database and expect a ``python manage.py db_worker`` process to run them (see :ref:`tasks`). On PythonAnywhere run it as an "Always-on task" (a paid feature), or set ``TASKS`` back to ``django.tasks.backends.immediate.ImmediateBackend`` in the WSGI file's environment if you have no tasks yet.
+.. note:: The production settings store background tasks in the database and expect a ``python manage.py db_worker`` process to run them (see :ref:`tasks`). On PythonAnywhere run it as an "Always-on task" (a paid feature), or, if you have no background tasks yet, override the ``TASKS`` setting to use ``django.tasks.backends.immediate.ImmediateBackend`` in a settings module of your own that imports from ``config.settings.production``, and point ``DJANGO_SETTINGS_MODULE`` in the WSGI file at it.
 
 .. note:: If you're using a custom domain (not on \*.pythonanywhere.com), then you'll need to set up a CNAME with your domain registrar.
 

@@ -12,7 +12,7 @@
   redirects to the profile; with htmx the redirect is followed and the profile card is swapped in place.
   {% endcomment %}
   {% partialdef profile inline %}
-    {% if request.htmx %}
+    {% if htmx_fragment %}
       {% include "base.html#messages" %}
     {% endif %}
     <article id="user-profile">

@@ -91,6 +91,7 @@ The generated Django project uses:
 - `config/asgi.py` — ASGI entry point served by Uvicorn (Gunicorn + Uvicorn worker in production); with `realtime=channels` it also routes websockets to `config/websocket.py`
 - `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth); `users/tasks.py` holds the Django Tasks example (plus a Celery variant with `use_celery=y`)
 - `<project_slug>/htmx.py` — `HtmxTemplateMixin` (renders `template.html#partial` for htmx requests, adds `Vary: HX-Request`) and `HtmxLoginRedirectMiddleware` (turns login redirects into `HX-Redirect` for htmx requests)
+- `<project_slug>/tests/` — Project-level tests that belong to no single app: the Content Security Policy, the htmx helpers and, with `realtime=channels`, the websocket consumer
 - `compose/` — Docker configs for local and production
 - `requirements/` — The pinned dependency lists; `hooks/post_gen_project.py` feeds them to `uv add`, which writes `pyproject.toml` + `uv.lock` in the generated project
 - `<project_slug>/templates/` — Semantic HTML styled by the vendored Pico CSS (`<project_slug>/static/vendor/pico/`, pinned with SHA-256 metadata); htmx is loaded through django-htmx's `{% htmx_script %}` (with the `hx-ws` extension when `realtime=channels`). htmx fragments are `{% partialdef %}` partials inside the page template, selected with `htmx_partial` on the view. No Node.js, Bootstrap or asset pipeline.

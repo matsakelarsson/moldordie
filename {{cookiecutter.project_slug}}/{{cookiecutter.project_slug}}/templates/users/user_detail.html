@@ -11,7 +11,7 @@
   requests (UserDetailView.htmx_partial), which then also swap the messages out-of-band.
   {% endcomment %}
   {% partialdef profile inline %}
-    {% if request.htmx %}
+    {% if htmx_fragment %}
       {% include "base.html#messages" %}
     {% endif %}
     <article id="user-profile">

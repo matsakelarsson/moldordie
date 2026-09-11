@@ -229,6 +229,7 @@ class TestUserDetailView:
         assert template_names(response)[0] == "users/user_detail.html"
         assert b"<html" in response.content
         assert b'id="user-profile"' in response.content
+        assert response.content.count(b'id="messages"') == 1
 
     def test_htmx_partial(self, user: User, client: Client):
         client.force_login(user)
@@ -252,3 +253,4 @@ class TestUserDetailView:
         assert template_names(response)[0] == "users/user_detail.html"
         assert b"<html" in response.content
         assert b"hx-swap-oob" not in response.content
+        assert response.content.count(b'id="messages"') == 1

@@ -72,7 +72,9 @@ Views that answer htmx requests with a fragment instead of a full page keep the 
         model = User
         htmx_partial = "profile"
 
-``inline`` renders the partial in place for normal requests. For a request carrying the ``HX-Request`` header the mixin renders ``"users/user_detail.html#profile"``, that is only the partial, using Django's ``template.html#partial`` syntax. Boosted requests (``HX-Boosted``) expect a whole page and get the full template. The mixin adds ``Vary: HX-Request`` to every response because the body depends on that header; add the same header, with ``django.views.decorators.vary.vary_on_headers``, to any other view that branches on ``request.htmx``, otherwise a cache could serve a fragment to a full-page request. Function-based views do the same thing with ``render(request, "users/user_detail.html#profile", context)``.
+``inline`` renders the partial in place for normal requests. For a request carrying the ``HX-Request`` header the mixin renders ``"users/user_detail.html#profile"``, that is only the partial, using Django's ``template.html#partial`` syntax. Boosted requests (``HX-Boosted``) expect a whole page and get the full template. The mixin adds ``Vary: HX-Request`` to every response because the body depends on that header; add the same header, with ``django.views.decorators.vary.vary_on_headers``, to any other view whose body depends on it, otherwise a cache could serve a fragment to a full-page request. Function-based views do the same thing with ``render(request, "users/user_detail.html#profile", context)``.
+
+The mixin also puts ``htmx_fragment`` in the context, true only when the partial is being rendered on its own. Templates branch on that flag rather than on ``request.htmx`` directly, which keeps the two apart: a template that reads the request varies by the header on *every* page that includes it, and ``base.html`` is included by all of them, so pages whose view sends no ``Vary`` would start varying silently.
 
 The user profile pages show the pattern: the "My Info" button loads the edit form into the profile card with ``hx-get``/``hx-target``/``hx-push-url``, the form posts with ``hx-post``, and after the redirect the profile card is swapped back. The same links and form work as plain full-page navigation when JavaScript is off.
 
@@ -81,7 +83,7 @@ The user profile pages show the pattern: the "My Info" button loads the edit for
 Messages
 ~~~~~~~~
 
-``base.html`` renders Django's messages inside ``<div id="messages">`` from a partial named ``messages``. Fragments include the same partial with ``{% include "base.html#messages" %}`` when ``request.htmx`` is set, and it is then marked with ``hx-swap-oob="true"``, so messages added during an htmx request (for example the "Information successfully updated" notice) are swapped into the page out-of-band.
+``base.html`` renders Django's messages inside ``<div id="messages">`` from a partial named ``messages``. Fragments include the same partial with ``{% include "base.html#messages" %}`` when ``htmx_fragment`` is set, and it is then marked with ``hx-swap-oob="true"``, so messages added during an htmx request (for example the "Information successfully updated" notice) are swapped into the page out-of-band. Because both the include and the attribute hang off that one flag, a full page renders exactly one messages container and never marks it for an out-of-band swap.
 
 Expired sessions
 ~~~~~~~~~~~~~~~~
@@ -95,7 +97,7 @@ Every response carries a nonce-based `Content Security Policy`_ from Django's ``
 
 Rules for templates:
 
-- Load scripts and styles from static files. There is no ``'unsafe-inline'``, so an inline ``<style>`` block, a ``style="..."`` attribute or an ``onclick="..."`` handler is blocked. The template's test suite checks generated templates for such code.
+- Load scripts and styles from static files. There is no ``'unsafe-inline'``, so an inline ``<style>`` block, a ``style="..."`` attribute or an ``onclick="..."`` handler is blocked. ``style-src`` carries no nonce either, so a nonce does not rescue an inline style the way it does an inline script. The template's test suite checks generated templates for such code.
 - The rare inline ``<script>`` needs ``nonce="{{ csp_nonce }}"``; the ``csp_nonce`` variable comes from the ``django.template.context_processors.csp`` context processor, and ``{% htmx_script %}`` adds it to the htmx tag on its own.
 - htmx is configured through the ``htmx-config`` meta tag in ``base.html`` with ``allowEval: false``, ``allowScriptTags: false`` and ``includeIndicatorStyles: false``. That disables ``hx-on*`` attributes, ``js:`` prefixes in ``hx-vals``/``hx-headers`` and event filters such as ``click[ctrlKey]``; put such logic in ``static/js/project.js`` instead. The ``.htmx-indicator`` rules that htmx would otherwise inject live in ``static/css/project.css``.
 - Never cache a full page that renders the nonce: a cached nonce is no nonce. ``HtmxTemplateMixin`` only sets ``Vary`` headers and caches nothing.

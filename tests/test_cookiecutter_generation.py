@@ -22,10 +22,10 @@ PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
 # <script src="http(s)://..."> or <link href="http(s)://...">
 RE_REMOTE_ASSET = re.compile(r"<(?:script|link)\b[^>]*\b(?:src|href)=[\"']https?://", re.IGNORECASE)
-# Inline code the nonce-based Content Security Policy would block: <script> without src or nonce,
-# <style> without nonce, style="..." attributes and on*="..." handlers
+# Inline code the Content Security Policy would block: <script> without src or nonce,
+# any <style> block (style-src allows no nonce), style="..." attributes, on*="..." handlers
 RE_INLINE_CODE = re.compile(
-    r"<script\b(?![^>]*\b(?:src|nonce)=)[^>]*>|<style\b(?![^>]*\bnonce=)|\sstyle=[\"']|\son[a-z]+=[\"']",
+    r"<script\b(?![^>]*\b(?:src|nonce)=)[^>]*>|<style\b|\sstyle=[\"']|\son[a-z]+=[\"']",
     re.IGNORECASE,
 )
 
@@ -672,6 +672,15 @@ def test_template_partials(cookies, context):
     views = (result.project_path / context["project_slug"] / "users" / "views.py").read_text()
     assert 'htmx_partial = "profile"' in views
     assert "htmx_template_name" not in views
+
+    # Templates branch on the mixin's context flag, never on the request header: a template
+    # that reads the request makes every page including it vary by HX-Request.
+    offenders = [
+        path
+        for path in build_files_list(result.project_path / context["project_slug"] / "templates")
+        if path.suffix == ".html" and "request.htmx" in path.read_text()
+    ]
+    assert offenders == []
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])

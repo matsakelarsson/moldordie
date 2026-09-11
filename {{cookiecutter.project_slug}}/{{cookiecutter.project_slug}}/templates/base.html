@@ -48,9 +48,10 @@
       {% include "partials/navigation.html" %}
     </header>
     <main class="container">
-      {# Rendered on every page; htmx fragments include "base.html#messages" so new messages are swapped out-of-band #}
+      {# Rendered on every page. Fragments include "base.html#messages" so new messages #}
+      {# are swapped out-of-band; htmx_fragment comes from HtmxTemplateMixin. #}
       {% partialdef messages inline %}
-        <div id="messages"{% if request.htmx and not request.htmx.boosted %} hx-swap-oob="true"{% endif %}>
+        <div id="messages"{% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
           {% for message in messages %}
             <article role="alert" class="message message-{{ message.level_tag }}">
               <span>{{ message }}</span>
