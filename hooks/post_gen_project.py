@@ -378,7 +378,7 @@ def setup_dependencies():
     if "{{ cookiecutter.use_docker }}".lower() == "y":
         # Build a trimmed down Docker image add dependencies with uv
         uv_docker_image_path = Path("compose/local/uv/Dockerfile")
-        uv_image_tag = "cookiecutter-django-uv-runner:latest"
+        uv_image_tag = "moldordie-uv-runner:latest"
         try:
             subprocess.run(  # noqa: S603
                 [  # noqa: S607

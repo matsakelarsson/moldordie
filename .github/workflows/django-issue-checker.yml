@@ -4,15 +4,14 @@
 name: Django Issue Checker
 
 on:
-  schedule:
-    - cron: "28 5 * * *"
-  # Manual trigger
+  # Manual trigger only. Enable the schedule once the fork wants a daily
+  # Django-compatibility issue opened in its own tracker.
   workflow_dispatch:
 
 jobs:
   issue-checker:
     # Disables this workflow from running in a repository that is not part of the indicated organization/user
-    if: github.repository_owner == 'cookiecutter'
+    if: github.repository_owner == 'matsakelarsson'
 
     runs-on: ubuntu-latest
     steps:

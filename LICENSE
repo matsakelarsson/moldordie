@@ -1,5 +1,11 @@
 Copyright (c) 2013-2020, Daniel Roy Greenfeld
+Copyright (c) 2026, Mats Larsson
 All rights reserved.
+
+moldordie is a fork of cookiecutter-django. The first notice above covers the
+code inherited from that project and is retained as the license requires; the
+second covers the changes made in this fork. Both are offered under the same
+terms.
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:

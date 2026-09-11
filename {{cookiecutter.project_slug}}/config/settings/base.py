@@ -308,7 +308,7 @@ ADMIN_URL = "admin/"
 ADMINS = ['"{{cookiecutter.author_name}}" <{{cookiecutter.email}}>']
 # https://docs.djangoproject.com/en/dev/ref/settings/#managers
 MANAGERS = ADMINS
-# https://cookiecutter-django.readthedocs.io/en/latest/settings.html#other-environment-settings
+# https://github.com/matsakelarsson/moldordie/blob/main/docs/1-getting-started/settings.rst
 # Force the `admin` sign in process to go through the `django-allauth` workflow
 DJANGO_ADMIN_FORCE_ALLAUTH = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=False)
 

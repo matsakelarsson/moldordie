@@ -2,7 +2,7 @@
 
 {{ cookiecutter.description }}
 
-[![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
+[![Built with moldordie](https://img.shields.io/badge/built%20with-moldordie-ff69b4.svg?logo=cookiecutter)](https://github.com/matsakelarsson/moldordie/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 {%- if cookiecutter.open_source_license != "Not open source" %}
@@ -12,7 +12,7 @@ License: {{cookiecutter.open_source_license}}
 
 ## Settings
 
-Moved to [settings](https://cookiecutter-django.readthedocs.io/en/latest/1-getting-started/settings.html).
+Moved to [settings](https://github.com/matsakelarsson/moldordie/blob/main/docs/1-getting-started/settings.rst).
 
 ## Basic Commands
 
@@ -59,7 +59,7 @@ There is no Node.js toolchain: htmx ships with django-htmx and Pico CSS is vendo
 `{{cookiecutter.project_slug}}/static/vendor/pico/` together with its version, licence and SHA-256
 metadata. htmx fragments are Django template partials, and every response carries a nonce-based
 Content Security Policy, so templates must not contain inline scripts or styles. See the
-[frontend guide](https://cookiecutter-django.readthedocs.io/en/latest/4-guides/frontend.html).
+[frontend guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/frontend.rst).
 
 ### Background tasks
 
@@ -77,7 +77,7 @@ production they are stored in PostgreSQL by django-tasks-db and executed by a wo
     uv run python manage.py db_worker
 {%- endif %}
 
-See the [tasks guide](https://cookiecutter-django.readthedocs.io/en/latest/4-guides/tasks.html).
+See the [tasks guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/tasks.rst).
 
 {%- if cookiecutter.use_celery == "y" %}
 
@@ -118,7 +118,7 @@ uv run celery -A config.celery_app worker -B -l info
 In development, it is often nice to be able to see emails that are being sent from your application. For that reason local SMTP server [Mailpit](https://github.com/axllent/mailpit) with a web interface is available as docker container.
 
 Container mailpit will start automatically when you will run all docker containers.
-Please check [cookiecutter-django Docker documentation](https://cookiecutter-django.readthedocs.io/en/latest/2-local-development/developing-locally-docker.html) for more details how to start all containers.
+Please check [moldordie Docker documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/2-local-development/developing-locally-docker.rst) for more details how to start all containers.
 
 With Mailpit running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:8025`
 {%- else %}
@@ -153,7 +153,7 @@ Now you have your own mail server running locally, ready to receive whatever you
 In development, it is often nice to be able to see emails that are being sent from your application. For that reason local SMTP server [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) with a web interface is available as docker container.
 
 Container mailtrap-local will start automatically when you will run all docker containers.
-Please check [cookiecutter-django Docker documentation](https://cookiecutter-django.readthedocs.io/en/latest/2-local-development/developing-locally-docker.html) for more details how to start all containers.
+Please check [moldordie Docker documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/2-local-development/developing-locally-docker.rst) for more details how to start all containers.
 
 With Mailtrap Local running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:3550`
 {%- else %}
@@ -183,7 +183,7 @@ Now you have your own mail server running locally, ready to receive whatever you
 
 ### Sentry
 
-Sentry is an error logging aggregator service. You can sign up for a free account at <https://sentry.io/signup/?code=cookiecutter> or download and host it yourself.
+Sentry is an error logging aggregator service. You can sign up for a free account at <https://sentry.io/signup/> or download and host it yourself.
 The system is set up with reasonable defaults, including 404 logging and integration with the ASGI application.
 
 You must set the DSN url in production.
@@ -196,14 +196,14 @@ The following details how to deploy this application.
 
 ### Heroku
 
-See detailed [cookiecutter-django Heroku documentation](https://cookiecutter-django.readthedocs.io/en/latest/3-deployment/deployment-on-heroku.html).
+See detailed [moldordie Heroku documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/3-deployment/deployment-on-heroku.rst).
 
 {%- endif %}
 {%- if cookiecutter.use_docker.lower() == "y" %}
 
 ### Docker
 
-See detailed [cookiecutter-django Docker documentation](https://cookiecutter-django.readthedocs.io/en/latest/3-deployment/deployment-with-docker.html).
+See detailed [moldordie Docker documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/3-deployment/deployment-with-docker.rst).
 
 {%- endif %}
 
