@@ -1,6 +1,6 @@
-Generate a new cookiecutter-django project: ::
+Generate a new moldordie project: ::
 
-    $ cookiecutter gh:cookiecutter/cookiecutter-django
+    $ cookiecutter gh:matsakelarsson/moldordie
 
 For more information refer to
 :ref:`Project Generation Options <template-options>`.
