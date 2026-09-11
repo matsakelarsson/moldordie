@@ -87,6 +87,7 @@ The generated Django project uses:
 
 - `config/settings/{base,local,test,production}.py` — Split settings with django-environ
 - `config/urls.py` — URL routing
+- `config/asgi.py` — ASGI entry point served by Uvicorn (Gunicorn + Uvicorn worker in production); with `realtime=channels` it also routes websockets to `config/websocket.py`
 - `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth)
 - `compose/` — Docker configs for local and production
 - `requirements/` — Not used; dependencies managed via `pyproject.toml` + `uv.lock`

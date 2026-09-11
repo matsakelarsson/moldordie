@@ -102,8 +102,12 @@ rest_api:
     2. `Django Rest Framework`_
     3. `Django Ninja`_
 
-use_async:
-    Indicates whether the project should use web sockets with Uvicorn + Gunicorn.
+realtime:
+    Select the realtime layer. Every project is served through ASGI with Uvicorn, so this only
+    decides whether websocket support is included. The choices are:
+
+    1. none
+    2. `Django Channels`_, with the in-memory channel layer in development and Redis in production
 
 use_celery:
     Indicates whether the project should be configured to use Celery_.
@@ -192,3 +196,4 @@ debug:
 .. _Drone CI: https://docs.drone.io/pipeline/overview/
 
 .. _Github Actions: https://docs.github.com/en/actions
+.. _Django Channels: https://channels.readthedocs.io/

@@ -8,12 +8,9 @@ https://docs.djangoproject.com/en/dev/howto/deployment/asgi/
 
 """
 
-from __future__ import annotations
-
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from django.core.asgi import get_asgi_application
 
@@ -24,24 +21,33 @@ sys.path.append(str(BASE_DIR / "{{ cookiecutter.project_slug }}"))
 
 # If DJANGO_SETTINGS_MODULE is unset, default to the local settings
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
+{%- if cookiecutter.realtime == 'channels' %}
+
+# Build the Django application first so that the apps are loaded before the
+# websocket routing, which imports consumers and therefore models, is imported.
+django_asgi_app = get_asgi_application()
+
+from channels.auth import AuthMiddlewareStack  # noqa: E402
+from channels.routing import ProtocolTypeRouter  # noqa: E402
+from channels.routing import URLRouter  # noqa: E402
+from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
+
+from config.websocket import websocket_urlpatterns  # noqa: E402
+
+# types-channels only accepts its own URL pattern type here, hence the ignore.
+websocket_application = AllowedHostsOriginValidator(
+    AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),  # type: ignore[arg-type]
+)
 
 # This application object is used by any ASGI server configured to use this file.
-django_application = get_asgi_application()
+application = ProtocolTypeRouter(
+    {
+        "http": django_asgi_app,
+        "websocket": websocket_application,
+    },
+)
+{%- else %}
 
-# Import websocket application here, so apps from django_application are loaded first
-from config.websocket import websocket_application  # noqa: E402
-
-if TYPE_CHECKING:
-    from config.websocket import ASGIReceive
-    from config.websocket import ASGIScope
-    from config.websocket import ASGISend
-
-
-async def application(scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
-    if scope["type"] == "http":
-        await django_application(scope, receive, send)
-    elif scope["type"] == "websocket":
-        await websocket_application(scope, receive, send)
-    else:
-        msg = f"Unknown scope type {scope['type']}"
-        raise NotImplementedError(msg)
+# This application object is used by any ASGI server configured to use this file.
+application = get_asgi_application()
+{%- endif %}

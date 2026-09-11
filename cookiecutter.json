@@ -32,7 +32,7 @@
     "Other SMTP"
   ],
   "rest_api": ["None", "DRF", "Django Ninja"],
-  "use_async": "n",
+  "realtime": ["none", "channels"],
   "use_celery": "n",
   "mail_catcher": ["None", "Mailpit", "Mailtrap Local"],
   "use_sentry": "n",

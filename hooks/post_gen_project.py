@@ -98,13 +98,13 @@ def remove_celery_files():
         file_path.unlink()
 
 
-def remove_async_files():
-    file_paths = [
-        Path("config", "asgi.py"),
-        Path("config", "websocket.py"),
-    ]
-    for file_path in file_paths:
-        file_path.unlink()
+def remove_channels_files():
+    Path("config", "websocket.py").unlink()
+    tests_path = Path("{{ cookiecutter.project_slug }}", "tests")
+    (tests_path / "test_websocket.py").unlink()
+    # Keep the package when it holds tests that are not tied to Channels.
+    if all(path.name == "__init__.py" for path in tests_path.iterdir()):
+        shutil.rmtree(tests_path)
 
 
 def remove_dottravisyml_file():
@@ -369,8 +369,8 @@ def main():  # noqa: C901, PLR0912, PLR0915
     else:
         remove_rest_api_files()
 
-    if "{{ cookiecutter.use_async }}".lower() == "n":
-        remove_async_files()
+    if "{{ cookiecutter.realtime }}" != "channels":
+        remove_channels_files()
 
     setup_dependencies()
 

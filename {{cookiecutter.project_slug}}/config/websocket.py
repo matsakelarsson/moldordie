@@ -1,33 +1,22 @@
-from __future__ import annotations
+"""Websocket routing and consumers for {{ cookiecutter.project_name }}."""
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import Awaitable
-    from collections.abc import Callable
-    from collections.abc import Mapping
-    from typing import Any
-
-# The loose ASGI shapes Django's own handler accepts.
-type ASGIScope = dict[str, Any]
-type ASGIReceive = Callable[[], Awaitable[Mapping[str, Any]]]
-type ASGISend = Callable[[Mapping[str, Any]], Awaitable[None]]
+from channels.generic.websocket import AsyncWebsocketConsumer
+from django.urls import path
 
 
-async def websocket_application(
-    scope: ASGIScope,
-    receive: ASGIReceive,
-    send: ASGISend,
-) -> None:
-    while True:
-        event = await receive()
+class PingConsumer(AsyncWebsocketConsumer):
+    """Answer every ``ping`` text frame with ``pong!``."""
 
-        if event["type"] == "websocket.connect":
-            await send({"type": "websocket.accept"})
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+    ) -> None:
+        if text_data == "ping":
+            await self.send(text_data="pong!")
 
-        if event["type"] == "websocket.disconnect":
-            break
 
-        if event["type"] == "websocket.receive":
-            if event["text"] == "ping":
-                await send({"type": "websocket.send", "text": "pong!"})
+# django-stubs types ``path`` for HTTP views, so consumers need the ignore below.
+websocket_urlpatterns = [
+    path("ws/ping/", PingConsumer.as_asgi()),  # type: ignore[arg-type]
+]
