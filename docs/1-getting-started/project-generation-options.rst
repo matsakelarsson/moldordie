@@ -110,7 +110,7 @@ realtime:
     2. `Django Channels`_, with the in-memory channel layer in development and Redis in production
 
 use_celery:
-    Indicates whether the project should be configured to use Celery_.
+    Indicates whether the project should be configured to use Celery_. Every project includes Django's built-in Tasks framework for background work (see :ref:`tasks`); Celery adds a broker, the beat scheduler and Flower for workloads that need scheduling, retries or a distributed queue.
 
 mail_catcher:
     Select a local email catcher to receive emails during development. The choices are:

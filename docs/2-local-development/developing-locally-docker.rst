@@ -238,6 +238,14 @@ When developing locally you can go with `Mailtrap Local`_ for email testing prov
 
 .. _Mailtrap Local: https://github.com/mailtrap/mailtrap-local/
 
+Background tasks in local development
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Tasks of Django's Tasks framework run inline in local development (the ``ImmediateBackend`` in ``config/settings/local.py``), so no extra container is needed. To try the production queue, switch the backend to ``django_tasks_db.DatabaseBackend`` and run a worker::
+
+    docker compose -f docker-compose.local.yml run --rm django python manage.py db_worker
+
+See :ref:`tasks`.
+
 .. _`CeleryTasks`:
 
 Celery tasks in local development

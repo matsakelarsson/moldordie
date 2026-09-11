@@ -11,7 +11,7 @@ volumes:
 
 
 services:
-  django:{% if cookiecutter.use_celery == 'y' %} &django{% endif %}
+  django: &django
     build:
       context: .
       dockerfile: ./compose/production/django/Dockerfile
@@ -66,6 +66,11 @@ services:
     volumes:
       - production_redis_data:/data
     {% endif %}
+
+  taskworker:
+    <<: *django
+    image: {{ cookiecutter.project_slug }}_production_taskworker
+    command: /start-taskworker
 
 
   {%- if cookiecutter.use_celery == 'y' %}

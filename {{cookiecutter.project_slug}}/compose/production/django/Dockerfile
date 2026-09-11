@@ -62,6 +62,11 @@ RUN sed -i 's/\r$//g' /start
 RUN chmod +x /start
 
 
+COPY --chown=django:django ./compose/production/django/tasks/worker/start /start-taskworker
+RUN sed -i 's/\r$//g' /start-taskworker
+RUN chmod +x /start-taskworker
+
+
 {%- if cookiecutter.use_celery == "y" %}
 COPY --chown=django:django ./compose/production/django/celery/worker/start /start-celeryworker
 RUN sed -i 's/\r$//g' /start-celeryworker

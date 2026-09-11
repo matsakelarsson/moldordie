@@ -21,6 +21,7 @@ from .base import *  # noqa: F403
 from .base import DATABASES
 from .base import INSTALLED_APPS
 from .base import REDIS_URL
+from .base import SECURE_CSP
 {%- if cookiecutter.rest_api == 'DRF' %}
 from .base import SPECTACULAR_SETTINGS
 {%- endif %}
@@ -51,6 +52,16 @@ CACHES = {
         },
     },
 }
+
+# TASKS
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#tasks
+# https://github.com/RealOrangeOne/django-tasks-db
+# Tasks are stored in PostgreSQL and run by ``python manage.py db_worker``, the
+# ``taskworker`` Compose service / Heroku process type. With ATOMIC_REQUESTS the task
+# row is committed together with the request, so a worker never sees a task whose
+# data was rolled back.
+TASKS = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}
 {% if cookiecutter.realtime == 'channels' %}
 # CHANNELS
 # ------------------------------------------------------------------------------
@@ -92,6 +103,20 @@ SECURE_CONTENT_TYPE_NOSNIFF = env.bool(
     "DJANGO_SECURE_CONTENT_TYPE_NOSNIFF",
     default=True,
 )
+# https://docs.djangoproject.com/en/dev/ref/csp/
+{%- if cookiecutter.realtime == 'channels' %}
+# 'self' does not cover websocket schemes in every browser
+SECURE_CSP["connect-src"] = [*SECURE_CSP["connect-src"], "wss:"]
+{%- endif %}
+# Browsers POST violation reports to this URL (Sentry and most CSP services provide one)
+CSP_REPORT_URI = env("DJANGO_CSP_REPORT_URI", default=None)
+if CSP_REPORT_URI:
+    SECURE_CSP["report-uri"] = [CSP_REPORT_URI]
+# https://docs.djangoproject.com/en/dev/ref/settings/#secure-csp-report-only
+# Roll the policy out safely: report violations without blocking anything
+if env.bool("DJANGO_CSP_REPORT_ONLY", default=False):
+    SECURE_CSP_REPORT_ONLY = SECURE_CSP
+    SECURE_CSP = {}
 
 {% if cookiecutter.cloud_provider == 'AWS' %}
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings

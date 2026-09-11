@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from hooks.post_gen_project import append_to_gitignore_file
+from hooks.post_gen_project import remove_celery_files
 from hooks.post_gen_project import remove_channels_files
 
 
@@ -53,3 +54,23 @@ def test_remove_channels_files_keeps_other_tests(channels_files):
     assert not (channels_files / "test_websocket.py").exists()
     assert other_test.exists()
     assert (channels_files / "__init__.py").exists()
+
+
+@pytest.fixture
+def celery_files(working_directory):
+    """The Celery entry point next to the tasks example that every project keeps."""
+    (working_directory / "config").mkdir()
+    (working_directory / "config" / "celery_app.py").touch()
+    users_path = working_directory / "{{ cookiecutter.project_slug }}" / "users"
+    (users_path / "tests").mkdir(parents=True)
+    (users_path / "tasks.py").touch()
+    (users_path / "tests" / "test_tasks.py").touch()
+    return working_directory
+
+
+def test_remove_celery_files_keeps_the_tasks_example(celery_files):
+    remove_celery_files()
+    assert not (celery_files / "config" / "celery_app.py").exists()
+    users_path = celery_files / "{{ cookiecutter.project_slug }}" / "users"
+    assert (users_path / "tasks.py").exists()
+    assert (users_path / "tests" / "test_tasks.py").exists()

@@ -1,6 +1,6 @@
 /* Project-specific styles. Pico CSS (static/vendor/pico/) provides the base styling. */
 
-/* Django messages, rendered by templates/partials/messages.html */
+/* Django messages, rendered by the "messages" partial in templates/base.html */
 .message {
   display: flex;
   align-items: center;
@@ -66,7 +66,7 @@
   color: var(--pico-primary-inverse);
 }
 
-/* htmx request indicator: https://htmx.org/attributes/hx-indicator/ */
+/* htmx request indicator: https://htmx.org/attributes/hx-indicator/ (htmx does not inject its own styles, see the htmx-config meta tag in base.html) */
 .htmx-indicator {
   opacity: 0;
   transition: opacity 200ms ease-in;

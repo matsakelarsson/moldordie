@@ -4,11 +4,11 @@ import json
 import os
 import re
 import sys
+import tomllib
 from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
-import tomllib
 
 try:
     import sh
@@ -22,6 +22,12 @@ PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
 # <script src="http(s)://..."> or <link href="http(s)://...">
 RE_REMOTE_ASSET = re.compile(r"<(?:script|link)\b[^>]*\b(?:src|href)=[\"']https?://", re.IGNORECASE)
+# Inline code the nonce-based Content Security Policy would block: <script> without src or nonce,
+# <style> without nonce, style="..." attributes and on*="..." handlers
+RE_INLINE_CODE = re.compile(
+    r"<script\b(?![^>]*\b(?:src|nonce)=)[^>]*>|<style\b(?![^>]*\bnonce=)|\sstyle=[\"']|\son[a-z]+=[\"']",
+    re.IGNORECASE,
+)
 
 # Paths that must never be generated any more (Node.js / asset pipeline leftovers)
 FRONTEND_TOOLCHAIN_PATHS = [
@@ -257,7 +263,7 @@ def test_django_upgrade_passes(cookies, context_override):
     try:
         sh.django_upgrade(
             "--target-version",
-            "5.0",
+            "6.0",
             *python_files,
             _cwd=str(result.project_path),
         )
@@ -487,6 +493,10 @@ def test_pyproject_toml(cookies, context):
     assert data["project"]["authors"][0]["email"] == author_email
     assert data["project"]["authors"][0]["name"] == author_name
     assert data["project"]["name"] == context["project_slug"]
+    assert data["project"]["requires-python"] == ">=3.12"
+    assert "Programming Language :: Python :: 3.12" in data["project"]["classifiers"]
+    assert "Programming Language :: Python :: 3.14" in data["project"]["classifiers"]
+    assert data["tool"]["mypy"]["python_version"] == "3.12"
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
@@ -541,6 +551,9 @@ def test_asgi_entrypoint(cookies, context, realtime):
     assert "uvicorn-worker" in pyproject
     assert ("channels-redis" in pyproject) is uses_channels
     assert ("types-channels" in pyproject) is uses_channels
+    base_html = (result.project_path / context["project_slug"] / "templates" / "base.html").read_text()
+    assert ('{% htmx_script extensions="hx-ws" %}' in base_html) is uses_channels
+    assert ("{% htmx_script %}" in base_html) is not uses_channels
 
 
 @pytest.mark.parametrize("realtime", ["none", "channels"])
@@ -558,6 +571,7 @@ def test_docker_serves_asgi(cookies, context, realtime):
 
     compose = yaml.safe_load((result.project_path / "docker-compose.local.yml").read_text())
     assert "redis" not in compose["services"]
+    assert "taskworker" not in compose["services"]
 
 
 def test_pre_commit_without_heroku(cookies, context):
@@ -624,3 +638,110 @@ def test_vendored_pico_intact(cookies, context):
     assert hashlib.sha256(css).hexdigest() == metadata["sha256"]
     assert f"v{metadata['version']}".encode() in css[:300]
     assert (vendor_dir / "LICENSE.md").read_text().startswith("MIT License")
+
+
+def test_no_inline_code_in_templates(cookies, context):
+    """Templates contain no inline scripts, styles or event handlers, which the CSP would block."""
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    offenders = []
+    for path in build_files_list(result.project_path):
+        if path.suffix != ".html":
+            continue
+        match = RE_INLINE_CODE.search(path.read_text())
+        if match:
+            offenders.append(f"{path}: {match.group(0)}")
+    assert offenders == []
+
+
+def test_template_partials(cookies, context):
+    """htmx fragments are Django template partials selected by HtmxTemplateMixin."""
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    templates = result.project_path / context["project_slug"] / "templates"
+    assert not (templates / "users" / "partials").exists()
+    assert not (templates / "partials" / "messages.html").exists()
+    assert "{% partialdef messages inline %}" in (templates / "base.html").read_text()
+    for name in ("user_detail.html", "user_form.html"):
+        template = (templates / "users" / name).read_text()
+        assert "{% partialdef profile inline %}" in template
+        assert '{% include "base.html#messages" %}' in template
+
+    views = (result.project_path / context["project_slug"] / "users" / "views.py").read_text()
+    assert 'htmx_partial = "profile"' in views
+    assert "htmx_template_name" not in views
+
+
+@pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
+@pytest.mark.parametrize("realtime", ["none", "channels"])
+def test_content_security_policy(cookies, context, realtime, rest_api):
+    """Every project sends a nonce-based CSP; the websocket and API docs exceptions follow the options."""
+    context.update({"realtime": realtime, "rest_api": rest_api})
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    settings_dir = result.project_path / "config" / "settings"
+    base_settings = (settings_dir / "base.py").read_text()
+    assert '"django.middleware.csp.ContentSecurityPolicyMiddleware",' in base_settings
+    assert '"django.template.context_processors.csp",' in base_settings
+    assert "SECURE_CSP: dict[str, list[str]] = {" in base_settings
+    assert "UNSAFE_INLINE" not in base_settings
+    assert "UNSAFE_EVAL" not in base_settings
+    assert f'"{context["project_slug"]}.htmx.HtmxLoginRedirectMiddleware",' in base_settings
+    assert ('"ninja",' in base_settings) is (rest_api == "Django Ninja")
+
+    uses_channels = realtime == "channels"
+    assert ('"ws:"' in (settings_dir / "local.py").read_text()) is uses_channels
+    production_settings = (settings_dir / "production.py").read_text()
+    assert ('"wss:"' in production_settings) is uses_channels
+    assert 'env("DJANGO_CSP_REPORT_URI", default=None)' in production_settings
+    assert "DJANGO_CSP_REPORT_URI" in (result.project_path / ".envs" / ".production" / ".django").read_text()
+
+    urls = (result.project_path / "config" / "urls.py").read_text()
+    assert ("csp_override({})" in urls) is (rest_api == "DRF")
+
+    base_html = (result.project_path / context["project_slug"] / "templates" / "base.html").read_text()
+    assert '<meta name="htmx-config"' in base_html
+    assert '"allowEval": false' in base_html
+    assert '"includeIndicatorStyles": false' in base_html
+
+
+@pytest.mark.parametrize("use_celery", ["n", "y"])
+def test_tasks_framework(cookies, context, use_celery):
+    """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
+    context.update({"use_celery": use_celery, "use_docker": "y", "use_heroku": "y"})
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    celery = use_celery == "y"
+    assert "django-tasks-db==" in (result.project_path / "pyproject.toml").read_text()
+    settings_dir = result.project_path / "config" / "settings"
+    assert '"django_tasks_db",' in (settings_dir / "base.py").read_text()
+    immediate = 'TASKS = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}'
+    assert immediate in (settings_dir / "local.py").read_text()
+    assert immediate in (settings_dir / "test.py").read_text()
+    database = 'TASKS = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}'
+    assert database in (settings_dir / "production.py").read_text()
+
+    users = result.project_path / context["project_slug"] / "users"
+    tasks = (users / "tasks.py").read_text()
+    assert "from django.tasks import task" in tasks
+    assert ("shared_task" in tasks) is celery
+    tests = (users / "tests" / "test_tasks.py").read_text()
+    assert "TaskResultStatus.SUCCESSFUL" in tests
+    assert ("EagerResult" in tests) is celery
+    assert (result.project_path / "config" / "celery_app.py").exists() is celery
+
+    production_compose = yaml.safe_load((result.project_path / "docker-compose.production.yml").read_text())
+    assert production_compose["services"]["taskworker"]["command"] == "/start-taskworker"
+    assert ("celeryworker" in production_compose["services"]) is celery
+    local_compose = yaml.safe_load((result.project_path / "docker-compose.local.yml").read_text())
+    assert "taskworker" not in local_compose["services"]
+    django_compose = result.project_path / "compose" / "production" / "django"
+    assert "db_worker" in (django_compose / "tasks" / "worker" / "start").read_text()
+    assert "/start-taskworker" in (django_compose / "Dockerfile").read_text()
+    procfile = (result.project_path / "Procfile").read_text()
+    assert "taskworker: python manage.py db_worker" in procfile
+    assert ("REMAP_SIGTERM" in procfile) is celery

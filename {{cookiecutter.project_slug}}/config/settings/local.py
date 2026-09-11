@@ -1,6 +1,9 @@
 from .base import *  # noqa: F403
 from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
+{%- if cookiecutter.realtime == 'channels' %}
+from .base import SECURE_CSP
+{%- endif %}
 from .base import env
 
 # GENERAL
@@ -24,6 +27,14 @@ CACHES = {
         "LOCATION": "",
     },
 }
+
+# TASKS
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#tasks
+# Tasks run inline, in the request that enqueues them, so no worker is needed while
+# developing. Switch BACKEND to "django_tasks_db.DatabaseBackend" and run
+# ``python manage.py db_worker`` to try the production queue.
+TASKS = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
 {% if cookiecutter.realtime == 'channels' %}
 # CHANNELS
 # ------------------------------------------------------------------------------
@@ -31,6 +42,9 @@ CACHES = {
 # The in-memory layer is enough for the single development process. Switch to the
 # Redis layer from production.py to try messaging across several processes.
 CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+# https://docs.djangoproject.com/en/dev/ref/csp/
+# 'self' does not cover websocket schemes in every browser
+SECURE_CSP["connect-src"] = [*SECURE_CSP["connect-src"], "ws:"]
 {% endif %}
 # EMAIL
 # ------------------------------------------------------------------------------

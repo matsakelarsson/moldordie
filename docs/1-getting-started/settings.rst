@@ -24,6 +24,8 @@ DJANGO_DEBUG                            DEBUG                       True        
 DJANGO_SECRET_KEY                       SECRET_KEY                  auto-generated                                 raises error
 DJANGO_SECURE_SSL_REDIRECT              SECURE_SSL_REDIRECT         n/a                                            True
 DJANGO_SECURE_CONTENT_TYPE_NOSNIFF      SECURE_CONTENT_TYPE_NOSNIFF n/a                                            True
+DJANGO_CSP_REPORT_URI                   SECURE_CSP["report-uri"]    n/a                                            None
+DJANGO_CSP_REPORT_ONLY                  SECURE_CSP_REPORT_ONLY      n/a                                            False (the policy is enforced)
 DJANGO_SECURE_FRAME_DENY                SECURE_FRAME_DENY           n/a                                            True
 DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS   HSTS_INCLUDE_SUBDOMAINS     n/a                                            True
 DJANGO_SESSION_COOKIE_HTTPONLY          SESSION_COOKIE_HTTPONLY     n/a                                            True

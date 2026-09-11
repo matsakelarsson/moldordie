@@ -9,7 +9,7 @@ Setting Up Development Environment
 
 Make sure to have the following on your host:
 
-* uv https://docs.astral.sh/uv/getting-started/installation/
+* uv https://docs.astral.sh/uv/getting-started/installation/ (it installs the Python version from ``.python-version``; the project supports Python 3.12 to 3.14)
 * PostgreSQL_.
 * Redis_, if using Celery
 * Cookiecutter_
@@ -208,6 +208,15 @@ In production, we have Mailgun_ configured to have your back!
 .. _Mailgun: https://www.mailgun.com/
 
 
+Background tasks
+----------------
+
+Tasks defined with Django's Tasks framework run inline while developing: ``config/settings/local.py`` configures the ``ImmediateBackend``, so ``enqueue()`` executes the task before it returns and no worker process is needed. To exercise the production queue instead, switch the backend to ``django_tasks_db.DatabaseBackend`` and start a worker in another terminal::
+
+    uv run python manage.py db_worker
+
+The example task lives in ``<project_slug>/users/tasks.py``; see :ref:`tasks` for the full picture.
+
 Celery
 ------
 
@@ -229,8 +238,8 @@ so that it can pick up any tasks that get queued. Learn more from the `Celery Wo
 The project comes with a simple task for manual testing purposes, inside `<project_slug>/users/tasks.py`. To queue that task locally, start the Django shell, import the task, and call `delay()` on it::
 
     uv run python manage.py shell
-    >> from <project_slug>.users.tasks import get_users_count
-    >> get_users_count.delay()
+    >> from <project_slug>.users.tasks import get_users_count_with_celery
+    >> get_users_count_with_celery.delay()
 
 You can also use Django admin to queue up tasks, thanks to the `django-celerybeat`_ package.
 

@@ -34,6 +34,12 @@ TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url
 MEDIA_URL = "http://media.testserver/"
+
+# TASKS
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#tasks
+# Tasks run synchronously inside ``enqueue()``, so tests can assert on the result.
+TASKS = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
 {% if cookiecutter.realtime == 'channels' %}
 # CHANNELS
 # ------------------------------------------------------------------------------
