@@ -14,6 +14,10 @@ cd .cache/bare
 uv run cookiecutter ../../ --no-input --overwrite-if-exists use_docker=n "$@"
 cd my_awesome_project
 
+# Run on the requested interpreter (the project defaults to .python-version)
+if [ -n "${PYTHON_VERSION:-}" ]; then uv python pin "$PYTHON_VERSION"; fi
+uv run python --version
+
 # Install OS deps
 sudo utility/install_os_dependencies.sh install
 

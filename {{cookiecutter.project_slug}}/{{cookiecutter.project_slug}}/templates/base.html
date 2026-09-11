@@ -14,6 +14,12 @@
         content="{% endraw %}{{ cookiecutter.description }}{% raw %}" />
   <meta name="author"
         content="{% endraw %}{{ cookiecutter.author_name }}{% raw %}" />
+  {# htmx under the nonce-based Content Security Policy (SECURE_CSP in config/settings/base.py): no eval, #}
+  {# no script tags from swapped fragments and no injected indicator stylesheet (its rules are in css/project.css) #}
+  {# djlint:off H008 #}
+  <meta name="htmx-config"
+        content='{"allowEval": false, "allowScriptTags": false, "includeIndicatorStyles": false}' />
+  {# djlint:on #}
   <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
   {% block css %}
     {# Pico CSS is vendored in static/vendor/pico/ (version, licence and checksum in pico.json) #}
@@ -24,8 +30,9 @@
   {% endblock css %}
   {# Placed at the top of the document so pages load faster with defer #}
   {% block javascript %}
-    {# htmx, bundled with django-htmx; the django-htmx debug extension is added when DEBUG is on #}
-    {% htmx_script %}
+    {# htmx, bundled with django-htmx and tagged with the CSP nonce; the django-htmx debug extension is added when DEBUG is on #}
+    {% endraw %}{% if cookiecutter.realtime == 'channels' %}{% raw %}{# The hx-ws extension provides hx-ext="ws" for Django Channels, see the realtime guide #}
+    {% htmx_script extensions="hx-ws" %}{% endraw %}{% else %}{% raw %}{% htmx_script %}{% endraw %}{% endif %}{% raw %}
     {# Your stuff: third-party javascript libraries go here #}
     {# Place project specific Javascript in this file #}
     <script defer src="{% static 'js/project.js' %}"></script>
@@ -41,7 +48,21 @@
       {% include "partials/navigation.html" %}
     </header>
     <main class="container">
-      {% include "partials/messages.html" %}
+      {# Rendered on every page. Fragments include "base.html#messages" so new messages #}
+      {# are swapped out-of-band; htmx_fragment comes from HtmxTemplateMixin. #}
+      {% partialdef messages inline %}
+        <div id="messages"{% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
+          {% for message in messages %}
+            <article role="alert" class="message message-{{ message.level_tag }}">
+              <span>{{ message }}</span>
+              <button type="button"
+                      class="secondary outline"
+                      data-dismiss
+                      aria-label="{% translate 'Dismiss' %}">×</button>
+            </article>
+          {% endfor %}
+        </div>
+      {% endpartialdef messages %}
       {% block main %}
         {% block content %}
           <p>Use this document as a way to quick start any new project.</p>
@@ -53,9 +74,9 @@
   {% endblock modal %}
   {% block inline_javascript %}
     {% comment %}
-    Script tags with only code, no src (defer by default). To run
-    with a "defer" so that you run inline code:
-    <script>
+    Script tags with only code, no src (defer by default). Inline scripts must carry
+    the Content Security Policy nonce. To run code once the page is ready:
+    <script nonce="{{ csp_nonce }}">
       window.addEventListener('DOMContentLoaded', () => {
         /* Run whatever you want */
       });

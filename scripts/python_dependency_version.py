@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 TEMPLATED_ROOT = ROOT / "{{cookiecutter.project_slug}}"

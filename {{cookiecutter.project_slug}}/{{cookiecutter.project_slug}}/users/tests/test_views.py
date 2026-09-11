@@ -12,6 +12,7 @@ from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.http import HttpRequest
 from django.http import HttpResponseRedirect
+from django.template.base import PartialTemplate
 from django.test import Client
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -34,7 +35,17 @@ HTMX_HEADERS = {"HX-Request": "true"}
 
 
 def template_names(response) -> list[str]:
-    return [template.name for template in response.templates if template.name]
+    """Names of the rendered templates; partials read as ``"<template>#<partial>"``."""
+    names = []
+    for template in response.templates:
+        if isinstance(template, PartialTemplate):
+            # Loaders record a str name; the stub also allows bytes and None
+            template_name = template.origin.template_name
+            assert isinstance(template_name, str)
+            names.append(f"{template_name}#{template.name}")
+        elif template.name:
+            names.append(template.name)
+    return names
 
 
 class TestUserUpdateView:
@@ -107,7 +118,7 @@ class TestUserUpdateView:
         response = client.get(reverse("users:update"), headers=HTMX_HEADERS)
 
         assert response.status_code == HTTPStatus.OK
-        assert template_names(response)[0] == "users/partials/user_form.html"
+        assert template_names(response)[0] == "users/user_form.html#profile"
         assert "base.html" not in template_names(response)
         assert b"<html" not in response.content
         assert b'id="user-profile"' in response.content
@@ -158,7 +169,8 @@ class TestUserUpdateView:
         )
 
         assert response.redirect_chain == [(user.get_absolute_url(), HTTPStatus.FOUND)]
-        assert template_names(response)[0] == "users/partials/user_detail.html"
+        assert template_names(response)[0] == "users/user_detail.html#profile"
+        assert "base.html#messages" in template_names(response)
         assert b'id="messages" hx-swap-oob="true"' in response.content
         assert str(_("Information successfully updated")).encode() in response.content
 
@@ -217,6 +229,7 @@ class TestUserDetailView:
         assert template_names(response)[0] == "users/user_detail.html"
         assert b"<html" in response.content
         assert b'id="user-profile"' in response.content
+        assert response.content.count(b'id="messages"') == 1
 
     def test_htmx_partial(self, user: User, client: Client):
         client.force_login(user)
@@ -224,8 +237,20 @@ class TestUserDetailView:
         response = client.get(user.get_absolute_url(), headers=HTMX_HEADERS)
 
         assert response.status_code == HTTPStatus.OK
-        assert template_names(response)[0] == "users/partials/user_detail.html"
+        assert template_names(response)[0] == "users/user_detail.html#profile"
         assert "base.html" not in template_names(response)
         assert b"<html" not in response.content
         assert b'id="user-profile"' in response.content
         assert "HX-Request" in response["Vary"]
+
+    def test_boosted_request_gets_the_full_page(self, user: User, client: Client):
+        client.force_login(user)
+
+        headers = {**HTMX_HEADERS, "HX-Boosted": "true"}
+        response = client.get(user.get_absolute_url(), headers=headers)
+
+        assert response.status_code == HTTPStatus.OK
+        assert template_names(response)[0] == "users/user_detail.html"
+        assert b"<html" in response.content
+        assert b"hx-swap-oob" not in response.content
+        assert response.content.count(b'id="messages"') == 1

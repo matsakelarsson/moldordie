@@ -7,9 +7,11 @@ license = { text = "{{ cookiecutter.open_source_license }}" }
 authors = [
   { name = "{{ cookiecutter.author_name }}", email = "{{ cookiecutter.email }}" },
 ]
-requires-python = "==3.14.*"
+requires-python = ">=3.12"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
@@ -26,7 +28,7 @@ dev = [
 # ==== djLint ====
 [tool.djlint]
 blank_line_after_tag = "load,extends"
-custom_blocks = "element,slot"
+custom_blocks = "element,slot,partialdef"
 close_void_tags = true
 format_css = true
 format_js = true
@@ -153,7 +155,8 @@ plugins = [ "django_coverage_plugin" ]
 
 # ==== mypy ====
 [tool.mypy]
-python_version = "3.14"
+# Check against the oldest supported interpreter so newer stdlib APIs are caught early
+python_version = "3.12"
 # Strict mode: every function is annotated and every call is checked.
 strict = true
 warn_unreachable = true

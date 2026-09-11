@@ -40,6 +40,7 @@ moldordie is a fork of `cookiecutter-django`_. Powered by Cookiecutter_, it is a
    4-guides/frontend
    4-guides/testing
    4-guides/document
+   4-guides/tasks
    4-guides/realtime
 
 .. toctree::

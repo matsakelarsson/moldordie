@@ -1,6 +1,6 @@
 /* Project specific Javascript goes here. */
 
-// Dismiss Django messages (templates/partials/messages.html) without reloading the page.
+// Dismiss Django messages (the "messages" partial in templates/base.html) without reloading the page.
 document.addEventListener('click', (event) => {
   const dismiss = event.target.closest('[data-dismiss]');
   if (dismiss) {

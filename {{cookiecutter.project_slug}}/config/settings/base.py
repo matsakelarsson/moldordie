@@ -11,6 +11,7 @@ from typing import Any
 
 import django_stubs_ext
 import environ
+from django.utils.csp import CSP
 
 # Let Django's generic classes be subscripted at runtime, e.g. ``DetailView[User]``.
 django_stubs_ext.monkeypatch()
@@ -99,6 +100,9 @@ THIRD_PARTY_APPS = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
+    # Database backend for Django's Tasks framework;
+    # the backend itself is picked per environment
+    "django_tasks_db",
 {%- if cookiecutter.use_celery == 'y' %}
     "django_celery_beat",
 {%- endif %}
@@ -111,6 +115,9 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "drf_spectacular",
 {%- elif cookiecutter.rest_api == 'Django Ninja' %}
+    # Installed as an app so the API docs serve Swagger UI
+    # from local static files instead of a CDN
+    "ninja",
     "corsheaders",
 {%- endif %}
     "django_htmx",
@@ -173,6 +180,8 @@ MIDDLEWARE = [
 {%- if cookiecutter.use_whitenoise == 'y' %}
     "whitenoise.middleware.WhiteNoiseMiddleware",
 {%- endif %}
+    # https://docs.djangoproject.com/en/dev/ref/middleware/
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -181,6 +190,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     # https://django-htmx.readthedocs.io/en/latest/installation.html
     "django_htmx.middleware.HtmxMiddleware",
+    # Needs request.htmx, so it stays right after HtmxMiddleware
+    "{{ cookiecutter.project_slug }}.htmx.HtmxLoginRedirectMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
 ]
@@ -227,6 +238,9 @@ TEMPLATES = [
                 "django.template.context_processors.media",
                 "django.template.context_processors.static",
                 "django.template.context_processors.tz",
+                # Exposes csp_nonce, which django-htmx and
+                # inline scripts put on their script tags
+                "django.template.context_processors.csp",
                 "django.contrib.messages.context_processors.messages",
                 "{{cookiecutter.project_slug}}.users.context_processors.allauth_settings",
             ],
@@ -251,6 +265,30 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#x-frame-options
 X_FRAME_OPTIONS = "DENY"
+# https://docs.djangoproject.com/en/dev/ref/csp/
+# Nonce-based policy without 'unsafe-inline' or 'unsafe-eval'. Templates load
+# scripts and styles from this origin; the rare inline script needs the
+# csp_nonce template variable in its nonce attribute, and inline styles or
+# on*= handlers are not allowed at all.
+SECURE_CSP: dict[str, list[str]] = {
+    "default-src": [CSP.SELF],
+    # htmx, project.js, admin and allauth scripts come from
+    # this origin; the nonce is for inline code
+    "script-src": [CSP.SELF, CSP.NONCE],
+    # htmx's injected indicator stylesheet is disabled in
+    # base.html; its rules live in css/project.css
+    "style-src": [CSP.SELF],
+    # Pico CSS embeds its icons as SVG data: URIs
+    "img-src": [CSP.SELF, "data:"],
+    "font-src": [CSP.SELF],
+    # htmx requests and websockets go to this origin
+    # (local.py and production.py add ws:/wss: for Channels)
+    "connect-src": [CSP.SELF],
+    "form-action": [CSP.SELF],
+    "frame-ancestors": [CSP.NONE],
+    "base-uri": [CSP.NONE],
+    "object-src": [CSP.NONE],
+}
 
 # EMAIL
 # ------------------------------------------------------------------------------

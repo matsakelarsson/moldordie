@@ -57,7 +57,27 @@ The frontend is server-rendered Django templates enhanced with [htmx](https://ht
 [django-htmx](https://django-htmx.readthedocs.io)) and styled with [Pico CSS](https://picocss.com).
 There is no Node.js toolchain: htmx ships with django-htmx and Pico CSS is vendored under
 `{{cookiecutter.project_slug}}/static/vendor/pico/` together with its version, licence and SHA-256
-metadata. See the [frontend guide](https://cookiecutter-django.readthedocs.io/en/latest/4-guides/frontend.html).
+metadata. htmx fragments are Django template partials, and every response carries a nonce-based
+Content Security Policy, so templates must not contain inline scripts or styles. See the
+[frontend guide](https://cookiecutter-django.readthedocs.io/en/latest/4-guides/frontend.html).
+
+### Background tasks
+
+Background work goes through Django's Tasks framework; the example task lives in
+`{{cookiecutter.project_slug}}/users/tasks.py`. Tasks run inline in development and in tests. In
+production they are stored in PostgreSQL by django-tasks-db and executed by a worker process:
+{%- if cookiecutter.use_docker == "y" %}
+
+    docker compose -f docker-compose.production.yml up taskworker
+{%- elif cookiecutter.use_heroku == "y" %}
+
+    heroku ps:scale taskworker=1
+{%- else %}
+
+    uv run python manage.py db_worker
+{%- endif %}
+
+See the [tasks guide](https://cookiecutter-django.readthedocs.io/en/latest/4-guides/tasks.html).
 
 {%- if cookiecutter.use_celery == "y" %}
 

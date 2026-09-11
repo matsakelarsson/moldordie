@@ -46,6 +46,9 @@ Run these commands to deploy the project to Heroku:
 
     git push heroku main
 
+    # Run background tasks (Django's Tasks framework) on a second dyno
+    heroku ps:scale taskworker=1
+
     heroku run python manage.py createsuperuser
 
     heroku run python manage.py check --deploy
@@ -79,6 +82,15 @@ We invite you to follow Heroku documentation about it.
 
 Optional actions
 ----------------
+
+Background tasks
+++++++++++++++++
+
+The production settings store tasks of Django's Tasks framework in PostgreSQL, and the ``taskworker`` process type in the ``Procfile`` runs them. It is turned off until you scale it, and it costs a dyno; while it is off, enqueued tasks wait in the ``READY`` state. See :ref:`tasks`.
+
+.. code-block:: bash
+
+    heroku ps:scale taskworker=1
 
 Celery
 ++++++

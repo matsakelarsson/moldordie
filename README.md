@@ -10,10 +10,12 @@ production-ready Django projects quickly.
 
 ## Features
 
-- For Django 6.0
-- Works with Python 3.14
+- For Django 6.0, using its template partials, Content Security Policy and Tasks framework
+- Works with Python 3.12, 3.13 and 3.14 (3.14 by default)
 - Renders Django projects with 100% starting test coverage
-- Server-rendered frontend with [htmx](https://htmx.org) (via [django-htmx](https://github.com/adamchainz/django-htmx)) and a vendored, pinned [Pico CSS](https://picocss.com) — no Node.js toolchain
+- Server-rendered frontend with [htmx](https://htmx.org) (via [django-htmx](https://github.com/adamchainz/django-htmx)) and a vendored, pinned [Pico CSS](https://picocss.com) — no Node.js toolchain, no CDN
+- Nonce-based Content Security Policy on every response
+- Background tasks with Django's Tasks framework, stored in PostgreSQL in production via [django-tasks-db](https://github.com/RealOrangeOne/django-tasks-db)
 - [12-Factor](https://12factor.net) based settings via [django-environ](https://github.com/joke2k/django-environ)
 - Secure by default. We believe in SSL.
 - Optimized development and production settings
@@ -34,7 +36,7 @@ production-ready Django projects quickly.
 _These features can be enabled during initial project setup._
 
 - Serve static files from Amazon S3, Google Cloud Storage, Azure Storage or [Whitenoise](https://whitenoise.readthedocs.io/)
-- Configuration for [Celery](https://docs.celeryq.dev) and [Flower](https://github.com/mher/flower) (the latter in Docker setup only)
+- Configuration for [Celery](https://docs.celeryq.dev) and [Flower](https://github.com/mher/flower) as an additional task queue with scheduling (the latter in Docker setup only)
 - Integration with [Mailpit](https://github.com/axllent/mailpit/) or [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) for local email testing
 - Integration with [Sentry](https://sentry.io/welcome/) for error logging
 

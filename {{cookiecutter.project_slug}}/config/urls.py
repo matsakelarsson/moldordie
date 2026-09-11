@@ -5,6 +5,9 @@ from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include
 from django.urls import path
 from django.views import defaults as default_views
+{%- if cookiecutter.rest_api == 'DRF' %}
+from django.views.decorators.csp import csp_override
+{%- endif %}
 from django.views.generic import TemplateView
 {%- if cookiecutter.rest_api == 'DRF' %}
 from drf_spectacular.views import SpectacularAPIView
@@ -45,7 +48,9 @@ urlpatterns += [
     path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path(
         "api/docs/",
-        SpectacularSwaggerView.as_view(url_name="api-schema"),
+        # Swagger UI loads from a CDN with inline scripts, which the Content Security
+        # Policy forbids; this admin-only developer page is exempt from the policy.
+        csp_override({})(SpectacularSwaggerView.as_view(url_name="api-schema")),
         name="api-docs",
     ),
 ]

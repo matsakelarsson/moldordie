@@ -19,6 +19,7 @@ Before you begin, check out the ``docker-compose.production.yml`` file in the ro
 * ``django``: your application running behind ``Gunicorn``;
 * ``postgres``: PostgreSQL database with the application's relational data;
 * ``redis``: Redis instance for caching;
+* ``taskworker``: the worker of Django's Tasks framework (``python manage.py db_worker``, see :ref:`tasks`);
 * ``traefik``: Traefik reverse proxy with HTTPS on by default.
 
 Provided you have opted for Celery (via setting ``use_celery`` to ``y``) there are three more services:
@@ -111,7 +112,7 @@ To run a migration, open up a second terminal and run::
 
    docker compose -f docker-compose.production.yml run --rm django python manage.py migrate
 
-To create a superuser, run::
+This also creates the tables of the task queue. To create a superuser, run::
 
    docker compose -f docker-compose.production.yml run --rm django python manage.py createsuperuser
 
@@ -126,6 +127,7 @@ To check the logs out, run::
 If you want to scale your application, run::
 
    docker compose -f docker-compose.production.yml up --scale django=4
+   docker compose -f docker-compose.production.yml up --scale taskworker=2
    docker compose -f docker-compose.production.yml up --scale celeryworker=2
 
 .. warning:: don't try to scale ``postgres``, ``celerybeat``, or ``traefik``.

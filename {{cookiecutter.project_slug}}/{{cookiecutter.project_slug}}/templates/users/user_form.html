@@ -1,9 +1,44 @@
 {% raw %}{% extends "base.html" %}
 
+{% load i18n %}
+
 {% block title %}
   {% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{{ user.name }}{% endraw %}{% else %}{% raw %}{{ user.username }}{% endraw %}{% endif %}{% raw %}
 {% endblock title %}
 {% block content %}
-  {% include "users/partials/user_form.html" %}
+  {% comment %}
+  The "profile" partial is the page content for normal requests and the fragment returned to htmx
+  requests (UserUpdateView.htmx_partial). Without JavaScript the form posts normally and the view
+  redirects to the profile; with htmx the redirect is followed and the profile card is swapped in place.
+  {% endcomment %}
+  {% partialdef profile inline %}
+    {% if htmx_fragment %}
+      {% include "base.html#messages" %}
+    {% endif %}
+    <article id="user-profile">
+      <header>
+        <h1>{% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{{ user.name }}{% endraw %}{% else %}{% raw %}{{ user.username }}{% endraw %}{% endif %}{% raw %}</h1>
+      </header>
+      <form method="post"
+            action="{% url 'users:update' %}"
+            hx-post="{% url 'users:update' %}"
+            hx-target="#user-profile"
+            hx-swap="outerHTML"
+            hx-push-url="true">
+        {% csrf_token %}
+        {{ form }}
+        <div role="group">
+          <button type="submit">{% translate "Update" %}</button>
+          <a role="button"
+             class="secondary"
+             href="{{ user.get_absolute_url }}"
+             hx-get="{{ user.get_absolute_url }}"
+             hx-target="#user-profile"
+             hx-swap="outerHTML"
+             hx-push-url="true">{% translate "Cancel" %}</a>
+        </div>
+      </form>
+    </article>
+  {% endpartialdef profile %}
 {% endblock content %}
 {%- endraw %}

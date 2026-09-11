@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class UserDetailView(LoginRequiredMixin, HtmxTemplateMixin, DetailView[User]):
     model = User
     request: AuthenticatedHtmxRequest
-    htmx_template_name = "users/partials/user_detail.html"
+    htmx_partial = "profile"
     {%- if cookiecutter.username_type == "email" %}
     slug_field = "id"
     slug_url_kwarg = "id"
@@ -46,7 +46,7 @@ class UserUpdateView(
     model = User
     request: AuthenticatedHtmxRequest
     fields = ["name"]
-    htmx_template_name = "users/partials/user_form.html"
+    htmx_partial = "profile"
     success_message = _("Information successfully updated")
 
     def get_success_url(self) -> str:

@@ -89,13 +89,8 @@ def remove_heroku_files():
 
 
 def remove_celery_files():
-    file_paths = [
-        Path("config", "celery_app.py"),
-        Path("{{ cookiecutter.project_slug }}", "users", "tasks.py"),
-        Path("{{ cookiecutter.project_slug }}", "users", "tests", "test_tasks.py"),
-    ]
-    for file_path in file_paths:
-        file_path.unlink()
+    # users/tasks.py and its tests stay: they also hold the Django Tasks example
+    Path("config", "celery_app.py").unlink()
 
 
 def remove_channels_files():

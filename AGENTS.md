@@ -87,16 +87,20 @@ The generated Django project uses:
 
 - `config/settings/{base,local,test,production}.py` — Split settings with django-environ
 - `config/urls.py` — URL routing
+- `config/settings/base.py` — nonce-based Content Security Policy (`SECURE_CSP`, Django's `ContentSecurityPolicyMiddleware`) and the `TASKS` framework wiring (`django_tasks_db` app; immediate backend in local/test, database backend plus the `taskworker` process in production)
 - `config/asgi.py` — ASGI entry point served by Uvicorn (Gunicorn + Uvicorn worker in production); with `realtime=channels` it also routes websockets to `config/websocket.py`
-- `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth)
+- `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth); `users/tasks.py` holds the Django Tasks example (plus a Celery variant with `use_celery=y`)
+- `<project_slug>/htmx.py` — `HtmxTemplateMixin` (renders `template.html#partial` for htmx requests, adds `Vary: HX-Request`) and `HtmxLoginRedirectMiddleware` (turns login redirects into `HX-Redirect` for htmx requests)
+- `<project_slug>/tests/` — Project-level tests that belong to no single app: the Content Security Policy, the htmx helpers and, with `realtime=channels`, the websocket consumer
 - `compose/` — Docker configs for local and production
-- `requirements/` — Not used; dependencies managed via `pyproject.toml` + `uv.lock`
-- `<project_slug>/templates/` — Semantic HTML styled by the vendored Pico CSS (`<project_slug>/static/vendor/pico/`, pinned with SHA-256 metadata); htmx is loaded through django-htmx's `{% htmx_script %}`. No Node.js, Bootstrap or asset pipeline.
+- `requirements/` — The pinned dependency lists; `hooks/post_gen_project.py` feeds them to `uv add`, which writes `pyproject.toml` + `uv.lock` in the generated project
+- `<project_slug>/templates/` — Semantic HTML styled by the vendored Pico CSS (`<project_slug>/static/vendor/pico/`, pinned with SHA-256 metadata); htmx is loaded through django-htmx's `{% htmx_script %}` (with the `hx-ws` extension when `realtime=channels`). htmx fragments are `{% partialdef %}` partials inside the page template, selected with `htmx_partial` on the view. No Node.js, Bootstrap or asset pipeline.
 
 ## Conventions
 
-- **Python 3.14** required (`requires-python = "==3.14.*"`)
-- **Line length**: 119 characters (ruff and djlint)
+- **Python 3.12–3.14** supported (`requires-python = ">=3.12"`); 3.14 is the default via `.python-version` and the Docker images
+- **No inline code in templates**: the CSP has no `unsafe-inline`, so no inline `<script>`/`<style>`, `style=` attributes or `on*=` handlers (enforced by `test_no_inline_code_in_templates`); a necessary inline script takes `nonce="{{ csp_nonce }}"`
+- **Line length**: 119 characters (ruff and djlint) in this repository; generated projects keep ruff's default of 88, so keep template Python within 88 columns
 - **Ruff** for linting/formatting; config in `pyproject.toml` under `[tool.ruff]`
 - **djLint** for HTML template linting with `profile = "jinja"`
 - Template files under `{{cookiecutter.project_slug}}/` are excluded from ruff (not parseable Python)
@@ -109,3 +113,17 @@ The generated Django project uses:
 3. Add file removal/modification logic in `hooks/post_gen_project.py`
 4. Use Jinja2 conditionals in template files: `{% if cookiecutter.option == 'y' %}`
 5. Add test combinations to `SUPPORTED_COMBINATIONS` in `tests/test_cookiecutter_generation.py`
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues, driven through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage labels, unchanged: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root, created lazily by `/domain-modeling`. See `docs/agents/domain.md`.
