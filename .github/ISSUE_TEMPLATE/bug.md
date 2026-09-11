@@ -45,7 +45,7 @@ labels: bug
   - ...
 
 - Options selected and/or [replay file](https://cookiecutter.readthedocs.io/en/latest/advanced/replay.html):
-  On Linux and macOS: `cat ${HOME}/.cookiecutter_replay/cookiecutter-django.json`
+  On Linux and macOS: `cat ${HOME}/.cookiecutter_replay/moldordie.json`
   (Please, take care to remove sensitive information)
 
 ```json
@@ -56,7 +56,7 @@ labels: bug
 Logs:
 <details>
 <pre>
-$ cookiecutter https://github.com/cookiecutter/cookiecutter-django
+$ cookiecutter https://github.com/matsakelarsson/moldordie
 project_name [Project Name]: ...
 </pre>
 </details>

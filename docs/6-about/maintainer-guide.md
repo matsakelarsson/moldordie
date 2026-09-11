@@ -32,9 +32,9 @@ We also run the deployment checks, but we don't do much more beyond that for tes
 
 `django-issue-checker.yml`
 
-This workflow runs daily, on schedule, and checks if there is a new major version of Django (not in the pure SemVer sense) released that we are not running, and list our dependencies compatibility.
+This workflow checks whether a new major version of Django (not in the pure SemVer sense) has been released that we are not running, and lists our dependencies' compatibility with it.
 
-For example, at time of writing, we use Django 4.2, but the latest version of Django is 5.0, so the workflow created a ["Django 5.0" issue](https://github.com/cookiecutter/cookiecutter-django/issues/4724) in GitHub, with a compatibility table and keeps it up to date every day.
+It opens an issue in this repository holding a compatibility table and keeps it up to date on each run. The workflow is `workflow_dispatch` only: it was inherited from cookiecutter-django, where it ran daily, and the schedule was removed rather than pointed at this tracker without asking. Restore the `schedule:` trigger to turn it back on.
 
 #### Limitations
 
@@ -72,7 +72,7 @@ Run daily, to do `pre-commit autoupdate` on the template as well as the generate
 
 `update-changelog.yml`
 
-Run daily at 2AM to update our changelog and create a GitHub release. This runs a custom script which:
+Updates the changelog and creates a GitHub release. `workflow_dispatch` only, for the same reason as the Django issue checker above; restore the `schedule:` trigger to cut releases daily. It runs a custom script which:
 
 - List all pull requests merged the day before
 - The release name is calendar based, so `YYYY.MM.DD`
@@ -91,14 +91,3 @@ With that in mind, when merging changes, it's a good idea to set the labels and 
 
 - Dependabot updates for Docker have a verbose title, try to rename them to be more readable: `Bump traefik from v3.7.12 to v3.7.13 in /{{cookiecutter.project_slug}}/compose/production/traefik` -> `Bump traefik to v3.7.13`
 - ~~Dependencies updates for the template repo (tox, cookiecutter, etc...) don't need to appear in changelog, and need to be labelled as `project infrastructure` manually. By default, they come from PyUp labelled as `update`.~~
-
-### Update contributors
-
-`update-contributors.yml`
-
-Runs on each push to main branch. List the 5 most recently merged pull requests and extract their author. If any of the authors is a new one, updates the `.github/contributors.json`, regenerate the `CONTRIBUTORS.md` from it, and push back the changes to master.
-
-#### Limitations
-
-- If you merge a pull request from a new contributor, and merge another one right after, the push to main will fail as the remote will be out of date.
-- If you merge more than 5 pull requests in a row like this, the new contributor might fail to be added.

@@ -1,7 +1,7 @@
 """
 To understand why this file is here, please read:
 
-https://cookiecutter-django.readthedocs.io/en/latest/5-help/faq.html#why-is-there-a-django-contrib-sites-directory-in-cookiecutter-django
+https://github.com/matsakelarsson/moldordie/blob/main/docs/5-help/faq.rst
 """
 from django.conf import settings
 from django.db import migrations
