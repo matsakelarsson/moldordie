@@ -143,7 +143,7 @@ keep_local_envs_in_vcs:
 
 debug:
     Indicates whether the project should be configured for debugging.
-    This option is relevant for Cookiecutter Django developers only.
+    This option is relevant for moldordie developers only.
 
 
 .. _MIT: https://opensource.org/licenses/MIT
