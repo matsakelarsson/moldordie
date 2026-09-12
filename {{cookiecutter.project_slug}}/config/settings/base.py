@@ -34,7 +34,7 @@ DEBUG = env.bool("DJANGO_DEBUG", False)
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # though not all of them may be available with every OS.
 # In Windows, this must be set to your system time zone.
-TIME_ZONE = "{{ cookiecutter.timezone }}"
+TIME_ZONE = "{{ cookiecutter.timezone | string_escape }}"
 # https://docs.djangoproject.com/en/dev/ref/settings/#language-code
 LANGUAGE_CODE = "en-us"
 # https://docs.djangoproject.com/en/dev/ref/settings/#languages
@@ -305,7 +305,7 @@ EMAIL_TIMEOUT = 5
 # Django Admin URL.
 ADMIN_URL = "admin/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#admins
-ADMINS = ['"{{cookiecutter.author_name}}" <{{cookiecutter.email}}>']
+ADMINS = ['"{{ cookiecutter.author_name | string_escape("'") }}" <{{ cookiecutter.email | string_escape("'") }}>']
 # https://docs.djangoproject.com/en/dev/ref/settings/#managers
 MANAGERS = ADMINS
 # https://github.com/matsakelarsson/moldordie/blob/main/docs/1-getting-started/settings.rst
@@ -423,8 +423,8 @@ CORS_URLS_REGEX = r"^/api/.*$"
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
 SPECTACULAR_SETTINGS: dict[str, Any] = {
-    "TITLE": "{{ cookiecutter.project_name }} API",
-    "DESCRIPTION": "Documentation of API endpoints of {{ cookiecutter.project_name }}",
+    "TITLE": "{{ cookiecutter.project_name | string_escape }} API",
+    "DESCRIPTION": "Documentation of API endpoints of {{ cookiecutter.project_name | string_escape }}",
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SCHEMA_PATH_PREFIX": "/api/",

@@ -6,12 +6,27 @@ noted alternatives are the ones to avoid.
 ## Option
 
 A question in `cookiecutter.json` and its answer. A **list option** offers choices that Cookiecutter
-validates, so the hooks read its answer as given. A **flag option** is a free-text yes/no answer; the
-post-generation hook lowercases the ones it reads (`FLAG_OPTIONS`) and nothing else. The answers to all
-options together are the **context**, which each hook receives once, as JSON, at its entry point, so a
-free-text answer cannot break the hook's source.
+validates, so the hooks read its answer as given. A **flag option** is a yes/no answer typed as text; the
+post-generation hook lowercases the ones it reads (`FLAG_OPTIONS`) and nothing else. A **free-text
+option** takes any text (project name, description, author, email, domain, version, time zone) and
+reaches the generated files through escaping. The answers to all options together are the **context**,
+which each hook receives once, as JSON, at its entry point, so a free-text answer cannot break the
+hook's source.
 
 _Avoid_: variable, setting, feature flag.
+
+## Escaping
+
+How a free-text answer is written into a generated file: at every site where the answer sits inside
+delimiters, through the filter for that file's syntax. `string_escape` in `local_extensions.py`, which
+Cookiecutter loads through `_extensions` in `cookiecutter.json`, backslash-escapes for Python, TOML,
+YAML double-quoted scalars and gettext `.po` strings, taking the delimiter as its argument when it is
+not `"`. Jinja's `e` escapes for HTML. Prose files (README, LICENSE, `.rst`, `.po` comments) take the
+answer as is. The pre-generation hook rejects the two things escaping cannot fix: control characters in
+any free-text answer, and anything but letters, digits, dots, hyphens and underscores in the domain
+name, which Traefik's `Host()` rules embed with no escape.
+
+_Avoid_: sanitising, quoting; a `replace` chain written at the site.
 
 ## Removal rule
 

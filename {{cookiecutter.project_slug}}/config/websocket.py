@@ -1,4 +1,4 @@
-"""Websocket routing and consumers for {{ cookiecutter.project_name }}."""
+"""Websocket routing and consumers for {{ cookiecutter.project_name | string_escape }}."""
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.urls import path

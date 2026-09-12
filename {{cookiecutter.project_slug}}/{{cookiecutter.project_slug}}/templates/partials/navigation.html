@@ -3,7 +3,7 @@
 <nav aria-label="{% translate 'Main navigation' %}">
   <ul>
     <li>
-      <a href="{% url 'home' %}"><strong>{% endraw %}{{ cookiecutter.project_name }}{% raw %}</strong></a>
+      <a href="{% url 'home' %}"><strong>{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</strong></a>
     </li>
   </ul>
   <ul>

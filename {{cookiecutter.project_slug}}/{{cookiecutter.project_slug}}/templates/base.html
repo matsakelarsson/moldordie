@@ -6,14 +6,14 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
     <title>
       {% block title %}
-      {% endraw %}{{ cookiecutter.project_name }}{% raw %}
+      {% endraw %}{{ cookiecutter.project_name | e }}{% raw %}
     {% endblock title %}
   </title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description"
-        content="{% endraw %}{{ cookiecutter.description }}{% raw %}" />
+        content="{% endraw %}{{ cookiecutter.description | e }}{% raw %}" />
   <meta name="author"
-        content="{% endraw %}{{ cookiecutter.author_name }}{% raw %}" />
+        content="{% endraw %}{{ cookiecutter.author_name | e }}{% raw %}" />
   {# htmx under the nonce-based Content Security Policy (SECURE_CSP in config/settings/base.py): no eval, #}
   {# no script tags from swapped fragments and no injected indicator stylesheet (its rules are in css/project.css) #}
   {# djlint:off H008 #}

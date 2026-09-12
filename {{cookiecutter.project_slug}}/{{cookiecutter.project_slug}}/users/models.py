@@ -17,7 +17,7 @@ from .managers import UserManager
 
 class User(AbstractUser):
     """
-    Default custom user model for {{cookiecutter.project_name}}.
+    Default custom user model for {{ cookiecutter.project_name | string_escape }}.
     If adding fields that need to be filled at user signup,
     check forms.SignupForm and forms.SocialSignupForms accordingly.
     """
