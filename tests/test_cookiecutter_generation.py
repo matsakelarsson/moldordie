@@ -528,6 +528,22 @@ def test_asgi_entrypoint(cookies, context, realtime):
     assert ("{% htmx_script %}" in base_html) is not uses_channels
 
 
+@pytest.mark.parametrize("use_docker", ["y", "n"])
+def test_docker_compose_files_match_use_docker(cookies, context, use_docker):
+    """All docker-compose files, including the docs one, are only generated with use_docker=y."""
+    context.update({"use_docker": use_docker})
+    result = cookies.bake(extra_context=context)
+    assert result.exit_code == 0
+
+    compose_files = [
+        "docker-compose.local.yml",
+        "docker-compose.production.yml",
+        "docker-compose.docs.yml",
+    ]
+    for compose_file in compose_files:
+        assert (result.project_path / compose_file).exists() is (use_docker == "y")
+
+
 @pytest.mark.parametrize("realtime", ["none", "channels"])
 def test_docker_serves_asgi(cookies, context, realtime):
     """The Docker start scripts run Uvicorn; local development needs no Redis for Channels."""
