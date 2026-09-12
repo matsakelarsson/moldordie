@@ -8,8 +8,8 @@ noted alternatives are the ones to avoid.
 A question in `cookiecutter.json` and its answer. A **list option** offers choices that Cookiecutter
 validates, so the hooks read its answer as given. A **flag option** is a free-text yes/no answer; the
 post-generation hook lowercases the ones it reads (`FLAG_OPTIONS`) and nothing else. The answers to all
-options together are the **context**, which the post-generation hook receives once, as JSON, at its
-entry point.
+options together are the **context**, which each hook receives once, as JSON, at its entry point, so a
+free-text answer cannot break the hook's source.
 
 _Avoid_: variable, setting, feature flag.
 

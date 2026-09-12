@@ -1,11 +1,11 @@
 [project]
 name = "{{ cookiecutter.project_slug }}"
-version = "{{ cookiecutter.version }}"
-description = "{{ cookiecutter.description }}"
+version = "{{ cookiecutter.version | replace('\\', '\\\\') | replace('"', '\\"') }}"
+description = "{{ cookiecutter.description | replace('\\', '\\\\') | replace('"', '\\"') }}"
 readme = "README.md"
 license = { text = "{{ cookiecutter.open_source_license }}" }
 authors = [
-  { name = "{{ cookiecutter.author_name }}", email = "{{ cookiecutter.email }}" },
+  { name = "{{ cookiecutter.author_name | replace('\\', '\\\\') | replace('"', '\\"') }}", email = "{{ cookiecutter.email | replace('\\', '\\\\') | replace('"', '\\"') }}" },
 ]
 requires-python = ">=3.12"
 classifiers = [

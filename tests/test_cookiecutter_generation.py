@@ -444,11 +444,13 @@ def test_trim_domain_email(cookies, context):
 
 
 def test_pyproject_toml(cookies, context):
-    author_name = "Project Author"
+    # Free-text answers with the characters that end or escape a TOML string.
+    author_name = 'Project "Quoted" Author'
     author_email = "me@example.com"
+    description = 'She said "hi" & <left> C:\\path, it\'s fine.'
     context.update(
         {
-            "description": "DESCRIPTION",
+            "description": description,
             "domain_name": "example.com",
             "email": author_email,
             "author_name": author_name,
@@ -464,6 +466,8 @@ def test_pyproject_toml(cookies, context):
     assert data
     assert data["project"]["authors"][0]["email"] == author_email
     assert data["project"]["authors"][0]["name"] == author_name
+    assert data["project"]["description"] == description
+    assert data["project"]["version"] == context["version"]
     assert data["project"]["name"] == context["project_slug"]
     assert data["project"]["requires-python"] == ">=3.12"
     assert "Programming Language :: Python :: 3.12" in data["project"]["classifiers"]
