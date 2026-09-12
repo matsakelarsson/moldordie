@@ -84,7 +84,6 @@ Answer the prompts with your own desired [options](docs/1-getting-started/projec
     2 - email
     Choose from 1, 2 [1]: 1
     timezone [UTC]: America/Los_Angeles
-    windows [n]: n
     Select an editor to use. The choices are:
     1 - None
     2 - PyCharm

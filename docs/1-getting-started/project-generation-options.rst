@@ -50,9 +50,6 @@ open_source_license:
 timezone:
     The value to be used for the ``TIME_ZONE`` setting of the project.
 
-windows:
-    Indicates whether the project should be configured for development on Windows.
-
 editor:
     Select an editor to use. The choices are:
 

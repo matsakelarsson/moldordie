@@ -9,11 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
-
-try:
-    import sh
-except (ImportError, ModuleNotFoundError):
-    sh = None  # sh doesn't support Windows
+import sh
 import yaml
 from binaryornot.check import is_binary
 from cookiecutter.exceptions import FailedHookException
@@ -54,9 +50,7 @@ FRONTEND_TOOLCHAIN_TOKENS = [
     "sass",
 ]
 
-if sys.platform.startswith("win"):
-    pytest.skip("sh doesn't support windows", allow_module_level=True)
-elif sys.platform.startswith("darwin") and os.getenv("CI"):
+if sys.platform.startswith("darwin") and os.getenv("CI"):
     pytest.skip("skipping slow macOS tests on CI", allow_module_level=True)
 
 # Run auto-fixable styles checks - skipped on CI by default. These can be fixed
@@ -88,8 +82,6 @@ SUPPORTED_COMBINATIONS = [
     {"open_source_license": "GPLv3"},
     {"open_source_license": "Apache Software License 2.0"},
     {"open_source_license": "Not open source"},
-    {"windows": "y"},
-    {"windows": "n"},
     {"editor": "None"},
     {"editor": "PyCharm"},
     {"editor": "VS Code"},

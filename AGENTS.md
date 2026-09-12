@@ -77,7 +77,7 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 
 ### Test Structure
 
-- **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent. Skips on Windows (sh module) and macOS CI (slow).
+- **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent. Skips on macOS CI (slow).
 - **`tests/test_hooks.py`** — Unit tests for hook helper functions
 - **`tests/test_bare.sh`** / **`tests/test_docker.sh`** — Integration tests that generate a project and run its full test suite
 
