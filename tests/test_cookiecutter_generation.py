@@ -82,9 +82,6 @@ SUPPORTED_COMBINATIONS = [
     {"open_source_license": "GPLv3"},
     {"open_source_license": "Apache Software License 2.0"},
     {"open_source_license": "Not open source"},
-    {"editor": "None"},
-    {"editor": "PyCharm"},
-    {"editor": "VS Code"},
     {"use_docker": "y"},
     {"use_docker": "n"},
     {"postgresql_version": "18"},
@@ -424,23 +421,6 @@ def test_error_if_incompatible(cookies, context, invalid_context):
 
     assert result.exit_code != 0
     assert isinstance(result.exception, FailedHookException)
-
-
-@pytest.mark.parametrize(
-    ("editor", "pycharm_docs_exist"),
-    [
-        ("None", False),
-        ("PyCharm", True),
-        ("VS Code", False),
-    ],
-)
-def test_pycharm_docs_removed(cookies, context, editor, pycharm_docs_exist):
-    context.update({"editor": editor})
-    result = cookies.bake(extra_context=context)
-
-    index_rst = result.project_path / "docs" / "index.rst"
-    has_pycharm_docs = "pycharm/configuration" in index_rst.read_text()
-    assert has_pycharm_docs is pycharm_docs_exist
 
 
 def test_trim_domain_email(cookies, context):

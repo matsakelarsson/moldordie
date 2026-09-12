@@ -50,13 +50,6 @@ open_source_license:
 timezone:
     The value to be used for the ``TIME_ZONE`` setting of the project.
 
-editor:
-    Select an editor to use. The choices are:
-
-    1. None
-    2. PyCharm_
-    3. `VS Code`_
-
 use_docker:
     Indicates whether the project should be configured to use Docker_, `Docker Compose`_ and `devcontainer`_.
 
@@ -147,9 +140,6 @@ debug:
 .. _BSD: https://opensource.org/licenses/BSD-3-Clause
 .. _GPLv3: https://www.gnu.org/licenses/gpl.html
 .. _Apache Software License 2.0: https://www.apache.org/licenses/LICENSE-2.0
-
-.. _PyCharm: https://www.jetbrains.com/pycharm/
-.. _VS Code: https://github.com/microsoft/vscode
 
 .. _Docker: https://github.com/docker/docker
 .. _Docker Compose: https://docs.docker.com/compose/

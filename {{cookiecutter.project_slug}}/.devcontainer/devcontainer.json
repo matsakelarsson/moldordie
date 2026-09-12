@@ -26,7 +26,6 @@
     "workspaceFolder": "/app",
     // Set *default* container specific settings.json values on container create.
     "customizations": {
-        {%- if cookiecutter.editor == "VS Code" %}
         "vscode": {
             "settings": {
                 "editor.formatOnSave": true,
@@ -58,7 +57,6 @@
                 "batisteo.vscode-django"
             ]
         }
-        {%- endif %}
     },
     // Uncomment the next line if you want start specific services in your Docker Compose config.
     // "runServices": [],

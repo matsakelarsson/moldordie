@@ -42,16 +42,6 @@ def remove_custom_user_manager_files():
     (users_path / "tests" / "test_managers.py").unlink()
 
 
-def remove_pycharm_files():
-    idea_dir_path = Path(".idea")
-    if idea_dir_path.exists():
-        shutil.rmtree(idea_dir_path)
-
-    docs_dir_path = Path("docs", "pycharm")
-    if docs_dir_path.exists():
-        shutil.rmtree(docs_dir_path)
-
-
 def remove_docker_files():
     shutil.rmtree(".devcontainer")
     shutil.rmtree("compose")
@@ -64,10 +54,6 @@ def remove_docker_files():
     ]
     for file_name in file_names:
         Path(file_name).unlink()
-    if "{{ cookiecutter.editor }}" == "PyCharm":
-        file_names = ["docker_compose_up_django.xml", "docker_compose_up_docs.xml"]
-        for file_name in file_names:
-            Path(".idea", "runConfigurations", file_name).unlink()
 
 
 def remove_nginx_docker_files():
@@ -302,9 +288,6 @@ def main():  # noqa: C901, PLR0912, PLR0915
 
     if "{{ cookiecutter.username_type }}" == "username":
         remove_custom_user_manager_files()
-
-    if "{{ cookiecutter.editor }}" != "PyCharm":
-        remove_pycharm_files()
 
     if "{{ cookiecutter.use_docker }}".lower() == "y":
         remove_utility_files()
