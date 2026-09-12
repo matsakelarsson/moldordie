@@ -43,7 +43,6 @@ def remove_custom_user_manager_files():
 
 
 def remove_docker_files():
-    shutil.rmtree(".devcontainer")
     shutil.rmtree("compose")
 
     file_names = [

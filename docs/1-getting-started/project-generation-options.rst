@@ -51,7 +51,7 @@ timezone:
     The value to be used for the ``TIME_ZONE`` setting of the project.
 
 use_docker:
-    Indicates whether the project should be configured to use Docker_, `Docker Compose`_ and `devcontainer`_.
+    Indicates whether the project should be configured to use Docker_ and `Docker Compose`_.
 
 postgresql_version:
     Select a PostgreSQL_ version to use. The choices are:
@@ -143,7 +143,6 @@ debug:
 
 .. _Docker: https://github.com/docker/docker
 .. _Docker Compose: https://docs.docker.com/compose/
-.. _devcontainer: https://containers.dev/
 
 .. _PostgreSQL: https://www.postgresql.org/docs/
 
