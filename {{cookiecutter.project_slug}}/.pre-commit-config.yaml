@@ -1,4 +1,4 @@
-exclude: '^docs/|/migrations/|devcontainer.json|/static/vendor/'
+exclude: '^docs/|/migrations/|/static/vendor/'
 default_stages: [pre-commit]
 default_install_hook_types: [pre-commit, pre-push]
 minimum_pre_commit_version: "3.2.0"
