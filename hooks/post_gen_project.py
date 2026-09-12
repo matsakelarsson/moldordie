@@ -1,4 +1,4 @@
-# ruff: noqa: PLR0133
+import json
 import os
 import random
 import shutil
@@ -23,27 +23,49 @@ SUCCESS = "\x1b[1;32m [SUCCESS]: "
 
 DEBUG_VALUE = "debug"
 
+# The yes/no answers this hook reads. Cookiecutter validates list-typed options
+# against their choices, so only these free-text answers need normalising.
+FLAG_OPTIONS = (
+    "debug",
+    "keep_local_envs_in_vcs",
+    "use_celery",
+    "use_docker",
+    "use_heroku",
+)
 
-def remove_open_source_files():
+
+def normalize_context(context):
+    """Return a copy of ``context`` with the yes/no answers lowercased."""
+    normalized = dict(context)
+    for option in FLAG_OPTIONS:
+        if option in normalized:
+            normalized[option] = normalized[option].lower()
+    return normalized
+
+
+def envs_unused(context):
+    """Docker Compose and Heroku are the only consumers of the ``.envs`` files."""
+    return context["use_docker"] == "n" and context["use_heroku"] == "n"
+
+
+def remove_open_source_files(root):
     file_names = ["CONTRIBUTORS.txt", "LICENSE"]
     for file_name in file_names:
-        Path(file_name).unlink()
+        (root / file_name).unlink()
 
 
-def remove_gplv3_files():
-    file_names = ["COPYING"]
-    for file_name in file_names:
-        Path(file_name).unlink()
+def remove_gplv3_files(root):
+    (root / "COPYING").unlink()
 
 
-def remove_custom_user_manager_files():
-    users_path = Path("{{cookiecutter.project_slug}}", "users")
+def remove_custom_user_manager_files(root, project_slug):
+    users_path = root / project_slug / "users"
     (users_path / "managers.py").unlink()
     (users_path / "tests" / "test_managers.py").unlink()
 
 
-def remove_docker_files():
-    shutil.rmtree("compose")
+def remove_docker_files(root):
+    shutil.rmtree(root / "compose")
 
     file_names = [
         "docker-compose.local.yml",
@@ -53,55 +75,50 @@ def remove_docker_files():
         "justfile",
     ]
     for file_name in file_names:
-        Path(file_name).unlink()
+        (root / file_name).unlink()
 
 
-def remove_nginx_docker_files():
-    shutil.rmtree(Path("compose", "production", "nginx"))
+def remove_nginx_docker_files(root):
+    shutil.rmtree(root / "compose" / "production" / "nginx")
 
 
-def remove_utility_files():
-    shutil.rmtree("utility")
+def remove_utility_files(root):
+    shutil.rmtree(root / "utility")
 
 
-def remove_heroku_files():
-    file_names = ["Procfile"]
-    for file_name in file_names:
-        if file_name == "requirements.txt" and "{{ cookiecutter.ci_tool }}".lower() == "travis":
-            # Don't remove the file if we are using Travis CI but not using Heroku
-            continue
-        Path(file_name).unlink()
-    shutil.rmtree("bin")
+def remove_heroku_files(root):
+    (root / "Procfile").unlink()
+    shutil.rmtree(root / "bin")
 
 
-def remove_celery_files():
+def remove_celery_files(root):
     # users/tasks.py and its tests stay: they also hold the Django Tasks example
-    Path("config", "celery_app.py").unlink()
+    (root / "config" / "celery_app.py").unlink()
 
 
-def remove_channels_files():
-    Path("config", "websocket.py").unlink()
-    tests_path = Path("{{ cookiecutter.project_slug }}", "tests")
+def remove_channels_files(root, project_slug):
+    (root / "config" / "websocket.py").unlink()
+    tests_path = root / project_slug / "tests"
     (tests_path / "test_websocket.py").unlink()
     # Keep the package when it holds tests that are not tied to Channels.
     if all(path.name == "__init__.py" for path in tests_path.iterdir()):
         shutil.rmtree(tests_path)
 
 
-def remove_dottravisyml_file():
-    Path(".travis.yml").unlink()
+def remove_dottravisyml_file(root):
+    (root / ".travis.yml").unlink()
 
 
-def remove_dotgitlabciyml_file():
-    Path(".gitlab-ci.yml").unlink()
+def remove_dotgitlabciyml_file(root):
+    (root / ".gitlab-ci.yml").unlink()
 
 
-def remove_dotgithub_folder():
-    shutil.rmtree(".github")
+def remove_dotgithub_folder(root):
+    shutil.rmtree(root / ".github")
 
 
-def remove_dotdrone_file():
-    Path(".drone.yml").unlink()
+def remove_dotdrone_file(root):
+    (root / ".drone.yml").unlink()
 
 
 def generate_random_string(length, using_digits=False, using_ascii_letters=False, using_punctuation=False):  # noqa: FBT002
@@ -239,40 +256,98 @@ def set_flags_in_settings_files():
     set_django_secret_key(Path("config", "settings", "test.py"))
 
 
-def remove_envs_and_associated_files():
-    shutil.rmtree(".envs")
-    Path("merge_production_dotenvs_in_dotenv.py").unlink()
-    shutil.rmtree("tests")
+def remove_envs_and_associated_files(root):
+    shutil.rmtree(root / ".envs")
+    (root / "merge_production_dotenvs_in_dotenv.py").unlink()
+    shutil.rmtree(root / "tests")
 
 
-def remove_celery_compose_dirs():
-    shutil.rmtree(Path("compose", "local", "django", "celery"))
-    shutil.rmtree(Path("compose", "production", "django", "celery"))
+def remove_celery_compose_dirs(root):
+    shutil.rmtree(root / "compose" / "local" / "django" / "celery")
+    shutil.rmtree(root / "compose" / "production" / "django" / "celery")
 
 
-def remove_aws_dockerfile():
-    shutil.rmtree(Path("compose", "production", "aws"))
+def remove_aws_dockerfile(root):
+    shutil.rmtree(root / "compose" / "production" / "aws")
 
 
-def remove_drf_starter_files():
-    Path("config", "api_router.py").unlink()
-    Path("{{cookiecutter.project_slug}}", "users", "api", "serializers.py").unlink()
+def remove_drf_starter_files(root, project_slug):
+    (root / "config" / "api_router.py").unlink()
+    (root / project_slug / "users" / "api" / "serializers.py").unlink()
 
 
-def remove_ninja_starter_files():
-    Path("config", "api.py").unlink()
-    Path("{{cookiecutter.project_slug}}", "users", "api", "schema.py").unlink()
+def remove_ninja_starter_files(root, project_slug):
+    (root / "config" / "api.py").unlink()
+    (root / project_slug / "users" / "api" / "schema.py").unlink()
 
 
-def remove_rest_api_files():
-    remove_drf_starter_files()
-    remove_ninja_starter_files()
-    shutil.rmtree(Path("{{cookiecutter.project_slug}}", "users", "api"))
-    shutil.rmtree(Path("{{cookiecutter.project_slug}}", "users", "tests", "api"))
+def remove_rest_api_files(root, project_slug):
+    remove_drf_starter_files(root, project_slug)
+    remove_ninja_starter_files(root, project_slug)
+    shutil.rmtree(root / project_slug / "users" / "api")
+    shutil.rmtree(root / project_slug / "users" / "tests" / "api")
 
 
-def main():  # noqa: C901, PLR0912, PLR0915
-    debug = "{{ cookiecutter.debug }}".lower() == "y"
+def prune(context, root):  # noqa: C901, PLR0912
+    """Remove the files the chosen options do not need from the project at ``root``."""
+    context = normalize_context(context)
+    project_slug = context["project_slug"]
+
+    if context["open_source_license"] == "Not open source":
+        remove_open_source_files(root)
+    if context["open_source_license"] != "GPLv3":
+        remove_gplv3_files(root)
+
+    if context["username_type"] == "username":
+        remove_custom_user_manager_files(root, project_slug)
+
+    if context["use_docker"] == "y":
+        remove_utility_files(root)
+        if context["cloud_provider"] != "None":
+            remove_nginx_docker_files(root)
+    else:
+        remove_docker_files(root)
+
+    if context["use_docker"] == "y" and context["cloud_provider"] != "AWS":
+        remove_aws_dockerfile(root)
+
+    if context["use_heroku"] == "n":
+        remove_heroku_files(root)
+
+    if envs_unused(context) and context["keep_local_envs_in_vcs"] == "n":
+        remove_envs_and_associated_files(root)
+
+    if context["use_celery"] == "n":
+        remove_celery_files(root)
+        if context["use_docker"] == "y":
+            remove_celery_compose_dirs(root)
+
+    if context["ci_tool"] != "Travis":
+        remove_dottravisyml_file(root)
+
+    if context["ci_tool"] != "Gitlab":
+        remove_dotgitlabciyml_file(root)
+
+    if context["ci_tool"] != "Github":
+        remove_dotgithub_folder(root)
+
+    if context["ci_tool"] != "Drone":
+        remove_dotdrone_file(root)
+
+    if context["rest_api"] == "DRF":
+        remove_ninja_starter_files(root, project_slug)
+    elif context["rest_api"] == "Django Ninja":
+        remove_drf_starter_files(root, project_slug)
+    else:
+        remove_rest_api_files(root, project_slug)
+
+    if context["realtime"] != "channels":
+        remove_channels_files(root, project_slug)
+
+
+def main(context):
+    context = normalize_context(context)
+    debug = context["debug"] == "y"
 
     set_flags_in_envs(
         DEBUG_VALUE if debug else generate_random_user(),
@@ -281,84 +356,36 @@ def main():  # noqa: C901, PLR0912, PLR0915
     )
     set_flags_in_settings_files()
 
-    if "{{ cookiecutter.open_source_license }}" == "Not open source":
-        remove_open_source_files()
-    if "{{ cookiecutter.open_source_license}}" != "GPLv3":
-        remove_gplv3_files()
-
-    if "{{ cookiecutter.username_type }}" == "username":
-        remove_custom_user_manager_files()
-
-    if "{{ cookiecutter.use_docker }}".lower() == "y":
-        remove_utility_files()
-        if "{{ cookiecutter.cloud_provider }}".lower() != "none":
-            remove_nginx_docker_files()
-    else:
-        remove_docker_files()
-
-    if "{{ cookiecutter.use_docker }}".lower() == "y" and "{{ cookiecutter.cloud_provider}}" != "AWS":
-        remove_aws_dockerfile()
-
-    if "{{ cookiecutter.use_heroku }}".lower() == "n":
-        remove_heroku_files()
-
-    if "{{ cookiecutter.use_docker }}".lower() == "n" and "{{ cookiecutter.use_heroku }}".lower() == "n":
-        if "{{ cookiecutter.keep_local_envs_in_vcs }}".lower() == "y":
+    if envs_unused(context):
+        if context["keep_local_envs_in_vcs"] == "y":
             print(
                 INFO + ".env(s) are only utilized when Docker Compose and/or "
                 "Heroku support is enabled. Keeping them as requested, but they may not be useful "
                 "in your current setup." + TERMINATOR,
             )
-        else:
-            remove_envs_and_associated_files()
     else:
         append_to_gitignore_file(".env")
         append_to_gitignore_file(".envs/*")
-        if "{{ cookiecutter.keep_local_envs_in_vcs }}".lower() == "y":
+        if context["keep_local_envs_in_vcs"] == "y":
             append_to_gitignore_file("!.envs/.local/")
 
-    if "{{ cookiecutter.cloud_provider }}" == "None" and "{{ cookiecutter.use_docker }}".lower() == "n":
+    if context["cloud_provider"] == "None" and context["use_docker"] == "n":
         print(
             WARNING + "You chose to not use any cloud providers nor Docker, "
             "media files won't be served in production." + TERMINATOR,
         )
 
-    if "{{ cookiecutter.use_celery }}".lower() == "n":
-        remove_celery_files()
-        if "{{ cookiecutter.use_docker }}".lower() == "y":
-            remove_celery_compose_dirs()
+    prune(context, Path.cwd())
 
-    if "{{ cookiecutter.ci_tool }}" != "Travis":
-        remove_dottravisyml_file()
-
-    if "{{ cookiecutter.ci_tool }}" != "Gitlab":
-        remove_dotgitlabciyml_file()
-
-    if "{{ cookiecutter.ci_tool }}" != "Github":
-        remove_dotgithub_folder()
-
-    if "{{ cookiecutter.ci_tool }}" != "Drone":
-        remove_dotdrone_file()
-
-    if "{{ cookiecutter.rest_api }}" == "DRF":
-        remove_ninja_starter_files()
-    elif "{{ cookiecutter.rest_api }}" == "Django Ninja":
-        remove_drf_starter_files()
-    else:
-        remove_rest_api_files()
-
-    if "{{ cookiecutter.realtime }}" != "channels":
-        remove_channels_files()
-
-    setup_dependencies()
+    setup_dependencies(use_docker=context["use_docker"] == "y")
 
     print(SUCCESS + "Project initialized, keep up the good work!" + TERMINATOR)
 
 
-def setup_dependencies():
+def setup_dependencies(*, use_docker):
     print("Installing python dependencies using uv...")
 
-    if "{{ cookiecutter.use_docker }}".lower() == "y":
+    if use_docker:
         # Build a trimmed down Docker image add dependencies with uv
         uv_docker_image_path = Path("compose/local/uv/Dockerfile")
         uv_image_tag = "moldordie-uv-runner:latest"
@@ -423,4 +450,7 @@ def setup_dependencies():
 
 
 if __name__ == "__main__":
-    main()
+    # Cookiecutter renders this file through Jinja before running it. The answers
+    # enter here and nowhere else, as JSON so that free-text answers cannot break
+    # the source, and the unrendered module stays importable for the tests.
+    main(json.loads(r"""{{ cookiecutter | tojson }}"""))
