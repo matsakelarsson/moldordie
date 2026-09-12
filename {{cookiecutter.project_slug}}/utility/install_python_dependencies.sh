@@ -9,4 +9,6 @@ uv --version >/dev/null 2>&1 || {
     exit 1;
 }
 
-uv sync --locked
+# No ``--locked``: the lock file is written by this first sync when the project
+# does not have one yet.
+uv sync

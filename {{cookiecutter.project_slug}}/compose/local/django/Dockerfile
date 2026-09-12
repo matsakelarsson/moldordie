@@ -21,16 +21,16 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   wait-for-it
 
 # Requirements are installed here to ensure they will be cached.
+# A freshly generated project has no lock file yet, and ``uv.loc[k]`` matches one only
+# once ``uv sync`` has written it, so the build works either way.
+COPY pyproject.toml uv.loc[k] ${APP_HOME}/
+
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=type=bind,source=uv.lock,target=uv.lock:rw \
     uv sync --no-install-project
 
 COPY . ${APP_HOME}
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=type=bind,source=uv.lock,target=uv.lock:rw \
     uv sync
 
 ENV PATH="/${APP_HOME}/.venv/bin:$PATH"

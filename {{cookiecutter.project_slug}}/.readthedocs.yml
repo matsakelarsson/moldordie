@@ -15,7 +15,9 @@ build:
     create_environment:
       - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
-      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen --no-dev --only-group docs
+      # ``docs/conf.py`` calls ``django.setup()``, so the build needs the project's
+      # environment rather than Sphinx alone.
+      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen
 
 sphinx:
   configuration: docs/conf.py

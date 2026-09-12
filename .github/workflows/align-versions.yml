@@ -3,7 +3,7 @@ name: align versions
 on:
   pull_request:
     paths:
-      - "{{cookiecutter.project_slug}}/requirements/local.txt"
+      - "{{cookiecutter.project_slug}}/pyproject.toml"
   # Manual trigger
   workflow_dispatch:
 

@@ -27,7 +27,9 @@ if TYPE_CHECKING:
 
 CURRENT_FILE = Path(__file__)
 ROOT = CURRENT_FILE.parents[1]
-REQUIREMENTS_DIR = ROOT / "{{cookiecutter.project_slug}}" / "requirements"
+TEMPLATE_PYPROJECT = ROOT / "{{cookiecutter.project_slug}}" / "pyproject.toml"
+# The arrays of the generated pyproject.toml that pin dependencies, in file order.
+DEPENDENCY_ARRAYS = ("dependencies", "dev")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", None)
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY", None)
 
@@ -78,11 +80,31 @@ def get_django_versions() -> Iterable[DjVersion]:
             yield DjVersion.parse(release_str)
 
 
-def get_name_and_version(requirements_line: str) -> tuple[str, ...]:
-    """Get the name a version of a package from a line in the requirement file."""
-    full_name, version = requirements_line.split(" ", 1)[0].split("==")
+def get_name_and_version(requirement: str) -> tuple[str, ...]:
+    """Get the name and version of a package from a pinned requirement."""
+    full_name, version = requirement.split("==")
     name_without_extras = full_name.split("[", 1)[0]
     return name_without_extras, version
+
+
+def load_pinned_dependencies() -> dict[str, dict[str, str]]:
+    """The generated project's pinned dependencies, by the array each is listed in.
+
+    The generated ``pyproject.toml`` is a Jinja template, so it is read line by line
+    rather than parsed as TOML: every option's dependencies are listed, whether or not
+    the answers that select them would be given.
+    """
+    dependencies: dict[str, dict[str, str]] = {array: {} for array in DEPENDENCY_ARRAYS}
+    array = None
+    for line in TEMPLATE_PYPROJECT.read_text().splitlines():
+        if (name := line.removesuffix(" = [")) in DEPENDENCY_ARRAYS and name != line:
+            array = name
+        elif line == "]":
+            array = None
+        elif array is not None and (entry := line.strip()).startswith('"'):
+            name, version = get_name_and_version(entry.strip(",").strip('"'))
+            dependencies[array][name] = version
+    return dependencies
 
 
 def get_all_latest_django_versions(
@@ -97,17 +119,11 @@ def get_all_latest_django_versions(
         _django_max_version = django_max_version
 
     print("Fetching all Django versions from PyPI")
-    base_txt = REQUIREMENTS_DIR / "base.txt"
-    with base_txt.open() as f:
-        for line in f.readlines():
-            if "django==" in line.lower():
-                break
-        else:
-            print(f"django not found in {base_txt}")  # Huh...?
-            sys.exit(1)
+    current_version_str = load_pinned_dependencies()["dependencies"].get("django")
+    if current_version_str is None:
+        print(f"django not found in {TEMPLATE_PYPROJECT}")  # Huh...?
+        sys.exit(1)
 
-    # Begin parsing and verification
-    _, current_version_str = get_name_and_version(line)
     # Get a tuple of (major, minor) - ignoring patch version
     current_minor_version = DjVersion.parse(current_version_str)
     newer_versions: set[DjVersion] = set()
@@ -120,7 +136,7 @@ def get_all_latest_django_versions(
 
 _TABLE_HEADER = """
 
-## {file}.txt
+## {array}
 
 | Name | Version in Master | {dj_version} Compatible Version | OK |
 | ---- | :---------------: | :-----------------------------: | :-: |
@@ -140,12 +156,11 @@ class GitHubManager:
         # (major+minor) Version and description
         self.existing_issues: dict[DjVersion, Issue] = {}
 
-        # Load all requirements from our requirements files and preload their
+        # Load all dependencies of the generated project and preload their
         # package information like a cache:
-        self.requirements_files = ["base", "local", "production"]
         # Format:
-        # requirement file name: {package name: (master_version, package_info)}
-        self.requirements: dict[str, dict[str, tuple[str, dict]]] = {x: {} for x in self.requirements_files}
+        # dependency array: {package name: (master_version, package_info)}
+        self.requirements: dict[str, dict[str, tuple[str, dict]]] = {x: {} for x in DEPENDENCY_ARRAYS}
 
     def setup(self) -> None:
         self.load_requirements()
@@ -153,21 +168,9 @@ class GitHubManager:
 
     def load_requirements(self):
         print("Reading requirements")
-        for requirements_file in self.requirements_files:
-            with (REQUIREMENTS_DIR / f"{requirements_file}.txt").open() as f:
-                for line in f.readlines():
-                    if (
-                        "==" in line
-                        and not line.startswith("{%")
-                        and not line.startswith("    #")
-                        and not line.startswith("#")
-                        and not line.startswith(" ")
-                    ):
-                        name, version = get_name_and_version(line)
-                        self.requirements[requirements_file][name] = (
-                            version,
-                            get_package_info(name),
-                        )
+        for array, pins in load_pinned_dependencies().items():
+            for name, version in pins.items():
+                self.requirements[array][name] = (version, get_package_info(name))
 
     def load_existing_issues(self):
         """Closes the issue if the base Django version is greater than needed"""
@@ -249,9 +252,9 @@ class GitHubManager:
 
     def generate_markdown(self, needed_dj_version: DjVersion):
         requirements = f"{needed_dj_version} requirements tables\n\n"
-        for _file in self.requirements_files:
-            requirements += _TABLE_HEADER.format_map({"file": _file, "dj_version": needed_dj_version})
-            for package_name, (version, info) in self.requirements[_file].items():
+        for array in DEPENDENCY_ARRAYS:
+            requirements += _TABLE_HEADER.format_map({"array": array, "dj_version": needed_dj_version})
+            for package_name, (version, info) in self.requirements[array].items():
                 compat_version, icon = self.get_compatibility(package_name, info, needed_dj_version)
                 requirements += (
                     f"| {self._get_md_home_page_url(info).format(package_name)} "
