@@ -2,16 +2,20 @@
 
 import json
 import os
+from itertools import product
 from pathlib import Path
+from pathlib import PurePosixPath
+from typing import ClassVar
 
 import pytest
 
+from hooks.post_gen_project import FLAG_OPTIONS
+from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import append_to_gitignore_file
 from hooks.post_gen_project import envs_unused
 from hooks.post_gen_project import normalize_context
 from hooks.post_gen_project import prune
-from hooks.post_gen_project import remove_celery_files
-from hooks.post_gen_project import remove_channels_files
+from hooks.post_gen_project import remove_channels_tests
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATE = REPO / "{{cookiecutter.project_slug}}"
@@ -57,10 +61,8 @@ def test_envs_unused_when_neither_docker_nor_heroku(use_docker, use_heroku, expe
 
 
 @pytest.fixture
-def channels_files(tmp_path):
-    """The files that only exist for ``realtime=channels``."""
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "websocket.py").touch()
+def channels_tests(tmp_path):
+    """The project-level tests package as generated with ``realtime=channels``."""
     tests_path = tmp_path / PROJECT_SLUG / "tests"
     tests_path.mkdir(parents=True)
     (tests_path / "__init__.py").touch()
@@ -68,39 +70,18 @@ def channels_files(tmp_path):
     return tests_path
 
 
-def test_remove_channels_files_drops_the_package_when_only_the_websocket_test_lives_there(tmp_path, channels_files):
-    remove_channels_files(tmp_path, PROJECT_SLUG)
-    assert not (tmp_path / "config" / "websocket.py").exists()
-    assert not channels_files.exists()
+def test_remove_channels_tests_drops_the_package_when_only_the_websocket_test_lives_there(tmp_path, channels_tests):
+    remove_channels_tests(tmp_path, PROJECT_SLUG)
+    assert not channels_tests.exists()
 
 
-def test_remove_channels_files_keeps_other_tests(tmp_path, channels_files):
-    other_test = channels_files / "test_urls.py"
+def test_remove_channels_tests_keeps_other_tests(tmp_path, channels_tests):
+    other_test = channels_tests / "test_urls.py"
     other_test.touch()
-    remove_channels_files(tmp_path, PROJECT_SLUG)
-    assert not (channels_files / "test_websocket.py").exists()
+    remove_channels_tests(tmp_path, PROJECT_SLUG)
+    assert not (channels_tests / "test_websocket.py").exists()
     assert other_test.exists()
-    assert (channels_files / "__init__.py").exists()
-
-
-@pytest.fixture
-def celery_files(tmp_path):
-    """The Celery entry point next to the tasks example that every project keeps."""
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "celery_app.py").touch()
-    users_path = tmp_path / PROJECT_SLUG / "users"
-    (users_path / "tests").mkdir(parents=True)
-    (users_path / "tasks.py").touch()
-    (users_path / "tests" / "test_tasks.py").touch()
-    return tmp_path
-
-
-def test_remove_celery_files_keeps_the_tasks_example(celery_files):
-    remove_celery_files(celery_files)
-    assert not (celery_files / "config" / "celery_app.py").exists()
-    users_path = celery_files / PROJECT_SLUG / "users"
-    assert (users_path / "tasks.py").exists()
-    assert (users_path / "tests" / "test_tasks.py").exists()
+    assert (channels_tests / "__init__.py").exists()
 
 
 # ``prune`` on a copy of the template tree, checked against hand-written expectations.
@@ -311,3 +292,101 @@ def test_prune_rest_api_starter_files(unpruned_project, rest_api, expected):
 )
 def test_prune_channels_files(unpruned_project, realtime, expected):
     assert_prunes(unpruned_project, expected, realtime=realtime)
+
+
+# The removal rules checked for self-consistency over every combination of the answers they
+# read. This shows the table can be applied in any order and that every listed path is in the
+# template, not that the rules are right: the behaviour tests above cover that for
+# representative answers.
+
+# The answers the removal rules read. Reading any other answer fails the guard below, because
+# the rules would then not be checked over that answer's values.
+REMOVAL_OPTIONS = (
+    "open_source_license",
+    "username_type",
+    "use_docker",
+    "cloud_provider",
+    "use_heroku",
+    "keep_local_envs_in_vcs",
+    "use_celery",
+    "ci_tool",
+    "rest_api",
+    "realtime",
+)
+
+
+class RemovalContext(dict):
+    """Answers for the removal rules, recording the ones read; reading any other is a failure."""
+
+    accessed: ClassVar[set[str]] = set()
+
+    def __getitem__(self, key):
+        self.accessed.add(key)
+        return super().__getitem__(key)
+
+    def __missing__(self, key):
+        msg = f"the removal rules read {key!r}, which is not in REMOVAL_OPTIONS"
+        raise AssertionError(msg)
+
+    def get(self, key, default=None):
+        return self[key]
+
+    def __contains__(self, key):
+        return super().__contains__(key) or self.__missing__(key)
+
+
+def option_domains():
+    """Every value each removal-relevant answer can take, in ``cookiecutter.json`` order."""
+    options = json.loads((REPO / "cookiecutter.json").read_text())
+    domains = {}
+    for option in REMOVAL_OPTIONS:
+        if isinstance(options[option], list):
+            domains[option] = tuple(options[option])
+        else:
+            assert option in FLAG_OPTIONS, f"{option} is free text, so its values cannot be enumerated"
+            domains[option] = ("y", "n")
+    return domains
+
+
+def removal_contexts():
+    """A guarded context for every combination of the removal-relevant answers."""
+    domains = option_domains()
+    for values in product(*domains.values()):
+        yield RemovalContext(zip(domains, values, strict=True))
+
+
+def removal_targets(context):
+    """The paths the removal rules delete for ``context``, one entry per listing."""
+    return [
+        PurePosixPath(path.format(project_slug=PROJECT_SLUG))
+        for applies, paths in REMOVALS
+        if applies(context)
+        for path in paths
+    ]
+
+
+def test_removal_rules_delete_each_path_at_most_once():
+    """For any answers, no path is listed twice, or together with a path above it."""
+    # The listed paths depend only on which rules apply, so each combination of those is checked once.
+    contexts_by_applying_rules = {}
+    for context in removal_contexts():
+        applying = tuple(applies(context) for applies, _ in REMOVALS)
+        contexts_by_applying_rules.setdefault(applying, context)
+    assert RemovalContext.accessed == set(REMOVAL_OPTIONS)
+    for context in contexts_by_applying_rules.values():
+        targets = removal_targets(context)
+        target_set = set(targets)
+        assert len(targets) == len(target_set), f"a path is listed twice for {dict(context)}"
+        nested = [target for target in targets if any(parent in target_set for parent in target.parents)]
+        assert not nested, f"paths listed under another listed path for {dict(context)}: {nested}"
+
+
+def test_removal_rules_list_paths_of_the_template():
+    """A renamed or dropped template file fails here rather than in every generation test."""
+    missing = [
+        path
+        for _, paths in REMOVALS
+        for path in paths
+        if not (TEMPLATE / path.format(project_slug=SLUG_PLACEHOLDER)).exists()
+    ]
+    assert not missing

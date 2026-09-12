@@ -48,77 +48,64 @@ def envs_unused(context):
     return context["use_docker"] == "n" and context["use_heroku"] == "n"
 
 
-def remove_open_source_files(root):
-    file_names = ["CONTRIBUTORS.txt", "LICENSE"]
-    for file_name in file_names:
-        (root / file_name).unlink()
-
-
-def remove_gplv3_files(root):
-    (root / "COPYING").unlink()
-
-
-def remove_custom_user_manager_files(root, project_slug):
-    users_path = root / project_slug / "users"
-    (users_path / "managers.py").unlink()
-    (users_path / "tests" / "test_managers.py").unlink()
-
-
-def remove_docker_files(root):
-    shutil.rmtree(root / "compose")
-
-    file_names = [
-        "docker-compose.local.yml",
-        "docker-compose.production.yml",
-        "docker-compose.docs.yml",
-        ".dockerignore",
-        "justfile",
-    ]
-    for file_name in file_names:
-        (root / file_name).unlink()
-
-
-def remove_nginx_docker_files(root):
-    shutil.rmtree(root / "compose" / "production" / "nginx")
-
-
-def remove_utility_files(root):
-    shutil.rmtree(root / "utility")
-
-
-def remove_heroku_files(root):
-    (root / "Procfile").unlink()
-    shutil.rmtree(root / "bin")
-
-
-def remove_celery_files(root):
-    # users/tasks.py and its tests stay: they also hold the Django Tasks example
-    (root / "config" / "celery_app.py").unlink()
-
-
-def remove_channels_files(root, project_slug):
-    (root / "config" / "websocket.py").unlink()
-    tests_path = root / project_slug / "tests"
-    (tests_path / "test_websocket.py").unlink()
-    # Keep the package when it holds tests that are not tied to Channels.
-    if all(path.name == "__init__.py" for path in tests_path.iterdir()):
-        shutil.rmtree(tests_path)
-
-
-def remove_dottravisyml_file(root):
-    (root / ".travis.yml").unlink()
-
-
-def remove_dotgitlabciyml_file(root):
-    (root / ".gitlab-ci.yml").unlink()
-
-
-def remove_dotgithub_folder(root):
-    shutil.rmtree(root / ".github")
-
-
-def remove_dotdrone_file(root):
-    (root / ".drone.yml").unlink()
+# Removal rules. When a rule's condition holds for the normalised answers, the paths
+# listed with it are deleted from the generated project. Paths are relative to the
+# project root; ``{project_slug}`` stands for the project package. For any answers,
+# no path may be listed twice or under another listed path, so the rules can be
+# applied in any order (tests/test_hooks.py checks this over every combination).
+# Deletions that depend on what else is in the generated tree, like dropping a
+# package once its last test is gone, are steps in ``prune`` rather than rules.
+REMOVALS = (
+    (lambda c: c["open_source_license"] == "Not open source", ("CONTRIBUTORS.txt", "LICENSE")),
+    (lambda c: c["open_source_license"] != "GPLv3", ("COPYING",)),
+    (
+        lambda c: c["username_type"] == "username",
+        ("{project_slug}/users/managers.py", "{project_slug}/users/tests/test_managers.py"),
+    ),
+    (
+        lambda c: c["use_docker"] == "n",
+        (
+            "compose",
+            "docker-compose.local.yml",
+            "docker-compose.production.yml",
+            "docker-compose.docs.yml",
+            ".dockerignore",
+            "justfile",
+        ),
+    ),
+    # The utility scripts set up a bare-metal server.
+    (lambda c: c["use_docker"] == "y", ("utility",)),
+    # nginx serves the media files when no cloud provider does.
+    (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "None", ("compose/production/nginx",)),
+    # The AWS image holds the S3 backup maintenance scripts.
+    (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "AWS", ("compose/production/aws",)),
+    (lambda c: c["use_heroku"] == "n", ("Procfile", "bin")),
+    (
+        lambda c: envs_unused(c) and c["keep_local_envs_in_vcs"] == "n",
+        (".envs", "merge_production_dotenvs_in_dotenv.py", "tests"),
+    ),
+    # users/tasks.py and its tests stay: they also hold the Django Tasks example.
+    (lambda c: c["use_celery"] == "n", ("config/celery_app.py",)),
+    (
+        lambda c: c["use_celery"] == "n" and c["use_docker"] == "y",
+        ("compose/local/django/celery", "compose/production/django/celery"),
+    ),
+    (lambda c: c["ci_tool"] != "Travis", (".travis.yml",)),
+    (lambda c: c["ci_tool"] != "Gitlab", (".gitlab-ci.yml",)),
+    (lambda c: c["ci_tool"] != "Github", (".github",)),
+    (lambda c: c["ci_tool"] != "Drone", (".drone.yml",)),
+    (lambda c: c["rest_api"] == "DRF", ("config/api.py", "{project_slug}/users/api/schema.py")),
+    (
+        lambda c: c["rest_api"] == "Django Ninja",
+        ("config/api_router.py", "{project_slug}/users/api/serializers.py"),
+    ),
+    (
+        lambda c: c["rest_api"] == "None",
+        ("config/api_router.py", "config/api.py", "{project_slug}/users/api", "{project_slug}/users/tests/api"),
+    ),
+    # The websocket test goes in ``remove_channels_tests``, which also decides about its package.
+    (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),
+)
 
 
 def generate_random_string(length, using_digits=False, using_ascii_letters=False, using_punctuation=False):  # noqa: FBT002
@@ -256,93 +243,32 @@ def set_flags_in_settings_files():
     set_django_secret_key(Path("config", "settings", "test.py"))
 
 
-def remove_envs_and_associated_files(root):
-    shutil.rmtree(root / ".envs")
-    (root / "merge_production_dotenvs_in_dotenv.py").unlink()
-    shutil.rmtree(root / "tests")
+def remove(path):
+    """Delete ``path``, which must exist: a directory with everything in it, or a file."""
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
 
 
-def remove_celery_compose_dirs(root):
-    shutil.rmtree(root / "compose" / "local" / "django" / "celery")
-    shutil.rmtree(root / "compose" / "production" / "django" / "celery")
+def remove_channels_tests(root, project_slug):
+    """Drop the websocket test, and the project-level tests package once nothing else is left in it."""
+    tests_path = root / project_slug / "tests"
+    (tests_path / "test_websocket.py").unlink()
+    if all(path.name == "__init__.py" for path in tests_path.iterdir()):
+        shutil.rmtree(tests_path)
 
 
-def remove_aws_dockerfile(root):
-    shutil.rmtree(root / "compose" / "production" / "aws")
-
-
-def remove_drf_starter_files(root, project_slug):
-    (root / "config" / "api_router.py").unlink()
-    (root / project_slug / "users" / "api" / "serializers.py").unlink()
-
-
-def remove_ninja_starter_files(root, project_slug):
-    (root / "config" / "api.py").unlink()
-    (root / project_slug / "users" / "api" / "schema.py").unlink()
-
-
-def remove_rest_api_files(root, project_slug):
-    remove_drf_starter_files(root, project_slug)
-    remove_ninja_starter_files(root, project_slug)
-    shutil.rmtree(root / project_slug / "users" / "api")
-    shutil.rmtree(root / project_slug / "users" / "tests" / "api")
-
-
-def prune(context, root):  # noqa: C901, PLR0912
+def prune(context, root):
     """Remove the files the chosen options do not need from the project at ``root``."""
     context = normalize_context(context)
     project_slug = context["project_slug"]
-
-    if context["open_source_license"] == "Not open source":
-        remove_open_source_files(root)
-    if context["open_source_license"] != "GPLv3":
-        remove_gplv3_files(root)
-
-    if context["username_type"] == "username":
-        remove_custom_user_manager_files(root, project_slug)
-
-    if context["use_docker"] == "y":
-        remove_utility_files(root)
-        if context["cloud_provider"] != "None":
-            remove_nginx_docker_files(root)
-    else:
-        remove_docker_files(root)
-
-    if context["use_docker"] == "y" and context["cloud_provider"] != "AWS":
-        remove_aws_dockerfile(root)
-
-    if context["use_heroku"] == "n":
-        remove_heroku_files(root)
-
-    if envs_unused(context) and context["keep_local_envs_in_vcs"] == "n":
-        remove_envs_and_associated_files(root)
-
-    if context["use_celery"] == "n":
-        remove_celery_files(root)
-        if context["use_docker"] == "y":
-            remove_celery_compose_dirs(root)
-
-    if context["ci_tool"] != "Travis":
-        remove_dottravisyml_file(root)
-
-    if context["ci_tool"] != "Gitlab":
-        remove_dotgitlabciyml_file(root)
-
-    if context["ci_tool"] != "Github":
-        remove_dotgithub_folder(root)
-
-    if context["ci_tool"] != "Drone":
-        remove_dotdrone_file(root)
-
-    if context["rest_api"] == "DRF":
-        remove_ninja_starter_files(root, project_slug)
-    elif context["rest_api"] == "Django Ninja":
-        remove_drf_starter_files(root, project_slug)
-    else:
-        remove_rest_api_files(root, project_slug)
-
+    for applies, paths in REMOVALS:
+        if applies(context):
+            for path in paths:
+                remove(root / path.format(project_slug=project_slug))
     if context["realtime"] != "channels":
-        remove_channels_files(root, project_slug)
+        remove_channels_tests(root, project_slug)
 
 
 def main(context):
