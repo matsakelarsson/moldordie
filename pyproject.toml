@@ -78,10 +78,16 @@ js.indent_size = 2
 
 [tool.ruff]
 line-length = 119
-# Exclude the template content as most files aren't parseable
+# Exclude the template content as most files aren't parseable.
+# These are globs, not regexes: "{...}" is alternation, so the braces in the
+# directory name are escaped one at a time as "[{]". A "{2}" repeat would be
+# read as the literal alternative "2" and match nothing. Name the directories
+# themselves rather than "dir/*", which excludes only the children and leaves
+# ruff descending into the directory, where config discovery would then try to
+# parse the Jinja-templated pyproject.toml as TOML and fail.
 extend-exclude = [
-  "[{]{2}cookiecutter.project_slug[}]{2}/*",
-  "docs/*",
+  "[{][{]cookiecutter.project_slug[}][}]",
+  "docs",
 ]
 lint.select = [
   "A",
