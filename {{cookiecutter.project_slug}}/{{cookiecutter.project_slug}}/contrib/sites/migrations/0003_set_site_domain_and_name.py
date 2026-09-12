@@ -41,7 +41,7 @@ def update_site_forward(apps, schema_editor):
         Site,
         schema_editor.connection,
         "{{ cookiecutter.domain_name }}",
-        "{{ cookiecutter.project_name[:50] }}",
+        "{{ cookiecutter.project_name[:50] | string_escape }}",
     )
 
 

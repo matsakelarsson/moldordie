@@ -64,21 +64,23 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 ### Template Generation Flow
 
 1. User runs `cookiecutter` — prompted with options from `cookiecutter.json`
-2. `hooks/pre_gen_project.py` validates input (project_slug format, conflicting options)
-3. Jinja2 renders all files under `{{cookiecutter.project_slug}}/` with user choices
+2. `hooks/pre_gen_project.py` validates input (project_slug format, control characters, the domain name's characters, conflicting options)
+3. Jinja2 renders all files under `{{cookiecutter.project_slug}}/` with user choices; free-text answers pass through the escaping filter of each file's syntax (`local_extensions.py`, terms in `CONTEXT.md`)
 4. `hooks/post_gen_project.py` receives the answers as JSON, prunes the files the chosen options do not need, generates random secrets, and installs dependencies with uv
 
 ### Key Files
 
 - **`cookiecutter.json`** — All template variables and their choices (project name, Docker, Celery, cloud provider, REST API, etc.)
-- **`hooks/pre_gen_project.py`** — Pre-generation validation (uses Jinja2 syntax at the top for context manipulation)
+- **`hooks/pre_gen_project.py`** — Pre-generation validation: project slug, control characters, the domain name's characters, conflicting options (uses Jinja2 syntax at the top for context manipulation)
 - **`hooks/post_gen_project.py`** — Post-generation hook: `REMOVALS`, the table of removal rules, and `prune`, which applies them plus the Channels cleanup (terms in `CONTEXT.md`); generates the Django secret key, sets DB credentials, runs `uv add` for the requirements
+- **`local_extensions.py`** — The `string_escape` Jinja filter, loaded through `_extensions` in `cookiecutter.json`, that a free-text answer passes through where it lands inside a Python, TOML, YAML or gettext string; in HTML it passes through Jinja's `e`
 - **`{{cookiecutter.project_slug}}/`** — The template directory; files here use Jinja2 conditionals (`{% if cookiecutter.use_celery == 'y' %}`) to include/exclude content
 
 ### Test Structure
 
 - **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent. Skips on macOS CI (slow).
 - **`tests/test_hooks.py`** — Unit tests for the hooks: `prune` run on a copy of the template tree against hand-written expected removals, and the removal rules checked for consistency over every combination of the answers they read
+- **`tests/test_local_extensions.py`** — The `string_escape` filter round-tripped through the Python, TOML and YAML parsers, and loaded from `cookiecutter.json`
 - **`tests/test_bare.sh`** / **`tests/test_docker.sh`** — Integration tests that generate a project and run its full test suite
 
 ### Generated Project Layout
@@ -111,7 +113,7 @@ The generated Django project uses:
 1. Add the variable and choices to `cookiecutter.json`
 2. Add validation in `hooks/pre_gen_project.py` if needed
 3. In `hooks/post_gen_project.py`: add a removal rule to `REMOVALS` for the files the option makes unnecessary, with the expected removals in `tests/test_hooks.py`; add a cleanup step to `prune` only when a deletion depends on what else is left in the generated tree, as the Channels cleanup does; put content modifications (secrets, `.gitignore` lines) in `main`
-4. Use Jinja2 conditionals in template files: `{% if cookiecutter.option == 'y' %}`
+4. Use Jinja2 conditionals in template files: `{% if cookiecutter.option == 'y' %}`; write a free-text answer through the escaping filter of the file's syntax (`| string_escape`, or `| e` in HTML; see Escaping in `CONTEXT.md`)
 5. Add test combinations to `SUPPORTED_COMBINATIONS` in `tests/test_cookiecutter_generation.py`
 
 ## Agent skills

@@ -32,9 +32,9 @@ django.setup()
 
 # -- Project information -----------------------------------------------------
 
-project = "{{ cookiecutter.project_name }}"
-copyright = """{% now 'utc', '%Y' %}, {{ cookiecutter.author_name }}"""  # noqa: A001
-author = "{{ cookiecutter.author_name }}"
+project = "{{ cookiecutter.project_name | string_escape }}"
+copyright = "{% now 'utc', '%Y' %}, {{ cookiecutter.author_name | string_escape }}"  # noqa: A001
+author = "{{ cookiecutter.author_name | string_escape }}"
 
 
 # -- General configuration ---------------------------------------------------

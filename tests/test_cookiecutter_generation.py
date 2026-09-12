@@ -1,4 +1,5 @@
-import glob  # noqa: EXE002
+import ast  # noqa: EXE002
+import glob
 import hashlib
 import json
 import os
@@ -71,6 +72,18 @@ def context():
         "domain_name": "example.com",
         "version": "0.1.0",
         "timezone": "UTC",
+    }
+
+
+@pytest.fixture
+def hostile_context(context):
+    """The context with free-text answers built from the characters that end or escape a string."""
+    return {
+        **context,
+        "project_name": 'My "Test" Project\\',
+        "description": 'She said "hi" & <left> C:\\path, it\'s fine.',
+        "author_name": 'Tess "Quoted" O\'Brien',
+        "email": '"Tess O\'Brien"@example.com',
     }
 
 
@@ -185,9 +198,26 @@ def build_files_list(base_path: Path):
     return f
 
 
+def check_po(content: str):
+    """gettext strings take C's backslash escapes, which Python's literals share."""
+    for line in content.splitlines():
+        if line.startswith('"'):
+            ast.literal_eval(line)
+
+
+# How to parse each kind of generated file that has a syntax; failures are SyntaxError or ValueError.
+PARSERS = {
+    ".json": json.loads,
+    ".po": check_po,
+    ".py": ast.parse,
+    ".toml": tomllib.loads,
+    ".yaml": lambda content: list(yaml.safe_load_all(content)),
+    ".yml": lambda content: list(yaml.safe_load_all(content)),
+}
+
+
 def check_paths(paths: Iterable[Path]):
-    """Method to check all paths have correct substitutions."""
-    # Assert that no match is found in any of the files
+    """Every text file is fully rendered and, if it has a syntax, parses."""
     for path in paths:
         if is_binary(str(path)):
             continue
@@ -195,16 +225,41 @@ def check_paths(paths: Iterable[Path]):
         content = path.read_text()
         match = RE_OBJ.search(content)
         assert match is None, f"cookiecutter variable not replaced in {path}"
+        parse = PARSERS.get(path.suffix)
+        if parse is not None:
+            try:
+                parse(content)
+            except (SyntaxError, ValueError, yaml.YAMLError) as e:
+                pytest.fail(f"{path} does not parse: {e}")
+
+
+def literal_assignments(path: Path) -> dict[str, object]:
+    """The module-level names a Python file binds to literals, with their values."""
+    values = {}
+    for node in ast.parse(path.read_text()).body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                try:
+                    values[target.id] = ast.literal_eval(node.value)
+                except ValueError:
+                    continue
+    return values
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_project_generation(cookies, context, context_override):
-    """Test that project is generated and fully rendered."""
+def test_project_generation(cookies, hostile_context, context_override):
+    """The project is generated, fully rendered and parseable, whatever the free-text answers."""
 
-    result = cookies.bake(extra_context={**context, **context_override})
+    result = cookies.bake(extra_context={**hostile_context, **context_override})
     assert result.exit_code == 0
     assert result.exception is None
-    assert result.project_path.name == context["project_slug"]
+    assert result.project_path.name == hostile_context["project_slug"]
     assert result.project_path.is_dir()
 
     paths = build_files_list(result.project_path)
@@ -413,6 +468,27 @@ def test_invalid_slug(cookies, context, slug):
     assert isinstance(result.exception, FailedHookException)
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"description": "Two\nlines"},
+        {"author_name": "Tab\tstop"},
+        {"domain_name": "example.com/app"},
+        {"domain_name": "my site.com"},
+        {"domain_name": "`example.com`"},
+    ],
+    ids=_fixture_id,
+)
+def test_invalid_free_text(cookies, context, answer):
+    """A control character, or a domain name with punctuation, fails the pre-generation hook."""
+    context.update(answer)
+
+    result = cookies.bake(extra_context=context)
+
+    assert result.exit_code != 0
+    assert isinstance(result.exception, FailedHookException)
+
+
 @pytest.mark.parametrize("invalid_context", UNSUPPORTED_COMBINATIONS)
 def test_error_if_incompatible(cookies, context, invalid_context):
     """It should not generate project an incompatible combination is selected."""
@@ -473,6 +549,44 @@ def test_pyproject_toml(cookies, context):
     assert "Programming Language :: Python :: 3.12" in data["project"]["classifiers"]
     assert "Programming Language :: Python :: 3.14" in data["project"]["classifiers"]
     assert data["tool"]["mypy"]["python_version"] == "3.12"
+
+
+def test_free_text_answers_survive_escaping(cookies, hostile_context):
+    """Each free-text answer reads back unchanged from the generated file it was escaped into."""
+    hostile_context.update(
+        {
+            "use_docker": "y",  # generates the Traefik configuration
+            "rest_api": "DRF",  # generates SPECTACULAR_SETTINGS
+            "timezone": 'Zone/"Quoted"',  # nothing here starts Django, which would reject it
+        },
+    )
+    result = cookies.bake(extra_context=hostile_context)
+    assert result.exit_code == 0
+    project_slug = hostile_context["project_slug"]
+    project_name = hostile_context["project_name"]
+    author_name = hostile_context["author_name"]
+    email = hostile_context["email"]
+
+    settings = literal_assignments(result.project_path / "config" / "settings" / "base.py")
+    assert settings["TIME_ZONE"] == hostile_context["timezone"]
+    assert settings["ADMINS"] == [f'"{author_name}" <{email}>']
+    assert settings["SPECTACULAR_SETTINGS"]["TITLE"] == f"{project_name} API"
+
+    sphinx = literal_assignments(result.project_path / "docs" / "conf.py")
+    assert sphinx["project"] == project_name
+    assert sphinx["author"] == author_name
+    assert sphinx["copyright"].endswith(f", {author_name}")
+
+    package = literal_assignments(result.project_path / project_slug / "__init__.py")
+    assert package["__version__"] == hostile_context["version"]
+
+    traefik = yaml.safe_load((result.project_path / "compose" / "production" / "traefik" / "traefik.yml").read_text())
+    assert traefik["certificatesResolvers"]["letsencrypt"]["acme"]["email"] == email
+
+    base_html = (result.project_path / project_slug / "templates" / "base.html").read_text()
+    assert "My &#34;Test&#34; Project\\" in base_html
+    assert 'content="She said &#34;hi&#34; &amp; &lt;left&gt; C:\\path, it&#39;s fine."' in base_html
+    assert 'content="Tess &#34;Quoted&#34; O&#39;Brien"' in base_html
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
