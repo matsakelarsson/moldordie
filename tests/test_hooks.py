@@ -9,10 +9,8 @@ from typing import ClassVar
 
 import pytest
 
-from hooks.post_gen_project import FLAG_OPTIONS
 from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import append_to_gitignore_file
-from hooks.post_gen_project import normalize_context
 from hooks.post_gen_project import prune
 from hooks.post_gen_project import remove_channels_tests
 
@@ -39,16 +37,6 @@ def test_append_to_gitignore_file(working_directory):
     linesep = os.linesep.encode()
     assert gitignore_file.read_bytes() == b"node_modules/" + linesep + b".envs/*" + linesep
     assert gitignore_file.read_text() == "node_modules/\n.envs/*\n"
-
-
-def test_normalize_context_lowercases_only_the_flags_on_a_copy():
-    context = {"use_docker": "Y", "cloud_provider": "AWS", "project_name": "Yes Project"}
-    assert normalize_context(context) == {
-        "use_docker": "y",
-        "cloud_provider": "AWS",
-        "project_name": "Yes Project",
-    }
-    assert context["use_docker"] == "Y"
 
 
 @pytest.fixture
@@ -167,10 +155,6 @@ WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES
 
 def test_prune_with_the_default_answers(unpruned_project):
     assert_prunes(unpruned_project, DEFAULTS)
-
-
-def test_prune_reads_the_flags_case_insensitively(unpruned_project):
-    assert_prunes(unpruned_project, WITH_DOCKER | NO_NGINX, use_docker="Y")
 
 
 def test_prune_fails_on_a_missing_target(unpruned_project):
@@ -325,7 +309,8 @@ def option_domains():
         if isinstance(options[option], list):
             domains[option] = tuple(options[option])
         else:
-            assert option in FLAG_OPTIONS, f"{option} is free text, so its values cannot be enumerated"
+            # A yes/no answer, as its declaration shows; the pre-generation hook lets nothing else through.
+            assert options[option] in ("y", "n"), f"{option} is free text, so its values cannot be enumerated"
             domains[option] = ("y", "n")
     return domains
 

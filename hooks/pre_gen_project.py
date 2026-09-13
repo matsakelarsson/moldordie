@@ -9,11 +9,19 @@ HINT = "\x1b[3;33m"
 SUCCESS = "\x1b[1;32m [SUCCESS]: "
 
 # The content of this string is evaluated by Jinja, and plays an important role.
-# It updates the cookiecutter context to trim leading and trailing spaces
-# from domain/email values
+# It updates the cookiecutter context before any project file is rendered: it
+# trims leading and trailing spaces from the domain and email values, and it
+# lowercases the yes/no answers, so that the templates and both hooks all read
+# them in one spelling.
 """
 {{ cookiecutter.update({ "domain_name": cookiecutter.domain_name | trim }) }}
 {{ cookiecutter.update({ "email": cookiecutter.email | trim }) }}
+{{ cookiecutter.update({ "use_docker": cookiecutter.use_docker | lower }) }}
+{{ cookiecutter.update({ "use_celery": cookiecutter.use_celery | lower }) }}
+{{ cookiecutter.update({ "use_sentry": cookiecutter.use_sentry | lower }) }}
+{{ cookiecutter.update({ "use_whitenoise": cookiecutter.use_whitenoise | lower }) }}
+{{ cookiecutter.update({ "keep_local_envs_in_vcs": cookiecutter.keep_local_envs_in_vcs | lower }) }}
+{{ cookiecutter.update({ "debug": cookiecutter.debug | lower }) }}
 """
 
 # The answers enter here as JSON, rendered after the update above, so that a
@@ -36,7 +44,14 @@ assert re.fullmatch(r"[\w.-]+", context["domain_name"]), (
     "Domain name may only contain letters, digits, dots, hyphens and underscores."
 )
 
-if context["use_whitenoise"].lower() == "n" and context["cloud_provider"] == "None":
+# The yes/no answers are typed as text, so unlike the list options Cookiecutter does not
+# validate them. Lowercased above, anything but y or n is a typo that would otherwise
+# silently generate the wrong project.
+FLAG_OPTIONS = ("use_docker", "use_celery", "use_sentry", "use_whitenoise", "keep_local_envs_in_vcs", "debug")
+for option in FLAG_OPTIONS:
+    assert context[option] in ("y", "n"), f"{option} must be answered with y or n, not {context[option]!r}."
+
+if context["use_whitenoise"] == "n" and context["cloud_provider"] == "None":
     print("You should either use Whitenoise or select a Cloud Provider to serve static files")
     sys.exit(1)
 

@@ -7,8 +7,9 @@ noted alternatives are the ones to avoid.
 
 A question in `cookiecutter.json` and its answer. A **list option** offers choices that Cookiecutter
 validates, so the hooks read its answer as given. A **flag option** is a yes/no answer typed as text; the
-post-generation hook lowercases the ones it reads (`FLAG_OPTIONS`) and nothing else. A **free-text
-option** takes any text (project name, description, author, email, domain, version, time zone) and
+pre-generation hook lowercases all of them before any file is rendered and rejects anything but `y` or
+`n`, so the templates and both hooks read them in one spelling. A **free-text option** takes any text
+(project name, description, author, email, domain, version, time zone) and
 reaches the generated files through escaping. The answers to all options together are the **context**,
 which each hook receives once, as JSON, at its entry point, so a free-text answer cannot break the
 hook's source.
