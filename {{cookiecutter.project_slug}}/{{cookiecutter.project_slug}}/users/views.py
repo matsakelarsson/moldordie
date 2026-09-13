@@ -25,10 +25,7 @@ class UserDetailView(LoginRequiredMixin, HtmxTemplateMixin, DetailView[User]):
     model = User
     request: AuthenticatedHtmxRequest
     htmx_partial = "profile"
-    {%- if cookiecutter.username_type == "email" %}
-    slug_field = "id"
-    slug_url_kwarg = "id"
-    {%- else %}
+    {%- if cookiecutter.username_type == "username" %}
     slug_field = "username"
     slug_url_kwarg = "username"
     {%- endif %}

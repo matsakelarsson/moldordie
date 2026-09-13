@@ -63,11 +63,6 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture
-def user():
-    return UserFactory.create()
-
-
 def test_list_users_as_anonymous_user(client: Client):
     response = client.get(reverse("api:list_users"))
 

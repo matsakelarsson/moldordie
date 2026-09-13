@@ -145,8 +145,6 @@ AWS_S3_REGION_NAME = env("DJANGO_AWS_S3_REGION_NAME", default=None)
 AWS_S3_CUSTOM_DOMAIN = env("DJANGO_AWS_S3_CUSTOM_DOMAIN", default=None)
 aws_s3_domain = AWS_S3_CUSTOM_DOMAIN or f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 {% endif -%}
-
-{% if cookiecutter.cloud_provider != 'None' or cookiecutter.use_whitenoise == 'y' -%}
 # STATIC & MEDIA
 # ------------------------
 STORAGES = {
@@ -179,7 +177,6 @@ STORAGES = {
     {%- endif %}
 {%- endif %}
 }
-{%- endif %}
 
 {%- if cookiecutter.cloud_provider == 'AWS' %}
 MEDIA_URL = f"https://{aws_s3_domain}/media/"
