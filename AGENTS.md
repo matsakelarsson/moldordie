@@ -83,7 +83,7 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 
 - **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with `SUPPORTED_COMBINATIONS`: the defaults, one row per choice of every list and flag option in the catalogue, and the hand-written `PAIRED_COMBINATIONS`, deduplicated so each project bakes once. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent and, with `AUTOFIXABLE_STYLES=1`, that `ruff format`, djlint's formatter and `django-upgrade` would change nothing (the `auto_fixable` marker; CI runs just those in its own job).
 - **`tests/test_hooks.py`** — Unit tests for the hooks: `prune` run on a copy of the template tree against hand-written expected removals, and the removal rules checked for consistency over every combination of the answers they read
-- **`tests/test_options.py`** — The catalogue: every option's kind against a hand-written mapping (`KINDS`), the `option_names` global reaching a Cookiecutter environment, and the answers the CI integration jobs pass checked against the catalogue
+- **`tests/test_options.py`** — The catalogue: every option's kind against a hand-written mapping (`KINDS`), the `option_names` global reaching a Cookiecutter environment, and the catalogue's other readers checked against it: the answers the CI integration jobs pass, the README's example session and the options page
 - **`tests/test_local_extensions.py`** — The `string_escape` filter round-tripped through the Python, TOML and YAML parsers, and loaded from `cookiecutter.json`
 - **`tests/test_bare.sh`** / **`tests/test_docker.sh`** — Integration tests that generate a project and run its full test suite
 
@@ -119,6 +119,7 @@ The generated Django project uses:
 3. In `hooks/post_gen_project.py`: add a removal rule to `REMOVALS` for the files the option makes unnecessary, with the expected removals in `tests/test_hooks.py`; add a cleanup step to `prune` only when a deletion depends on what else is left in the generated tree, as the Channels cleanup does; put content modifications (secrets, `.gitignore` lines) in `main`
 4. Use Jinja2 conditionals in template files: `{% if cookiecutter.option == 'y' %}`; write a free-text answer through the escaping filter of the file's syntax (`| string_escape`, or `| e` in HTML; see Escaping in `CONTEXT.md`)
 5. Add a row to `PAIRED_COMBINATIONS` in `tests/test_cookiecutter_generation.py` only when the option's template arms need a second answer to be reached; an option rejected in some combination goes into `UNSUPPORTED_COMBINATIONS`
+6. Document it: an entry in `docs/1-getting-started/project-generation-options.rst`, in declaration order, with a list option's choices as an enumerated list whose items start with the answer as typed; and its prompt in the README's example session. `tests/test_options.py` checks both against the catalogue
 
 ## Agent skills
 

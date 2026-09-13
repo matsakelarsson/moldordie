@@ -1,7 +1,9 @@
 """The option catalogue in local_extensions.py: what it reads from cookiecutter.json, and who reads it."""
 
 import json
+import re
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -101,3 +103,89 @@ def test_ci_integration_jobs_pass_options_of_the_catalogue():
             assert name in OPTIONS, f"{job}: {name!r} is not an option"
             if OPTIONS[name].choices:
                 assert value in OPTIONS[name].choices, f"{job}: {value!r} is not a choice of {name}"
+
+
+@dataclass(frozen=True)
+class Prompt:
+    """One prompt of the README's example session, as Cookiecutter shows it."""
+
+    index: int
+    total: int
+    name: str
+    choices: tuple[str, ...]
+    """The numbered choices of a list option; empty otherwise."""
+    default: str
+    """The default in parentheses, or for a list option the choice its default number selects."""
+
+
+def readme_transcript():
+    """The prompts of the README's example session, in order."""
+    lines = (REPO / "README.md").read_text().splitlines()
+    prompts = []
+    at = 0
+    while at < len(lines):
+        header = re.fullmatch(r"\s+\[(\d+)/(\d+)\] (?:Select (\w+)|(\w+) \((.*)\): .*)", lines[at])
+        at += 1
+        if header is None:
+            continue
+        index, total, list_name, name, default = header.groups()
+        if list_name is None:
+            prompts.append(Prompt(int(index), int(total), name, (), default))
+            continue
+        choices = []
+        while (choice := re.fullmatch(r"\s+(\d+) - (.*)", lines[at])) is not None:
+            assert int(choice.group(1)) == len(choices) + 1, f"{list_name}: {lines[at]!r} is out of sequence"
+            choices.append(choice.group(2))
+            at += 1
+        chosen = re.fullmatch(r"\s+Choose from \[([\d/]+)\] \((\d+)\): \d+", lines[at])
+        assert chosen is not None, f"{list_name}: {lines[at]!r} should offer the choices"
+        assert chosen.group(1) == "/".join(str(n) for n in range(1, len(choices) + 1)), list_name
+        prompts.append(Prompt(int(index), int(total), list_name, tuple(choices), choices[int(chosen.group(2)) - 1]))
+        at += 1
+    return prompts
+
+
+def test_readme_transcript_prompts_every_option_as_cookiecutter_does():
+    """The example session shows every option in declaration order, with its choices and default."""
+    prompts = readme_transcript()
+
+    assert [prompt.name for prompt in prompts] == list(OPTIONS)
+    assert [prompt.index for prompt in prompts] == list(range(1, len(OPTIONS) + 1))
+    assert {prompt.total for prompt in prompts} == {len(OPTIONS)}
+    for prompt in prompts:
+        option = OPTIONS[prompt.name]
+        assert prompt.choices == (option.choices if option.kind == LIST else ()), prompt.name
+        if "{{" not in option.default:  # a default rendered from earlier answers cannot be compared
+            assert prompt.default == option.default, prompt.name
+
+
+def documented_options():
+    """The entries of the options page's definition list: name to the lines of its body, in order."""
+    entries = {}
+    current = None
+    for line in (REPO / "docs" / "1-getting-started" / "project-generation-options.rst").read_text().splitlines():
+        term = re.fullmatch(r"(\w+):", line)
+        if term is not None:
+            current = term.group(1)
+            entries[current] = []
+        elif current is not None and line.startswith("    "):
+            entries[current].append(line.strip())
+        elif line.strip():
+            current = None  # the link targets after the list
+    return entries
+
+
+def test_options_page_documents_every_option_in_order():
+    assert list(documented_options()) == list(OPTIONS)
+
+
+def test_options_page_lists_the_choices_of_every_list_option():
+    """Each list option's entry enumerates its choices, every item starting with the answer as typed."""
+    documented = documented_options()
+    for name in option_names(LIST):
+        items = [match for line in documented[name] if (match := re.fullmatch(r"(\d+)\. (.*)", line))]
+        choices = OPTIONS[name].choices
+        assert [int(item.group(1)) for item in items] == list(range(1, len(choices) + 1)), name
+        for item, choice in zip(items, choices, strict=True):
+            text = item.group(2).replace("`", "")  # rst link and literal markup
+            assert re.match(rf"{re.escape(choice)}(?:[_,:\s]|$)", text), f"{name}: {item.group(0)!r} is not {choice!r}"
