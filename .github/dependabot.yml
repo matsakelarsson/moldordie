@@ -11,8 +11,12 @@ updates:
       interval: "daily"
     labels:
       - "project infrastructure"
+    # The generated project's pyproject.toml is the source of truth for the linter
+    # pins; align-versions.yml mirrors them here. See docs/6-about/maintainer-guide.md.
     ignore:
-      - dependency-name: "ruff" # updated via PyUp
+      - dependency-name: "ruff"
+      - dependency-name: "djlint"
+      - dependency-name: "django-upgrade"
 
   # Update GitHub actions in workflows
   - package-ecosystem: "github-actions"
