@@ -14,6 +14,10 @@ import yaml
 from binaryornot.check import is_binary
 from cookiecutter.exceptions import FailedHookException
 
+from local_extensions import FLAG
+from local_extensions import OPTIONS
+from local_extensions import option_names
+
 PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
 # <script src="http(s)://..."> or <link href="http(s)://...">
@@ -88,67 +92,60 @@ def hostile_context(context):
     }
 
 
-SUPPORTED_COMBINATIONS = [
-    {"username_type": "username"},
-    {"username_type": "email"},
-    {"open_source_license": "MIT"},
-    {"open_source_license": "BSD"},
-    {"open_source_license": "GPLv3"},
-    {"open_source_license": "Apache Software License 2.0"},
-    {"open_source_license": "Not open source"},
-    {"use_docker": "y"},
-    {"use_docker": "n"},
-    {"postgresql_version": "18"},
-    {"postgresql_version": "17"},
-    {"postgresql_version": "16"},
-    {"postgresql_version": "15"},
-    {"postgresql_version": "14"},
-    # cloud_provider and use_whitenoise decide together which storage backends are configured.
-    {"cloud_provider": "AWS", "use_whitenoise": "y"},
-    {"cloud_provider": "AWS", "use_whitenoise": "n"},
-    {"cloud_provider": "None", "use_whitenoise": "y"},
-    # Note: cloud_provider=None AND use_whitenoise=n is not supported
-    # mail_service shares no conditional with cloud_provider anywhere in the template, so the two
-    # need no cross product. Amazon SES bakes on the default cloud_provider=AWS, the only one it
-    # supports.
-    {"mail_service": "Mailgun"},
-    {"mail_service": "Amazon SES"},
-    {"mail_service": "Other SMTP"},
-    {"rest_api": "None"},
-    {"rest_api": "DRF"},
-    {"rest_api": "Django Ninja"},
-    {"realtime": "none"},
-    {"realtime": "channels"},
-    {"realtime": "channels", "use_docker": "y"},
-    {"realtime": "channels", "use_celery": "y", "use_docker": "y"},
-    {"use_celery": "y"},
-    {"use_celery": "n"},
-    {"mail_catcher": "None"},
-    {"mail_catcher": "Mailpit"},
-    {"mail_catcher": "Mailtrap Local"},
-    {"use_sentry": "y"},
-    {"use_sentry": "n"},
-    {"ci_tool": "None"},
-    {"ci_tool": "Gitlab"},
-    {"ci_tool": "Github"},
-    {"keep_local_envs_in_vcs": "y"},
-    {"keep_local_envs_in_vcs": "n"},
-    {"debug": "y"},
-    {"debug": "n"},
-]
-
+# The pre-generation hook rejects these pairs of answers.
 UNSUPPORTED_COMBINATIONS = [
     {"cloud_provider": "None", "use_whitenoise": "n"},
     {"cloud_provider": "None", "mail_service": "Amazon SES"},
 ]
 
+# Answers that only show their effect together, baked on top of the derived rows below:
+# cloud_provider and use_whitenoise decide the storage backends between them (and None
+# with WhiteNoise off is rejected, so no single-answer row can reach cloud_provider=None),
+# and Channels has its own wiring in the Docker and Celery files. mail_service shares no
+# conditional with cloud_provider anywhere in the template, so the two need no cross
+# product: Amazon SES bakes on the default cloud_provider=AWS, the only one it supports.
+PAIRED_COMBINATIONS = [
+    {"cloud_provider": "AWS", "use_whitenoise": "y"},
+    {"cloud_provider": "None", "use_whitenoise": "y"},
+    {"realtime": "channels", "use_docker": "y"},
+    {"realtime": "channels", "use_celery": "y", "use_docker": "y"},
+]
+
+DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
+
+
+def rejected(answers):
+    """Would the pre-generation hook refuse ``answers`` once the defaults fill in the rest?"""
+    effective = {**DEFAULT_ANSWERS, **answers}
+    return any(all(effective[name] == value for name, value in pair.items()) for pair in UNSUPPORTED_COMBINATIONS)
+
+
+def supported_combinations():
+    """The answers the generation tests bake: the defaults, one row per choice of every list
+    and flag option in the catalogue, and the paired rows. A row that the hook would reject,
+    or whose answers amount to an earlier row's, is left out, so each project bakes once."""
+    per_choice = ({name: choice} for name, option in OPTIONS.items() for choice in option.choices)
+    rows = [{}, *per_choice, *PAIRED_COMBINATIONS]
+    seen = set()
+    unique = []
+    for row in rows:
+        effective = tuple(sorted({**DEFAULT_ANSWERS, **row}.items()))
+        if rejected(row) or effective in seen:
+            continue
+        seen.add(effective)
+        unique.append(row)
+    return unique
+
+
+SUPPORTED_COMBINATIONS = supported_combinations()
+
 # The yes/no answers: typed as text, so the pre-generation hook validates them.
-FLAG_OPTIONS = ["use_docker", "use_celery", "use_sentry", "use_whitenoise", "keep_local_envs_in_vcs", "debug"]
+FLAG_OPTIONS = option_names(FLAG)
 
 
 def _fixture_id(ctx):
     """Helper to get a user-friendly test name from the parametrized context."""
-    return "-".join(f"{key}:{value}" for key, value in ctx.items())
+    return "-".join(f"{key}:{value}" for key, value in ctx.items()) or "defaults"
 
 
 def _fixture_id_of_first(value):
@@ -220,6 +217,25 @@ def literal_assignments(path: Path) -> dict[str, object]:
                 except ValueError:
                     continue
     return values
+
+
+def test_every_choice_is_baked():
+    """A choice no supported combination selects would leave its template arms unrendered."""
+    unbaked = [
+        (name, choice)
+        for name, option in OPTIONS.items()
+        for choice in option.choices
+        if not any({**DEFAULT_ANSWERS, **row}[name] == choice for row in SUPPORTED_COMBINATIONS)
+    ]
+    assert unbaked == []
+
+
+def test_combinations_name_options_of_the_catalogue():
+    """A misspelt option or choice in a hand-written row would bake the default project and pass."""
+    for row in [*PAIRED_COMBINATIONS, *UNSUPPORTED_COMBINATIONS]:
+        for name, value in row.items():
+            assert name in OPTIONS, f"{name!r} is not an option: {row}"
+            assert value in OPTIONS[name].choices, f"{value!r} is not a choice of {name}: {row}"
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
