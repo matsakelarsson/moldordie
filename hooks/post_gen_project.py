@@ -20,26 +20,7 @@ SUCCESS = "\x1b[1;32m [SUCCESS]: "
 
 DEBUG_VALUE = "debug"
 
-# The yes/no answers this hook reads. Cookiecutter validates list-typed options
-# against their choices, so only these free-text answers need normalising.
-FLAG_OPTIONS = (
-    "debug",
-    "keep_local_envs_in_vcs",
-    "use_celery",
-    "use_docker",
-)
-
-
-def normalize_context(context):
-    """Return a copy of ``context`` with the yes/no answers lowercased."""
-    normalized = dict(context)
-    for option in FLAG_OPTIONS:
-        if option in normalized:
-            normalized[option] = normalized[option].lower()
-    return normalized
-
-
-# Removal rules. When a rule's condition holds for the normalised answers, the paths
+# Removal rules. When a rule's condition holds for the answers, the paths
 # listed with it are deleted from the generated project. Paths are relative to the
 # project root; ``{project_slug}`` stands for the project package. For any answers,
 # no path may be listed twice or under another listed path, so the rules can be
@@ -249,8 +230,11 @@ def remove_channels_tests(root, project_slug):
 
 
 def prune(context, root):
-    """Remove the files the chosen options do not need from the project at ``root``."""
-    context = normalize_context(context)
+    """Remove the files the chosen options do not need from the project at ``root``.
+
+    ``context`` holds the answers as the pre-generation hook passed them on: the
+    yes/no answers are ``y`` or ``n``, lowercase.
+    """
     project_slug = context["project_slug"]
     for applies, paths in REMOVALS:
         if applies(context):
@@ -261,7 +245,6 @@ def prune(context, root):
 
 
 def main(context):
-    context = normalize_context(context)
     debug = context["debug"] == "y"
 
     set_flags_in_envs(
@@ -298,5 +281,6 @@ def main(context):
 if __name__ == "__main__":
     # Cookiecutter renders this file through Jinja before running it. The answers
     # enter here and nowhere else, as JSON so that free-text answers cannot break
-    # the source, and the unrendered module stays importable for the tests.
+    # the source, and the unrendered module stays importable for the tests. They
+    # arrive as the pre-generation hook validated them, the yes/no answers lowercase.
     main(json.loads(r"""{{ cookiecutter | tojson }}"""))

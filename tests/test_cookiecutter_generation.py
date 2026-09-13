@@ -141,6 +141,9 @@ UNSUPPORTED_COMBINATIONS = [
     {"cloud_provider": "None", "mail_service": "Amazon SES"},
 ]
 
+# The yes/no answers: typed as text, so the pre-generation hook validates them.
+FLAG_OPTIONS = ["use_docker", "use_celery", "use_sentry", "use_whitenoise", "keep_local_envs_in_vcs", "debug"]
+
 
 def _fixture_id(ctx):
     """Helper to get a user-friendly test name from the parametrized context."""
@@ -427,6 +430,18 @@ def test_invalid_free_text(cookies, context, answer):
     assert isinstance(result.exception, FailedHookException)
 
 
+@pytest.mark.parametrize("option", FLAG_OPTIONS)
+def test_invalid_flag_answer(cookies, context, capfd, option):
+    """A yes/no answer that is neither fails the pre-generation hook, which names the option and its answers."""
+    context.update({option: "yes"})
+
+    result = cookies.bake(extra_context=context)
+
+    assert result.exit_code != 0
+    assert isinstance(result.exception, FailedHookException)
+    assert f"{option} must be answered with y or n, not 'yes'" in capfd.readouterr().err
+
+
 @pytest.mark.parametrize("invalid_context", UNSUPPORTED_COMBINATIONS)
 def test_error_if_incompatible(cookies, context, invalid_context):
     """It should not generate project an incompatible combination is selected."""
@@ -455,6 +470,55 @@ def test_trim_domain_email(cookies, context):
 
     base_settings = result.project_path / "config" / "settings" / "base.py"
     assert "<me@example.com>" in base_settings.read_text()
+
+
+# The generated files that hold a secret drawn on each bake, so two bakes never agree on them.
+SECRET_FILES = {
+    ".envs/.local/.django",
+    ".envs/.local/.postgres",
+    ".envs/.production/.django",
+    ".envs/.production/.postgres",
+    "config/settings/local.py",
+    "config/settings/test.py",
+}
+
+
+def project_contents(project_path: Path) -> dict[str, bytes]:
+    """Every generated file by its path relative to the project root, with its content."""
+    return {str(path.relative_to(project_path)): path.read_bytes() for path in build_files_list(project_path)}
+
+
+@pytest.mark.parametrize("answer", ["y", "n"])
+def test_uppercase_flag_answers_select_the_same_features(cookies, context, answer):
+    """Every yes/no answer typed in uppercase generates the project its lowercase spelling does.
+
+    The answers are lowercased before rendering, so every reader sees one spelling: the
+    templates (dependencies, settings), the post-generation hook (secrets, ``.gitignore``)
+    and pruning. Each is checked on the uppercase project so that the comparison cannot
+    pass on two projects that ignored the answers alike.
+    """
+    answers = dict.fromkeys(FLAG_OPTIONS, answer)
+    lowercase = cookies.bake(extra_context={**context, **answers})
+    uppercase = cookies.bake(extra_context={**context, **dict.fromkeys(FLAG_OPTIONS, answer.upper())})
+    assert lowercase.exit_code == 0
+    assert uppercase.exit_code == 0
+
+    expected = project_contents(lowercase.project_path)
+    generated = project_contents(uppercase.project_path)
+    assert generated.keys() == expected.keys()
+    differing = {path for path in expected if generated[path] != expected[path]}
+    assert differing <= SECRET_FILES
+
+    project = uppercase.project_path
+    selected = answer == "y"
+    pinned = {package_name(requirement) for array in pinned_dependencies(project).values() for requirement in array}
+    assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned) is selected
+    assert ("sentry_sdk" in (project / "config" / "settings" / "production.py").read_text()) is selected
+    assert (project / "docker-compose.local.yml").exists() is selected
+    assert (project / ".envs").exists() is selected
+    assert ("!.envs/.local/" in (project / ".gitignore").read_text()) is selected
+    if selected:
+        assert "POSTGRES_USER=debug" in (project / ".envs" / ".local" / ".postgres").read_text()
 
 
 def test_pyproject_toml(cookies, context):
