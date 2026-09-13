@@ -36,12 +36,10 @@ This can take a while, especially the first time you run this particular command
 
 Generally, if you want to emulate production environment use ``docker-compose.production.yml`` instead. And this is true for any other actions you might need to perform: whenever a switch is required, just do it!
 
-After we have created our initial image we need to generate a lockfile for our dependencies.
+A freshly generated project pins its dependencies in ``pyproject.toml`` but has no lock file yet, so after we have created our initial image we need to generate one.
 Docker cannot write to the host system during builds, so we have to run the command to generate the lockfile in the container.
 This is important for reproducible builds and to ensure that the dependencies are installed correctly in the container.
-Updating the lockfile manually is normally not necessary when you add packages through `uv add <package_name>`.
-
-    docker compose -f docker-compose.local.yml run --rm django uv lock
+Commit the lockfile once it is there; updating it manually is normally not necessary when you add packages through `uv add <package_name>`.
 
 This is done by running the following command: ::
 
@@ -173,7 +171,7 @@ Add 3rd party python packages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To install a new 3rd party python package, you cannot use ``uv add <package_name>``, that would only add the package to the container. The container is ephemeral, so that new library won't be persisted if you run another container. Instead, you should modify the Docker image:
-You have to modify pyproject.toml and either add it to project.dependencies or to tool.uv.dev-dependencies by adding: ::
+You have to modify pyproject.toml and either add it to project.dependencies or to the dev group of dependency-groups by adding: ::
 
     "<package_name>==<package_version>"
 

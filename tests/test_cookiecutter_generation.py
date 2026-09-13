@@ -186,6 +186,11 @@ def _fixture_id(ctx):
     return "-".join(f"{key}:{value}" for key, value in ctx.items())
 
 
+def _fixture_id_of_first(value):
+    """Name a parametrized case after its context override, and nothing after the other arguments."""
+    return _fixture_id(value) if isinstance(value, dict) else ""
+
+
 def build_files_list(base_path: Path):
     """Build a list containing absolute paths to the generated files."""
     excluded_dirs = {".venv", "__pycache__"}
@@ -549,6 +554,85 @@ def test_pyproject_toml(cookies, context):
     assert "Programming Language :: Python :: 3.12" in data["project"]["classifiers"]
     assert "Programming Language :: Python :: 3.14" in data["project"]["classifiers"]
     assert data["tool"]["mypy"]["python_version"] == "3.12"
+
+
+def pinned_dependencies(project_path: Path) -> dict[str, list[str]]:
+    """The requirements each array of the generated ``pyproject.toml`` lists."""
+    data = tomllib.loads((project_path / "pyproject.toml").read_text())
+    return {"dependencies": data["project"]["dependencies"], **data["dependency-groups"]}
+
+
+def package_name(requirement: str) -> str:
+    """The distribution name of a pinned requirement, without its extras."""
+    return requirement.split("==", maxsplit=1)[0].split("[", maxsplit=1)[0]
+
+
+# (answers, packages the generated project must pin, packages it must not)
+DEPENDENCY_CASES = [
+    ({"use_celery": "y"}, {"celery", "django-celery-beat", "celery-types", "watchfiles"}, {"flower"}),
+    ({"use_celery": "y", "use_docker": "y"}, {"flower"}, set()),
+    ({"use_celery": "n"}, set(), {"celery", "django-celery-beat", "celery-types", "watchfiles", "flower"}),
+    ({"realtime": "channels"}, {"channels", "channels-redis", "types-channels"}, set()),
+    ({"realtime": "none"}, set(), {"channels", "channels-redis", "types-channels"}),
+    (
+        {"rest_api": "DRF"},
+        {"djangorestframework", "djangorestframework-stubs", "drf-spectacular", "django-cors-headers"},
+        {"django-ninja"},
+    ),
+    (
+        {"rest_api": "Django Ninja"},
+        {"django-ninja", "django-cors-headers"},
+        {"djangorestframework", "djangorestframework-stubs", "drf-spectacular"},
+    ),
+    ({"rest_api": "None"}, set(), {"django-cors-headers", "djangorestframework", "django-ninja"}),
+    ({"use_sentry": "y"}, {"sentry-sdk"}, set()),
+    ({"use_sentry": "n"}, set(), {"sentry-sdk"}),
+    ({"use_whitenoise": "y"}, {"whitenoise"}, {"collectfasta"}),
+    ({"cloud_provider": "AWS", "use_whitenoise": "n"}, {"django-storages", "collectfasta"}, {"whitenoise"}),
+    ({"cloud_provider": "None", "use_whitenoise": "y"}, {"whitenoise"}, {"django-storages", "collectfasta"}),
+    ({"mail_service": "Postmark"}, {"django-anymail"}, set()),
+]
+
+
+@pytest.mark.parametrize(("context_override", "expected", "unexpected"), DEPENDENCY_CASES, ids=_fixture_id_of_first)
+def test_pyproject_pins_the_dependencies_of_the_chosen_options(cookies, context_override, expected, unexpected):
+    """The dependencies an option needs are pinned in pyproject.toml, and only then."""
+    result = cookies.bake(extra_context=context_override)
+    assert result.exit_code == 0
+
+    pinned = {
+        package_name(requirement)
+        for array in pinned_dependencies(result.project_path).values()
+        for requirement in array
+    }
+    assert expected <= pinned
+    assert not unexpected & pinned
+
+
+@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+def test_pyproject_dependencies_are_pinned_and_sorted(cookies, context_override):
+    """Every dependency is pinned to one version, and the arrays are in the order pyproject-fmt keeps."""
+    result = cookies.bake(extra_context=context_override)
+    assert result.exit_code == 0
+
+    arrays = pinned_dependencies(result.project_path)
+    assert set(arrays) == {"dependencies", "dev"}
+    for name, requirements in arrays.items():
+        unpinned = [requirement for requirement in requirements if "==" not in requirement]
+        assert not unpinned, f"{name} does not pin {unpinned}"
+        expected = sorted(requirements, key=lambda requirement: (package_name(requirement), requirement))
+        assert requirements == expected, f"{name} is not sorted"
+
+
+def test_generation_writes_no_lock_file(cookies, context):
+    """Generation resolves nothing: the developer's first ``uv sync`` writes the lock file."""
+    result = cookies.bake(extra_context={**context, "use_docker": "y"})
+    assert result.exit_code == 0
+
+    assert not (result.project_path / "uv.lock").exists()
+    assert not (result.project_path / ".venv").exists()
+    assert not (result.project_path / "requirements").exists()
+    assert not (result.project_path / "compose" / "local" / "uv").exists()
 
 
 def test_free_text_answers_survive_escaping(cookies, hostile_context):

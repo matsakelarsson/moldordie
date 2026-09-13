@@ -66,13 +66,13 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 1. User runs `cookiecutter` — prompted with options from `cookiecutter.json`
 2. `hooks/pre_gen_project.py` validates input (project_slug format, control characters, the domain name's characters, conflicting options)
 3. Jinja2 renders all files under `{{cookiecutter.project_slug}}/` with user choices; free-text answers pass through the escaping filter of each file's syntax (`local_extensions.py`, terms in `CONTEXT.md`)
-4. `hooks/post_gen_project.py` receives the answers as JSON, prunes the files the chosen options do not need, generates random secrets, and installs dependencies with uv
+4. `hooks/post_gen_project.py` receives the answers as JSON, prunes the files the chosen options do not need and generates random secrets
 
 ### Key Files
 
 - **`cookiecutter.json`** — All template variables and their choices (project name, Docker, Celery, cloud provider, REST API, etc.)
 - **`hooks/pre_gen_project.py`** — Pre-generation validation: project slug, control characters, the domain name's characters, conflicting options (uses Jinja2 syntax at the top for context manipulation)
-- **`hooks/post_gen_project.py`** — Post-generation hook: `REMOVALS`, the table of removal rules, and `prune`, which applies them plus the Channels cleanup (terms in `CONTEXT.md`); generates the Django secret key, sets DB credentials, runs `uv add` for the requirements
+- **`hooks/post_gen_project.py`** — Post-generation hook: `REMOVALS`, the table of removal rules, and `prune`, which applies them plus the Channels cleanup (terms in `CONTEXT.md`); generates the Django secret key and sets DB credentials
 - **`local_extensions.py`** — The `string_escape` Jinja filter, loaded through `_extensions` in `cookiecutter.json`, that a free-text answer passes through where it lands inside a Python, TOML, YAML or gettext string; in HTML it passes through Jinja's `e`
 - **`{{cookiecutter.project_slug}}/`** — The template directory; files here use Jinja2 conditionals (`{% if cookiecutter.use_celery == 'y' %}`) to include/exclude content
 
@@ -95,7 +95,7 @@ The generated Django project uses:
 - `<project_slug>/htmx.py` — `HtmxTemplateMixin` (renders `template.html#partial` for htmx requests, adds `Vary: HX-Request`) and `HtmxLoginRedirectMiddleware` (turns login redirects into `HX-Redirect` for htmx requests)
 - `<project_slug>/tests/` — Project-level tests that belong to no single app: the Content Security Policy, the htmx helpers and, with `realtime=channels`, the websocket consumer
 - `compose/` — Docker configs for local and production
-- `requirements/` — The pinned dependency lists; `hooks/post_gen_project.py` feeds them to `uv add`, which writes `pyproject.toml` + `uv.lock` in the generated project
+- `pyproject.toml` — The pinned dependencies, templated into `[project.dependencies]` and the `dev` dependency group; generation writes no `uv.lock`, the developer's first `uv sync` does
 - `<project_slug>/templates/` — Semantic HTML styled by the vendored Pico CSS (`<project_slug>/static/vendor/pico/`, pinned with SHA-256 metadata); htmx is loaded through django-htmx's `{% htmx_script %}` (with the `hx-ws` extension when `realtime=channels`). htmx fragments are `{% partialdef %}` partials inside the page template, selected with `htmx_partial` on the view. No Node.js, Bootstrap or asset pipeline.
 
 ## Conventions

@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 TEMPLATED_ROOT = ROOT / "{{cookiecutter.project_slug}}"
-REQUIREMENTS_LOCAL_TXT = TEMPLATED_ROOT / "requirements" / "local.txt"
+TEMPLATE_PYPROJECT_TOML = TEMPLATED_ROOT / "pyproject.toml"
 TEMPLATE_PRE_COMMIT_CONFIG = ROOT / ".pre-commit-config.yaml"
 PRE_COMMIT_CONFIG = TEMPLATED_ROOT / ".pre-commit-config.yaml"
 PYPROJECT_TOML = ROOT / "pyproject.toml"
@@ -20,7 +20,7 @@ PRE_COMMIT_REPOS = {
 
 
 def main(package_name: str) -> None:
-    new_version = get_requirements_txt_version(package_name)
+    new_version = get_template_version(package_name)
     old_version = get_pyproject_toml_version(package_name)
     if old_version == new_version:
         return
@@ -29,12 +29,20 @@ def main(package_name: str) -> None:
     subprocess.run(["uv", "lock", "--no-upgrade"], cwd=ROOT, check=False)  # noqa: S607
 
 
-def get_requirements_txt_version(package_name: str) -> str:
-    content = REQUIREMENTS_LOCAL_TXT.read_text()
-    for line in content.split("\n"):
-        if line.startswith(package_name):
-            return line.split(" ")[0].split("==")[1]
-    msg = f"Could not find {package_name} version in requirements/local.txt"
+def get_template_version(package_name: str) -> str:
+    """The version the generated project pins for ``package_name``.
+
+    Its ``pyproject.toml`` is a Jinja template, so it is read line by line rather than
+    parsed as TOML.
+    """
+    for line in TEMPLATE_PYPROJECT_TOML.read_text().splitlines():
+        entry = line.strip()
+        if not entry.startswith('"'):
+            continue
+        name, separator, version = entry.strip(",").strip('"').partition("==")
+        if separator and name == package_name:
+            return version
+    msg = f"Could not find {package_name} version in the generated pyproject.toml"
     raise RuntimeError(msg)
 
 

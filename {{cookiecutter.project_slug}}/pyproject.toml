@@ -15,14 +15,120 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  {# set the an initial indentation for uv to follow #}
-  "django",
+  "argon2-cffi==25.1.0",
+{%- if cookiecutter.use_celery == 'y' %}
+  "celery==5.6.3",
+{%- endif %}
+{%- if cookiecutter.realtime == 'channels' %}
+  "channels==4.3.2",
+  "channels-redis==4.3.0",
+{%- endif %}
+{%- if cookiecutter.use_whitenoise == 'n' and cookiecutter.cloud_provider in ('AWS', 'GCP', 'Azure') %}
+  "collectfasta==3.3.4",
+{%- endif %}
+  "django==6.0.8",
+  "django-allauth[mfa]==65.19.2",
+{%- if cookiecutter.mail_service == 'Mailgun' %}
+  "django-anymail[mailgun]==15.2",
+{%- elif cookiecutter.mail_service == 'Amazon SES' %}
+  "django-anymail[amazon-ses]==15.2",
+{%- elif cookiecutter.mail_service == 'Mailjet' %}
+  "django-anymail[mailjet]==15.2",
+{%- elif cookiecutter.mail_service == 'Mandrill' %}
+  "django-anymail[mandrill]==15.2",
+{%- elif cookiecutter.mail_service == 'Postmark' %}
+  "django-anymail[postmark]==15.2",
+{%- elif cookiecutter.mail_service == 'Sendgrid' %}
+  "django-anymail[sendgrid]==15.2",
+{%- elif cookiecutter.mail_service == 'Brevo' %}
+  "django-anymail[brevo]==15.2",
+{%- elif cookiecutter.mail_service == 'SparkPost' %}
+  "django-anymail[sparkpost]==15.2",
+{%- elif cookiecutter.mail_service == 'Other SMTP' %}
+  "django-anymail==15.2",
+{%- endif %}
+{%- if cookiecutter.use_celery == 'y' %}
+  "django-celery-beat==2.9.0",
+{%- endif %}
+{%- if cookiecutter.rest_api in ('DRF', 'Django Ninja') %}
+  "django-cors-headers==4.9.0",
+{%- endif %}
+  "django-environ==0.14.0",
+  "django-htmx==1.29.0",
+  "django-model-utils==5.0.0",
+{%- if cookiecutter.rest_api == 'Django Ninja' %}
+  "django-ninja==1.7.0",
+{%- endif %}
+  "django-redis==7.0.0",
+{%- if cookiecutter.cloud_provider == 'AWS' %}
+  "django-storages[s3]==1.14.6",
+{%- elif cookiecutter.cloud_provider == 'GCP' %}
+  "django-storages[google]==1.14.6",
+{%- elif cookiecutter.cloud_provider == 'Azure' %}
+  "django-storages[azure]==1.14.6",
+{%- endif %}
+  "django-stubs-ext==6.1.0",
+  "django-tasks-db==0.13.0",
+{%- if cookiecutter.rest_api == 'DRF' %}
+  "djangorestframework==3.18.1",
+  "drf-spectacular==0.30.0",
+{%- endif %}
+{%- if cookiecutter.use_celery == 'y' and cookiecutter.use_docker == 'y' %}
+  "flower==2.1.0",
+{%- endif %}
+  "gunicorn==26.2.0",
+  "hiredis==3.4.1",
+  "pillow==12.3.0",
+  "psycopg[c]==3.3.5",
+  "python-slugify==8.0.4",
+  "redis==8.1.0",
+{%- if cookiecutter.use_sentry == 'y' %}
+  "sentry-sdk==2.69.0",
+{%- endif %}
+  "uvicorn[standard]==0.52.4",
+  "uvicorn-worker==0.4.0",
+{%- if cookiecutter.use_whitenoise == 'y' %}
+  "whitenoise==6.12.0",
+{%- endif %}
 ]
 
 [dependency-groups]
 dev = [
-  {# set the an initial indentation for uv to follow #}
-  "pytest",
+{%- if cookiecutter.use_celery == 'y' %}
+  "celery-types==0.26.0",
+{%- endif %}
+  "coverage==7.16.0",
+  "django-coverage-plugin==3.2.2",
+  "django-debug-toolbar==8.0.0",
+  "django-extensions==4.1",
+  "django-stubs[compatible-mypy]==6.1.0",
+  "django-upgrade==1.32.0",
+{%- if cookiecutter.rest_api == 'DRF' %}
+  "djangorestframework-stubs==3.18.1",
+{%- endif %}
+  "djlint==1.46.1",
+  "factory-boy==3.3.3",
+  "ipdb==0.13.13",
+  "mypy==2.3.1",
+  "pre-commit==4.6.2",
+{%- if cookiecutter.use_docker == 'y' %}
+  "psycopg[c]==3.3.5",
+{%- else %}
+  "psycopg[binary]==3.3.5",
+{%- endif %}
+  "pytest==9.1.1",
+  "pytest-django==4.14.0",
+  "pytest-sugar==1.1.1",
+  "ruff==0.16.6",
+  "sphinx==9.1.0",
+  "sphinx-autobuild==2025.8.25",
+{%- if cookiecutter.realtime == 'channels' %}
+  "types-channels==4.3.0.20260518",
+{%- endif %}
+{%- if cookiecutter.use_celery == 'y' %}
+  "watchfiles==1.2.0",
+{%- endif %}
+  "werkzeug[watchdog]==3.1.8",
 ]
 
 # ==== djLint ====

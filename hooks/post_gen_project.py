@@ -1,10 +1,7 @@
 import json
-import os
 import random
 import shutil
 import string
-import subprocess
-import sys
 from pathlib import Path
 
 try:
@@ -303,76 +300,7 @@ def main(context):
 
     prune(context, Path.cwd())
 
-    setup_dependencies(use_docker=context["use_docker"] == "y")
-
     print(SUCCESS + "Project initialized, keep up the good work!" + TERMINATOR)
-
-
-def setup_dependencies(*, use_docker):
-    print("Installing python dependencies using uv...")
-
-    if use_docker:
-        # Build a trimmed down Docker image add dependencies with uv
-        uv_docker_image_path = Path("compose/local/uv/Dockerfile")
-        uv_image_tag = "moldordie-uv-runner:latest"
-        try:
-            subprocess.run(  # noqa: S603
-                [  # noqa: S607
-                    "docker",
-                    "build",
-                    "--load",
-                    "-t",
-                    uv_image_tag,
-                    "-f",
-                    str(uv_docker_image_path),
-                    "-q",
-                    ".",
-                ],
-                check=True,
-                env={
-                    **os.environ,
-                    "DOCKER_BUILDKIT": "1",
-                },
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"Error building Docker image: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        current_path = Path.cwd().absolute()
-        # Use Docker to run the uv command
-        uv_cmd = ["docker", "run", "--rm", "-v", f"{current_path}:/app", uv_image_tag, "uv"]
-    else:
-        # Use uv command directly
-        uv_cmd = ["uv"]
-
-    # Install production dependencies
-    try:
-        subprocess.run([*uv_cmd, "add", "--no-sync", "-r", "requirements/production.txt"], check=True)  # noqa: S603
-    except subprocess.CalledProcessError as e:
-        print(f"Error installing production dependencies: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Install local (development) dependencies
-    try:
-        subprocess.run([*uv_cmd, "add", "--no-sync", "--dev", "-r", "requirements/local.txt"], check=True)  # noqa: S603
-    except subprocess.CalledProcessError as e:
-        print(f"Error installing local dependencies: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Remove the requirements directory
-    requirements_dir = Path("requirements")
-    if requirements_dir.exists():
-        try:
-            shutil.rmtree(requirements_dir)
-        except Exception as e:  # noqa: BLE001
-            print(f"Error removing 'requirements' folder: {e}", file=sys.stderr)
-            sys.exit(1)
-
-    uv_image_parent_dir_path = Path("compose/local/uv")
-    if uv_image_parent_dir_path.exists():
-        shutil.rmtree(str(uv_image_parent_dir_path))
-
-    print("Setup complete!")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,12 @@ Make sure to have the following on your host:
 
    .. note::
 
+       Generation leaves the dependencies pinned in ``pyproject.toml`` and no lock file:
+       this first ``uv sync`` resolves them and writes ``uv.lock``. Commit it, so that
+       CI and the production image install exactly what you tested against.
+
+   .. note::
+
        the `pre-commit` hook exists in the generated project as default.
        For the details of `pre-commit`, follow the `pre-commit`_ site.
 
@@ -113,10 +119,8 @@ The project layout looks something like this: ::
     │   │   └── views.py
     │   ├── __init__.py
     │   └── ...
-    ├── requirements/
-    │   ├── base.txt
-    │   ├── local.txt
-    │   └── production.txt
+    ├── pyproject.toml
+    ├── uv.lock
     ├── manage.py
     ├── README.md
     └── ...

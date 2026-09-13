@@ -9,7 +9,7 @@ We use 2 separate services to keep our dependencies up-to-date:
 - Dependabot, which manages updates of Python deps of the template, GitHub actions and Docker images.
 - PyUp, which manages the Python deps for the generated project.
 
-We don't use Dependabot for the generated project deps because our requirements files are templated, and Dependabot fails to parse them. PyUp is -AFAIK- the only service out there that supports having Jinja tags in the requirements file.
+We don't use Dependabot for the generated project deps because the generated `pyproject.toml` is templated, and Dependabot fails to parse it. PyUp is -AFAIK- the only service out there that supports having Jinja tags in a dependency list.
 
 Updates for the template should be labelled as `project infrastructure` while the ones about the generated project should be labelled as `update`. This is use to work in conjunction with our changelog script (see later).
 
@@ -66,7 +66,7 @@ Run daily, to do `pre-commit autoupdate` on the template as well as the generate
 #### Limitations
 
 - The PR is open as GitHub action which means that CI does NOT run. The documentation for create-pull-request action [explains why](https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#triggering-further-workflow-runs).
-- Some hooks are also installed as local dependencies (via `requirements/local.txt`), but these are updated separately via PyUP.
+- Some hooks are also installed as dependencies of the generated project (in its `dev` dependency group), but these are updated separately via PyUP.
 
 ### Update changelog
 
