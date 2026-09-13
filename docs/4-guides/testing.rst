@@ -41,9 +41,9 @@ If you're running the project locally with Docker, use these commands instead: :
 
 .. note::
 
-   At the root of the project folder, you will find the `pytest.ini` file. You can use this to customize_ the ``pytest`` to your liking.
-
-   The configuration for ``coverage`` can be found in ``pyproject.toml``. You can find out more about `configuring`_ ``coverage``.
+   Both ``pytest`` and ``coverage`` are configured in ``pyproject.toml`` at the root of the project,
+   under ``[tool.pytest]`` and ``[tool.coverage.run]``. You can find out more about customizing_
+   ``pytest`` and `configuring`_ ``coverage``.
 
 Type checking
 -------------
@@ -59,8 +59,9 @@ If you set up your project to `develop locally with docker`_, run: ::
 
    $ docker compose -f docker-compose.local.yml run --rm django mypy .
 
-The same check runs before every ``git push`` through a pre-commit hook, and as its own job in the
-CI pipeline. The configuration lives under ``[tool.mypy]`` in ``pyproject.toml``.
+The same check runs before every ``git push`` through a pre-commit hook, and in CI: its own
+``typecheck`` job with GitHub Actions, a step of the ``pytest`` job with GitLab CI. The configuration
+lives under ``[tool.mypy]`` in ``pyproject.toml``.
 
 Shared request types live in ``<project_slug>/typedefs.py``. Declare ``request: AuthenticatedHttpRequest``
 on a view protected by ``LoginRequiredMixin`` (or use it as the ``request`` parameter of a function view
@@ -83,7 +84,7 @@ adding it there.
 .. _Pytest: https://docs.pytest.org/en/latest/example/simple.html
 .. _develop locally: ./developing-locally.html
 .. _develop locally with docker: ./developing-locally-docker.html
-.. _customize: https://docs.pytest.org/en/latest/customize.html
+.. _customizing: https://docs.pytest.org/en/latest/reference/customize.html
 .. _unittest: https://docs.python.org/3/library/unittest.html#module-unittest
 .. _configuring: https://coverage.readthedocs.io/en/latest/config.html
 .. _mypy: https://mypy.readthedocs.io/en/stable/

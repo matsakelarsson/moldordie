@@ -51,13 +51,13 @@ _These features can be enabled during initial project setup._
 Let's pretend you want to create a Django project called "redditclone". Rather than using `startproject`
 and then editing the results to include your name, email, and various configuration issues that always get forgotten until the worst possible moment, get [cookiecutter](https://github.com/cookiecutter/cookiecutter) to do all the work.
 
-First, get Cookiecutter. Trust me, it's awesome:
-
-    uv tool install "cookiecutter>=1.7.0"
-
-Now run it against this repo:
+Run Cookiecutter against this repo. `uvx` fetches it for the one run:
 
     uvx cookiecutter https://github.com/matsakelarsson/moldordie
+
+If you generate projects often, install it once instead and drop the `uvx`:
+
+    uv tool install cookiecutter
 
 You'll be prompted for some values. Provide them, then a Django project will be created for you.
 
@@ -65,74 +65,75 @@ You'll be prompted for some values. Provide them, then a Django project will be 
 
 Answer the prompts with your own desired [options](docs/1-getting-started/project-generation-options.rst). For example:
 
-    project_name [My Awesome Project]: Reddit Clone
-    project_slug [reddit_clone]: reddit
-    description [Behold My Awesome Project!]: A reddit clone.
-    author_name [Daniel Roy Greenfeld]: Daniel Greenfeld
-    domain_name [example.com]: myreddit.com
-    email [daniel-greenfeld@example.com]: pydanny@gmail.com
-    version [0.1.0]: 0.0.1
-    Select open_source_license:
-    1 - MIT
-    2 - BSD
-    3 - GPLv3
-    4 - Apache Software License 2.0
-    5 - Not open source
-    Choose from 1, 2, 3, 4, 5 [1]: 1
-    Select username_type:
-    1 - username
-    2 - email
-    Choose from 1, 2 [1]: 1
-    timezone [UTC]: America/Los_Angeles
-    use_docker [n]: n
-    Select postgresql_version:
-    1 - 18
-    2 - 17
-    3 - 16
-    4 - 15
-    5 - 14
-    Choose from 1, 2, 3, 4 [1]: 1
-    Select cloud_provider:
-    1 - AWS
-    2 - GCP
-    3 - None
-    Choose from 1, 2, 3 [1]: 1
-    Select mail_service:
-    1 - Mailgun
-    2 - Amazon SES
-    3 - Mailjet
-    4 - Mandrill
-    5 - Postmark
-    6 - Sendgrid
-    7 - Brevo (formerly SendinBlue)
-    8 - SparkPost
-    9 - Other SMTP
-    Choose from 1, 2, 3, 4, 5, 6, 7, 8, 9 [1]: 1
-    Select rest_api [None]:
-    1 - None
-    2 - DRF
-    3 - Django Ninja
-    Choose from 1, 2, 3 [1]: 1
-    Select realtime:
-    1 - none
-    2 - channels
-    Choose from 1, 2 [1]: 1
-    use_celery [n]: y
-    Select mail_catcher:
-    1 - None
-    2 - Mailpit
-    3 - Mailtrap Local
-    Choose from 1, 2, 3 [1]: 1
-    use_sentry [n]: y
-    use_whitenoise [n]: n
-    use_heroku [n]: y
-    Select ci_tool:
-    1 - None
-    2 - Gitlab
-    3 - Github
-    Choose from 1, 2, 3 [1]: 3
-    keep_local_envs_in_vcs [y]: y
-    debug [n]: n
+      [1/24] project_name (My Awesome Project): Reddit Clone
+      [2/24] project_slug (reddit_clone): reddit
+      [3/24] description (Behold My Awesome Project!): A reddit clone.
+      [4/24] author_name (Daniel Roy Greenfeld): Daniel Greenfeld
+      [5/24] domain_name (example.com): myreddit.com
+      [6/24] email (daniel-greenfeld@myreddit.com): pydanny@gmail.com
+      [7/24] version (0.1.0): 0.0.1
+      [8/24] Select open_source_license
+        1 - MIT
+        2 - BSD
+        3 - GPLv3
+        4 - Apache Software License 2.0
+        5 - Not open source
+        Choose from [1/2/3/4/5] (1): 1
+      [9/24] Select username_type
+        1 - username
+        2 - email
+        Choose from [1/2] (1): 1
+      [10/24] timezone (UTC): America/Los_Angeles
+      [11/24] use_docker (n): n
+      [12/24] Select postgresql_version
+        1 - 18
+        2 - 17
+        3 - 16
+        4 - 15
+        5 - 14
+        Choose from [1/2/3/4/5] (1): 1
+      [13/24] Select cloud_provider
+        1 - AWS
+        2 - GCP
+        3 - Azure
+        4 - None
+        Choose from [1/2/3/4] (1): 1
+      [14/24] Select mail_service
+        1 - Mailgun
+        2 - Amazon SES
+        3 - Mailjet
+        4 - Mandrill
+        5 - Postmark
+        6 - Sendgrid
+        7 - Brevo
+        8 - SparkPost
+        9 - Other SMTP
+        Choose from [1/2/3/4/5/6/7/8/9] (1): 1
+      [15/24] Select rest_api
+        1 - None
+        2 - DRF
+        3 - Django Ninja
+        Choose from [1/2/3] (1): 1
+      [16/24] Select realtime
+        1 - none
+        2 - channels
+        Choose from [1/2] (1): 1
+      [17/24] use_celery (n): y
+      [18/24] Select mail_catcher
+        1 - None
+        2 - Mailpit
+        3 - Mailtrap Local
+        Choose from [1/2/3] (1): 1
+      [19/24] use_sentry (n): y
+      [20/24] use_whitenoise (n): n
+      [21/24] use_heroku (n): y
+      [22/24] Select ci_tool
+        1 - None
+        2 - Gitlab
+        3 - Github
+        Choose from [1/2/3] (1): 3
+      [23/24] keep_local_envs_in_vcs (y): y
+      [24/24] debug (n): n
 
 Enter the project and take a look around:
 
