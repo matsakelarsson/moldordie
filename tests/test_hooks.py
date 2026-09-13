@@ -1,6 +1,7 @@
 """Unit tests for the hooks"""
 
 import os
+import re
 from itertools import product
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -8,9 +9,13 @@ from typing import ClassVar
 
 import pytest
 
+from hooks.post_gen_project import ALPHANUMERIC
 from hooks.post_gen_project import REMOVALS
+from hooks.post_gen_project import SECRETS
 from hooks.post_gen_project import append_to_gitignore_file
+from hooks.post_gen_project import fill_secrets
 from hooks.post_gen_project import prune
+from hooks.post_gen_project import random_string
 from hooks.post_gen_project import remove_channels_tests
 from local_extensions import FREE_TEXT
 from local_extensions import OPTIONS
@@ -21,23 +26,160 @@ SLUG_PLACEHOLDER = "{{cookiecutter.project_slug}}"
 PROJECT_SLUG = "my_test_project"
 
 
-@pytest.fixture
-def working_directory(tmp_path):
-    prev_cwd = Path.cwd()
-    os.chdir(tmp_path)
-    try:
-        yield tmp_path
-    finally:
-        os.chdir(prev_cwd)
+def default_context():
+    """The answers ``cookiecutter --no-input`` uses, with the project slug rendered."""
+    return {**{name: option.default for name, option in OPTIONS.items()}, "project_slug": PROJECT_SLUG}
 
 
-def test_append_to_gitignore_file(working_directory):
-    gitignore_file = working_directory / ".gitignore"
+def test_append_to_gitignore_file(tmp_path):
+    gitignore_file = tmp_path / ".gitignore"
     gitignore_file.write_text("node_modules/\n")
-    append_to_gitignore_file(".envs/*")
+    append_to_gitignore_file(tmp_path, ".envs/*")
     linesep = os.linesep.encode()
     assert gitignore_file.read_bytes() == b"node_modules/" + linesep + b".envs/*" + linesep
     assert gitignore_file.read_text() == "node_modules/\n.envs/*\n"
+
+
+# ``fill_secrets`` on hand-written placeholder files, through a generator the tests control.
+#
+# The sites below are written from the template, not read from the secrets table, so the
+# table is checked against them: every site is filled by exactly one row.
+
+# The placeholder sites of the template by file, in file order, as rendered with Celery; the
+# Flower ones are not rendered without it.
+PLACEHOLDER_SITES = {
+    ".envs/.local/.django": ("CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"),
+    ".envs/.local/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    ".envs/.production/.django": (
+        "DJANGO_SECRET_KEY",
+        "DJANGO_ADMIN_URL",
+        "CELERY_FLOWER_USER",
+        "CELERY_FLOWER_PASSWORD",
+    ),
+    ".envs/.production/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    "config/settings/local.py": ("DJANGO_SECRET_KEY",),
+    "config/settings/test.py": ("DJANGO_SECRET_KEY",),
+}
+FLOWER_PLACEHOLDERS = {"CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"}
+# The sites that read one shared value: the database role, so that a backup restores across
+# the environments, and Flower's user.
+SHARED_SITES = (
+    {(".envs/.local/.postgres", "POSTGRES_USER"), (".envs/.production/.postgres", "POSTGRES_USER")},
+    {(".envs/.local/.django", "CELERY_FLOWER_USER"), (".envs/.production/.django", "CELERY_FLOWER_USER")},
+)
+# The sites the debug answer leaves random: nothing types a key or the admin URL.
+RANDOM_IN_DEBUG = {
+    (".envs/.production/.django", "DJANGO_SECRET_KEY"),
+    (".envs/.production/.django", "DJANGO_ADMIN_URL"),
+    ("config/settings/local.py", "DJANGO_SECRET_KEY"),
+    ("config/settings/test.py", "DJANGO_SECRET_KEY"),
+}
+PLACEHOLDER = re.compile(r"!!!SET (\w+)!!!")
+
+
+def unfilled_project(root, *, with_celery):
+    """The placeholder sites as the template renders them, one ``NAME=!!!SET NAME!!!`` line each."""
+    for file, names in PLACEHOLDER_SITES.items():
+        path = root / file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rendered = [name for name in names if with_celery or name not in FLOWER_PLACEHOLDERS]
+        path.write_text("".join(f"{name}=!!!SET {name}!!!\n" for name in rendered))
+
+
+def site_values(root):
+    """What each placeholder site of the project at ``root`` holds, by ``(file, name)``."""
+    return {
+        (file, name): value
+        for file in PLACEHOLDER_SITES
+        for name, value in (line.split("=", 1) for line in (root / file).read_text().splitlines())
+    }
+
+
+class CountingDraw:
+    """A generator standing in for the random one: distinct values, and a record of what was asked for."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, length, alphabet):
+        self.calls.append((length, alphabet))
+        return f"drawn-{len(self.calls)}"
+
+
+def test_placeholder_sites_are_those_of_the_template():
+    """The hand-written sites are the template's, so the tests below fill what generation fills."""
+    found = {}
+    for path in TEMPLATE.rglob("*"):
+        if path.is_file() and "__pycache__" not in path.parts:
+            names = PLACEHOLDER.findall(path.read_text(errors="ignore"))
+            if names:
+                found[path.relative_to(TEMPLATE).as_posix()] = tuple(names)
+    assert found == PLACEHOLDER_SITES
+
+
+def test_secrets_fill_every_placeholder_site_once():
+    """A site in two rows would be drawn twice, one in no row would stay a placeholder."""
+    listed = [(file, secret.placeholder) for secret in SECRETS for file in secret.files]
+    assert len(listed) == len(set(listed))
+    assert set(listed) == {(file, name) for file, names in PLACEHOLDER_SITES.items() for name in names}
+
+
+def test_fill_secrets_draws_each_value_once(tmp_path):
+    """The shared sites read one value and every other site its own: nothing is drawn twice or reused."""
+    unfilled_project(tmp_path, with_celery=True)
+    draw = CountingDraw()
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=draw)
+    values = site_values(tmp_path)
+    for shared in SHARED_SITES:
+        assert len({values[site] for site in shared}) == 1
+    assert len(set(values.values())) == len(values) - sum(len(shared) - 1 for shared in SHARED_SITES)
+    assert len(draw.calls) == len(set(values.values()))
+    assert not any("!!!SET" in value for value in values.values())
+
+
+def test_fill_secrets_debug_fixes_the_credentials(tmp_path):
+    """With debug, the credentials read ``debug``; the keys and the admin URL are still drawn."""
+    unfilled_project(tmp_path, with_celery=True)
+    draw = CountingDraw()
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", "debug": "y"}, draw=draw)
+    values = site_values(tmp_path)
+    assert {site for site, value in values.items() if value == "debug"} == set(values) - RANDOM_IN_DEBUG
+    assert len({values[site] for site in RANDOM_IN_DEBUG}) == len(RANDOM_IN_DEBUG)
+    assert len(draw.calls) == len(RANDOM_IN_DEBUG)
+
+
+def test_fill_secrets_skips_the_flower_rows_without_celery(tmp_path):
+    """Without Celery the template renders no Flower placeholders, so their rows do not apply."""
+    unfilled_project(tmp_path, with_celery=False)
+    draw = CountingDraw()
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "n"}, draw=draw)
+    values = site_values(tmp_path)
+    assert not any(name in FLOWER_PLACEHOLDERS for _, name in values)
+    assert not any("!!!SET" in value for value in values.values())
+    assert len(draw.calls) == len(set(values.values()))
+
+
+def test_fill_secrets_fails_on_a_missing_file(tmp_path):
+    unfilled_project(tmp_path, with_celery=True)
+    (tmp_path / "config" / "settings" / "test.py").unlink()
+    with pytest.raises(FileNotFoundError):
+        fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=CountingDraw())
+
+
+def test_fill_secrets_fails_on_a_missing_placeholder(tmp_path):
+    """A row for a placeholder the template did not render is an error, not a silent no-op."""
+    unfilled_project(tmp_path, with_celery=False)
+    with pytest.raises(ValueError, match="CELERY_FLOWER_USER"):
+        fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=CountingDraw())
+
+
+def test_random_string():
+    """The default generator draws the requested length from the alphabet, and does not repeat itself."""
+    length = 64
+    drawn = random_string(length, ALPHANUMERIC)
+    assert len(drawn) == length
+    assert set(drawn) <= set(ALPHANUMERIC)
+    assert drawn != random_string(length, ALPHANUMERIC)
 
 
 @pytest.fixture
@@ -70,11 +212,6 @@ def test_remove_channels_tests_keeps_other_tests(tmp_path, channels_tests):
 # docs, not derived from the hook, so they exercise the deletion code independently of how
 # it is organised. Every test asserts the complete set of removed files and directories, so
 # an unexpected deletion fails without maintaining a survivor list.
-
-
-def default_context():
-    """The answers ``cookiecutter --no-input`` uses, with the project slug rendered."""
-    return {**{name: option.default for name, option in OPTIONS.items()}, "project_slug": PROJECT_SLUG}
 
 
 @pytest.fixture

@@ -20,6 +20,8 @@ from local_extensions import option_names
 
 PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
+# A secret the post-generation hook did not fill in
+RE_PLACEHOLDER = re.compile(r"!!!SET \w+!!!")
 # <script src="http(s)://..."> or <link href="http(s)://...">
 RE_REMOTE_ASSET = re.compile(r"<(?:script|link)\b[^>]*\b(?:src|href)=[\"']https?://", re.IGNORECASE)
 # Inline code the Content Security Policy would block: <script> without src or nonce,
@@ -192,6 +194,7 @@ def check_paths(paths: Iterable[Path]):
         content = path.read_text()
         match = RE_OBJ.search(content)
         assert match is None, f"cookiecutter variable not replaced in {path}"
+        assert RE_PLACEHOLDER.search(content) is None, f"secret not filled in {path}"
         parse = PARSERS.get(path.suffix)
         if parse is not None:
             try:
@@ -500,6 +503,71 @@ SECRET_FILES = {
 def project_contents(project_path: Path) -> dict[str, bytes]:
     """Every generated file by its path relative to the project root, with its content."""
     return {str(path.relative_to(project_path)): path.read_bytes() for path in build_files_list(project_path)}
+
+
+def env_values(path: Path) -> dict[str, str]:
+    """The ``NAME=value`` lines of a generated env file."""
+    lines = (line for line in path.read_text().splitlines() if line and not line.startswith("#"))
+    return dict(line.split("=", 1) for line in lines)
+
+
+def settings_default(path: Path, name: str) -> str:
+    """The default a generated settings file gives ``env()`` for ``name``."""
+    match = re.search(rf'"{name}",\s*default="([^"]*)"', path.read_text())
+    assert match is not None, f"{path} has no default for {name}"
+    return match.group(1)
+
+
+TOKEN = re.compile(r"[A-Za-z0-9]{64}")
+ROLE = re.compile(r"[A-Za-z]{32}")
+# The roles the environments share; every other secret is drawn per file.
+SHARED_ROLES = ("POSTGRES_USER", "CELERY_FLOWER_USER")
+
+
+def test_secrets_are_drawn_once_each(cookies, context):
+    """The database and Flower roles are the same in both environments; every other secret is its own."""
+    result = cookies.bake(extra_context={**context, "use_celery": "y"})
+    assert result.exit_code == 0
+    envs = result.project_path / ".envs"
+    local_django = env_values(envs / ".local" / ".django")
+    local_postgres = env_values(envs / ".local" / ".postgres")
+    production_django = env_values(envs / ".production" / ".django")
+    production_postgres = env_values(envs / ".production" / ".postgres")
+    settings = result.project_path / "config" / "settings"
+
+    roles = {local_postgres["POSTGRES_USER"], local_django["CELERY_FLOWER_USER"]}
+    assert local_postgres["POSTGRES_USER"] == production_postgres["POSTGRES_USER"]
+    assert local_django["CELERY_FLOWER_USER"] == production_django["CELERY_FLOWER_USER"]
+    assert len(roles) == len(SHARED_ROLES)
+    assert all(ROLE.fullmatch(role) for role in roles)
+
+    tokens = [
+        local_postgres["POSTGRES_PASSWORD"],
+        production_postgres["POSTGRES_PASSWORD"],
+        local_django["CELERY_FLOWER_PASSWORD"],
+        production_django["CELERY_FLOWER_PASSWORD"],
+        production_django["DJANGO_SECRET_KEY"],
+        settings_default(settings / "local.py", "DJANGO_SECRET_KEY"),
+        settings_default(settings / "test.py", "DJANGO_SECRET_KEY"),
+    ]
+    assert len(set(tokens)) == len(tokens)
+    assert all(TOKEN.fullmatch(token) for token in tokens)
+    assert re.fullmatch(r"[A-Za-z0-9]{32}/", production_django["DJANGO_ADMIN_URL"])
+
+
+def test_debug_answer_fixes_the_credentials(cookies, context):
+    """With debug, the credentials read ``debug`` while the keys and the admin URL stay random."""
+    result = cookies.bake(extra_context={**context, "use_celery": "y", "debug": "y"})
+    assert result.exit_code == 0
+    envs = result.project_path / ".envs"
+    for environment in (".local", ".production"):
+        django = env_values(envs / environment / ".django")
+        postgres = env_values(envs / environment / ".postgres")
+        assert postgres["POSTGRES_USER"] == postgres["POSTGRES_PASSWORD"] == "debug"
+        assert django["CELERY_FLOWER_USER"] == django["CELERY_FLOWER_PASSWORD"] == "debug"
+    production_django = env_values(envs / ".production" / ".django")
+    assert TOKEN.fullmatch(production_django["DJANGO_SECRET_KEY"])
+    assert re.fullmatch(r"[A-Za-z0-9]{32}/", production_django["DJANGO_ADMIN_URL"])
 
 
 @pytest.mark.parametrize("answer", ["y", "n"])
