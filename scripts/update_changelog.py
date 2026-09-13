@@ -8,6 +8,7 @@ from pathlib import Path
 import git
 import github.PullRequest
 import github.Repository
+from github import Auth
 from github import Github
 from jinja2 import Template
 
@@ -17,18 +18,43 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 GIT_BRANCH = os.getenv("GITHUB_REF_NAME")
 
+# How a pull request's labels decide where it goes in the release notes. These strings
+# have to match this repo's tracker exactly to have any effect: a label that does not
+# exist there silently leaves every pull request in DEFAULT_SECTION, which is how
+# documentation went unsectioned while this read "docs" and the tracker said
+# "documentation". Labels are checked in the order listed.
+EXCLUDED_LABEL = "project infrastructure"
+SECTION_LABELS = {
+    "update": "Updated",
+    "bug": "Fixed",
+    "documentation": "Documentation",
+}
+DEFAULT_SECTION = "Changed"
+# The order the sections appear in the release notes.
+SECTIONS = (DEFAULT_SECTION, "Fixed", "Documentation", "Updated")
+
 
 def main() -> None:
     """
     Script entry point.
     """
-    # Generate changelog for PRs merged yesterday
-    merged_date = dt.date.today() - dt.timedelta(days=1)  # noqa: DTZ011
-    repo = Github(login_or_token=GITHUB_TOKEN).get_repo(GITHUB_REPO)
-    merged_pulls = list(iter_pulls(repo, merged_date))
+    repo = Github(auth=Auth.Token(GITHUB_TOKEN)).get_repo(GITHUB_REPO)
+
+    # The release covers everything merged since the previous one, so a manual run
+    # picks up whatever has accumulated rather than one fixed day's worth.
+    release = todays_release()
+    if release_exists(repo, release):
+        print(f"Release {release} already exists, exiting.")
+        return
+
+    warn_about_missing_labels(repo)
+
+    since = last_release_time(repo)
+    print(f"Collecting pull requests merged since {since or 'the first commit'}")
+    merged_pulls = list(iter_pulls(repo, since))
     print(f"Merged pull requests: {merged_pulls}")
     if not merged_pulls:
-        print("Nothing was merged, existing.")
+        print("Nothing was merged, exiting.")
         return
 
     # Group pull requests by type of change
@@ -42,22 +68,21 @@ def main() -> None:
     print(f"Summary of changes: {release_changes_summary}")
 
     # Update CHANGELOG.md file
-    release = f"{merged_date.year}.{merged_date.month}.{merged_date.day}"
     changelog_path = ROOT / "CHANGELOG.md"
     write_changelog(changelog_path, release, release_changes_summary)
     print(f"Wrote {changelog_path}")
 
     # Update version
-    setup_py_path = ROOT / "pyproject.toml"
-    update_version(setup_py_path, release)
-    print(f"Updated version in {setup_py_path}")
+    pyproject_path = ROOT / "pyproject.toml"
+    update_version(pyproject_path, release)
+    print(f"Updated version in {pyproject_path}")
 
     # Run uv lock
     uv_lock_path = ROOT / "uv.lock"
     subprocess.run(["uv", "lock", "--no-upgrade"], cwd=ROOT, check=False)  # noqa: S607
 
     # Commit changes, create tag and push
-    update_git_repo([changelog_path, setup_py_path, uv_lock_path], release)
+    update_git_repo([changelog_path, pyproject_path, uv_lock_path], release)
 
     # Create GitHub release
     github_release = repo.create_git_release(
@@ -68,45 +93,76 @@ def main() -> None:
     print(f"Created release on GitHub {github_release}")
 
 
+def warn_about_missing_labels(repo: github.Repository.Repository) -> list[str]:
+    """Warn about grouping labels the tracker does not have.
+
+    Nothing can carry a label that does not exist, so such a label quietly stops
+    selecting anything: pull requests keep landing in the default section and nothing
+    fails. Say so where whoever ran the release will see it.
+    """
+    known = {label.name for label in repo.get_labels()}
+    missing = sorted({EXCLUDED_LABEL, *SECTION_LABELS} - known)
+    if missing:
+        print(f"WARNING: not labels of this tracker, so they group nothing: {', '.join(missing)}")
+    return missing
+
+
+def todays_release() -> str:
+    """The calendar version for a release cut now."""
+    today = dt.datetime.now(tz=dt.UTC).date()
+    return f"{today.year}.{today.month}.{today.day}"
+
+
+def release_exists(repo: github.Repository.Repository, release: str) -> bool:
+    """Whether ``release`` has already been published, so a re-run is a no-op."""
+    try:
+        repo.get_release(release)
+    except github.UnknownObjectException:
+        return False
+    return True
+
+
+def last_release_time(repo: github.Repository.Repository) -> dt.datetime | None:
+    """When the most recent release was published, or ``None`` if there is none yet."""
+    try:
+        return repo.get_latest_release().published_at
+    except github.UnknownObjectException:
+        return None
+
+
 def iter_pulls(
     repo: github.Repository.Repository,
-    merged_date: dt.date,
+    since: dt.datetime | None,
 ) -> Iterable[github.PullRequest.PullRequest]:
-    """Fetch merged pull requests at the date we're interested in."""
-    recent_pulls = repo.get_pulls(
-        state="closed",
-        sort="updated",
-        direction="desc",
-    ).get_page(0)
-    for pull in recent_pulls:
-        if pull.merged and pull.merged_at.date() == merged_date:
+    """Fetch the pull requests merged after ``since``, or all of them when it is ``None``.
+
+    The listing is sorted by update time rather than merge time, but merging updates a
+    pull request, so anything merged after the cutoff sorts before anything last touched
+    at or before it. Walking until that point is reached therefore sees every pull
+    request in the window, however many pages it spans.
+    """
+    for pull in repo.get_pulls(state="closed", sort="updated", direction="desc"):
+        if since is not None and pull.updated_at <= since:
+            return
+        if pull.merged and (since is None or pull.merged_at > since):
             yield pull
 
 
 def group_pulls_by_change_type(
     pull_requests_list: list[github.PullRequest.PullRequest],
 ) -> dict[str, list[github.PullRequest.PullRequest]]:
-    """Group pull request by change type."""
-    grouped_pulls = {
-        "Changed": [],
-        "Fixed": [],
-        "Documentation": [],
-        "Updated": [],
-    }
+    """Group pull requests by the section of the release notes they belong to."""
+    grouped_pulls: dict[str, list[github.PullRequest.PullRequest]] = {section: [] for section in SECTIONS}
     for pull in pull_requests_list:
         label_names = {label.name for label in pull.labels}
-        if "project infrastructure" in label_names:
+        if EXCLUDED_LABEL in label_names:
             # Don't mention it in the changelog
             continue
-        if "update" in label_names:
-            group_name = "Updated"
-        elif "bug" in label_names:
-            group_name = "Fixed"
-        elif "docs" in label_names:
-            group_name = "Documentation"
-        else:
-            group_name = "Changed"
-        grouped_pulls[group_name].append(pull)
+        section = next(
+            (section for label, section in SECTION_LABELS.items() if label in label_names),
+            DEFAULT_SECTION,
+        )
+        grouped_pulls[section].append(pull)
     return grouped_pulls
 
 

@@ -87,20 +87,22 @@ Run daily, to do `pre-commit autoupdate` on the template as well as the generate
 
 `update-changelog.yml`
 
-Updates the changelog and creates a GitHub release. `workflow_dispatch` only, for the same reason as the Django issue checker above; restore the `schedule:` trigger to cut releases daily. It runs a custom script which:
+Updates the changelog and creates a GitHub release. `workflow_dispatch` only, for the same reason as the Django issue checker above; adding a `schedule:` trigger is safe, since a run with nothing to release exits without writing anything. It runs a custom script which:
 
-- List all pull requests merged the day before
-- The release name is calendar based, so `YYYY.MM.DD`
+- Lists every pull request merged since the previous release, so a manual run picks up whatever has accumulated however long ago it was
+- Names the release for the current date, so `YYYY.M.D`
 - For each PR:
-  - Get the PR title to summarize the change
-  - Look at the PR labels to classify it in a section of the release notes:
+  - Gets the PR title to summarize the change
+  - Looks at the PR labels to classify it in a section of the release notes, as set out by `SECTION_LABELS` and `EXCLUDED_LABEL` at the top of the script:
     - anything labelled `project infrastructure` is excluded
     - label `update` goes in section "Updated"
     - label `bug` goes in section "Fixed"
-    - label `docs` goes in section "Documentation"
+    - label `documentation` goes in section "Documentation"
     - Default to section "Changed"
 
 With that in mind, when merging changes, it's a good idea to set the labels and rename the PR title to give a good summary of the change, in the context of the changelog.
+
+Those label strings have to match the tracker's labels exactly. One that does not exist there groups nothing and silently leaves its pull requests in "Changed", so the script prints a warning naming any it cannot find. If you rename a label in the tracker, rename it in `SECTION_LABELS` too.
 
 #### Limitations
 

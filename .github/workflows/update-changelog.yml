@@ -1,8 +1,8 @@
 name: Update Changelog
 
 on:
-  # Manual trigger only. Enable the schedule once the fork wants dated
-  # releases cut from its own merged pull requests.
+  # Manual trigger only. A run releases everything merged since the previous
+  # release, so adding a schedule here is safe whenever the fork wants that.
   workflow_dispatch:
 
 jobs:
