@@ -18,7 +18,7 @@ This last step is very important, don't start developing from main, it'll cause 
 
 ## Testing
 
-You'll need Python 3.12 or newer to run the tests (3.14 is the default; uv installs it for you). We recommend using [tox](https://tox.readthedocs.io/en/latest/) to run the tests. It will automatically create a fresh virtual environment and install our test dependencies, such as [pytest-cookies](https://pypi.python.org/pypi/pytest-cookies/) and [flake8](https://pypi.python.org/pypi/flake8/).
+You'll need Python 3.12 or newer to run the tests (3.14 is the default; uv installs it for you). We recommend using [tox](https://tox.readthedocs.io/en/latest/) to run the tests. It will automatically create a fresh virtual environment and install our test dependencies, such as [pytest-cookies](https://pypi.python.org/pypi/pytest-cookies/) and [ruff](https://docs.astral.sh/ruff/).
 
 We'll also run the tests on GitHub actions when you send your pull request, but it's a good idea to run them locally before you send it.
 
@@ -44,22 +44,17 @@ For further information, please consult the [pytest usage docs](https://pytest.o
 
 ### Run the generated project tests
 
-The template tests are checking that the generated project is fully rendered and that it passes `flake8`. We also have some test scripts which generate a specific project combination, install the dependencies, run the tests of the generated project, install FE dependencies and generate the docs. They will install the template dependencies, so make sure you create and activate a virtual environment first.
-
-```bash
-$ python -m venv venv
-$ source venv/bin/activate
-```
+The template tests check that the generated project is fully rendered and that it passes `ruff` and `djlint`. We also have some test scripts which generate a specific project combination, install its dependencies, and then run its type checks, its test suite, Django's deployment checks and its documentation build. They run everything through `uv`, so there is no virtual environment to set up first.
 
 These tests are slower and can be run with or without Docker:
 
-- Without Docker: `tests/test_bare.sh` (for bare metal)
+- Without Docker: `tests/test_bare.sh` (for bare metal; needs PostgreSQL and Redis running)
 - With Docker: `tests/test_docker.sh`
 
 All arguments to these scripts will be passed to the `cookiecutter` CLI, letting you set options, for example:
 
 ```bash
-$ tests/test_bare.sh use_celery=y
+$ sh tests/test_bare.sh use_celery=y
 ```
 
 ## Submitting a pull request

@@ -39,7 +39,7 @@ Generally, if you want to emulate production environment use ``docker-compose.pr
 A freshly generated project pins its dependencies in ``pyproject.toml`` but has no lock file yet, so after we have created our initial image we need to generate one.
 Docker cannot write to the host system during builds, so we have to run the command to generate the lockfile in the container.
 This is important for reproducible builds and to ensure that the dependencies are installed correctly in the container.
-Commit the lockfile once it is there; updating it manually is normally not necessary when you add packages through `uv add <package_name>`.
+Commit the lockfile once it is there. Adding a package later means editing ``pyproject.toml`` and rebuilding, not ``uv add``; see `Add 3rd party python packages`_ below.
 
 This is done by running the following command: ::
 
@@ -104,7 +104,7 @@ Also, please note that the ``docker exec`` does not work for running management 
 (Optionally) Designate your Docker Development Server IP
 --------------------------------------------------------
 
-When ``DEBUG`` is set to ``True``, the host is validated against ``['localhost', '127.0.0.1', '[::1]']``. This is adequate when running a ``virtualenv``. For Docker, in the ``config.settings.local``, add your host development server IP to ``INTERNAL_IPS`` or ``ALLOWED_HOSTS`` if the variable exists.
+``config/settings/local.py`` sets ``ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]``, which is adequate when running in a virtualenv. To reach the site under another name or address, add it there; to get django-debug-toolbar on it as well, add it to ``INTERNAL_IPS`` too.
 
 .. _envs:
 
@@ -160,13 +160,6 @@ The ``.env`` file will then be created, with all your production envs residing b
 Tips & Tricks
 -------------
 
-Activate a Docker Machine
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This tells our computer that all future commands are specifically for the dev1 machine. Using the ``eval`` command we can switch machines as needed.::
-
-    eval "$(docker-machine env dev1)"
-
 Add 3rd party python packages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -198,7 +191,7 @@ Then you may need to run the following for it to work as desired: ::
 django-debug-toolbar
 """"""""""""""""""""
 
-In order for ``django-debug-toolbar`` to work designate your Docker Machine IP with ``INTERNAL_IPS`` in ``local.py``.
+``config/settings/local.py`` adds the container's gateway address to ``INTERNAL_IPS`` when ``USE_DOCKER=yes``, which covers the default setup. Reaching the site under another address means adding it there yourself.
 
 
 docker
@@ -271,7 +264,7 @@ By default, it's enabled both in local and production environments (``docker-com
 .. _`Flower`: https://github.com/mher/flower
 
 Using Just for Docker Commands
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We have included a ``justfile`` to simplify the use of frequent Docker commands for local development.
 

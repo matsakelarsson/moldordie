@@ -46,7 +46,7 @@ uv run ruff format
 ```bash
 # Docker-based
 sh tests/test_docker.sh                          # defaults
-sh tests/test_docker.sh use_celery=y use_drf=y   # with options
+sh tests/test_docker.sh use_celery=y rest_api=DRF  # with options
 
 # Bare metal (needs PostgreSQL and Redis running)
 sh tests/test_bare.sh
