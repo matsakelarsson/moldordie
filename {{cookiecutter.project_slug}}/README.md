@@ -83,7 +83,7 @@ See the [tasks guide](https://github.com/matsakelarsson/moldordie/blob/main/docs
 
 ### Celery
 
-This app comes with Celery.
+Celery sits next to the Tasks framework above, for the work that framework has no answer for: jobs on a schedule, jobs with a retry policy, and workflows. The example is `cache_users_count` in `{{cookiecutter.project_slug}}/users/tasks.py`, which retries itself on a transient database error and is meant to be scheduled under _Periodic Tasks_ in the admin. Work that needs neither a schedule nor retries belongs in a `django.tasks` task instead; the [tasks guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/tasks.rst) draws the line.
 
 Please note: for Celery's import magic to work, it is important _where_ the celery commands are run. Run them from the project root, the folder holding _manage.py_.
 
