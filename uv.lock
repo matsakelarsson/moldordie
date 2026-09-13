@@ -649,7 +649,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "ruff" },
-    { name = "sh", marker = "sys_platform != 'win23'" },
+    { name = "sh", marker = "sys_platform != 'win32'" },
     { name = "tox" },
     { name = "tox-uv" },
 ]
@@ -679,7 +679,7 @@ requires-dist = [
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "ruff", specifier = "==0.16.6" },
-    { name = "sh", marker = "sys_platform != 'win23'", specifier = "==2.4.0" },
+    { name = "sh", marker = "sys_platform != 'win32'", specifier = "==2.4.0" },
     { name = "tox", specifier = "==4.61.2" },
     { name = "tox-uv", specifier = ">=1.17" },
 ]

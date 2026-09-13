@@ -2,12 +2,6 @@ import json
 import re
 import sys
 
-TERMINATOR = "\x1b[0m"
-WARNING = "\x1b[1;33m [WARNING]: "
-INFO = "\x1b[1;33m [INFO]: "
-HINT = "\x1b[3;33m"
-SUCCESS = "\x1b[1;32m [SUCCESS]: "
-
 # The content of this string is evaluated by Jinja, and plays an important role.
 # It updates the cookiecutter context before any project file is rendered: it
 # trims leading and trailing spaces from the domain and email values, and it

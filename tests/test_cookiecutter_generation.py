@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-import sys
 import tomllib
 from collections.abc import Iterable
 from pathlib import Path
@@ -50,9 +49,6 @@ FRONTEND_TOOLCHAIN_TOKENS = [
     "cdnjs",
     "sass",
 ]
-
-if sys.platform.startswith("darwin") and os.getenv("CI"):
-    pytest.skip("skipping slow macOS tests on CI", allow_module_level=True)
 
 # The style checks that a formatter run after generation would fix: ruff format, djlint's
 # formatter and django-upgrade. They take longer than the rest of the suite, so they run
