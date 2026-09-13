@@ -81,7 +81,7 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 
 ### Test Structure
 
-- **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent and, with `AUTOFIXABLE_STYLES=1`, that `ruff format`, djlint's formatter and `django-upgrade` would change nothing (the `auto_fixable` marker; CI runs just those in its own job). Skips on macOS CI (slow).
+- **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent and, with `AUTOFIXABLE_STYLES=1`, that `ruff format`, djlint's formatter and `django-upgrade` would change nothing (the `auto_fixable` marker; CI runs just those in its own job).
 - **`tests/test_hooks.py`** — Unit tests for the hooks: `prune` run on a copy of the template tree against hand-written expected removals, and the removal rules checked for consistency over every combination of the answers they read
 - **`tests/test_local_extensions.py`** — The `string_escape` filter round-tripped through the Python, TOML and YAML parsers, and loaded from `cookiecutter.json`
 - **`tests/test_bare.sh`** / **`tests/test_docker.sh`** — Integration tests that generate a project and run its full test suite

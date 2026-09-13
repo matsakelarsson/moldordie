@@ -70,7 +70,7 @@ A workflow that uses [Sebastian Ramirez' issue-manager](https://github.com/tiang
 
 It runs on a schedule as well as when some actions are taken on issues and pull requests.
 
-We wait 10 days before closing issues, and we have a few customised reasons, which are configured in the workflow itself. The config should be fairly self-explanatory.
+We wait 10 days before closing issues labelled `needs-info` or `wontfix`, with a message for each, configured in the workflow itself.
 
 ### Pre-commit auto-update
 

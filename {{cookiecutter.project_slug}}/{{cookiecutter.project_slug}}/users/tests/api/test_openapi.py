@@ -37,8 +37,4 @@ def test_api_schema_generated_successfully(admin_client):
     {%- endif %}
     response = admin_client.get(url)
     assert response.status_code == HTTPStatus.OK
-{%- else %}
-# No REST API framework was selected (rest_api = 'None').
-# These tests are not applicable to this configuration.
-# When hooks are enabled, the post-generation hook removes this directory entirely.
 {%- endif %}

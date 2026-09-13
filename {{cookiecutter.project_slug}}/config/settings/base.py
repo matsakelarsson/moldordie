@@ -251,11 +251,6 @@ TEMPLATES = [
 # Form fields are rendered with the Pico CSS markup in templates/django/forms/field.html
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
-# FIXTURES
-# ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#fixture-dirs
-FIXTURE_DIRS = (str(APPS_DIR / "fixtures"),)
-
 # SECURITY
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-httponly

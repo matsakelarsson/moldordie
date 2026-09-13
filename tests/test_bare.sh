@@ -30,6 +30,9 @@ uv run mypy .
 # run the project's tests
 uv run pytest
 
+# return non-zero status code if there are migrations that have not been created
+uv run python manage.py makemigrations --check
+
 # Make sure the check doesn't raise any warnings
 uv run python manage.py check --fail-level WARNING
 
