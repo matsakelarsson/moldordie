@@ -36,26 +36,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PATH="/${APP_HOME}/.venv/bin:$PATH"
 ENV PYTHONPATH="${APP_HOME}/.venv/lib/python3.14/site-packages:$PYTHONPATH"
 
-COPY ./compose/production/django/entrypoint /entrypoint
-RUN sed -i 's/\r$//g' /entrypoint
-RUN chmod +x /entrypoint
+COPY --chmod=0755 ./compose/production/django/entrypoint /entrypoint
 
-COPY ./compose/local/django/start /start
-RUN sed -i 's/\r$//g' /start
-RUN chmod +x /start
+COPY --chmod=0755 ./compose/local/django/start /start
 
 {% if cookiecutter.use_celery == "y" %}
-COPY ./compose/local/django/celery/worker/start /start-celeryworker
-RUN sed -i 's/\r$//g' /start-celeryworker
-RUN chmod +x /start-celeryworker
+COPY --chmod=0755 ./compose/local/django/celery/worker/start /start-celeryworker
 
-COPY ./compose/local/django/celery/beat/start /start-celerybeat
-RUN sed -i 's/\r$//g' /start-celerybeat
-RUN chmod +x /start-celerybeat
+COPY --chmod=0755 ./compose/local/django/celery/beat/start /start-celerybeat
 
-COPY ./compose/local/django/celery/flower/start /start-flower
-RUN sed -i 's/\r$//g' /start-flower
-RUN chmod +x /start-flower
+COPY --chmod=0755 ./compose/local/django/celery/flower/start /start-flower
 {% endif %}
 
 ENTRYPOINT ["/entrypoint"]
