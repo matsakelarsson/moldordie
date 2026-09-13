@@ -27,7 +27,6 @@ FLAG_OPTIONS = (
     "keep_local_envs_in_vcs",
     "use_celery",
     "use_docker",
-    "use_heroku",
 )
 
 
@@ -38,11 +37,6 @@ def normalize_context(context):
         if option in normalized:
             normalized[option] = normalized[option].lower()
     return normalized
-
-
-def envs_unused(context):
-    """Docker Compose and Heroku are the only consumers of the ``.envs`` files."""
-    return context["use_docker"] == "n" and context["use_heroku"] == "n"
 
 
 # Removal rules. When a rule's condition holds for the normalised answers, the paths
@@ -76,9 +70,9 @@ REMOVALS = (
     (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "None", ("compose/production/nginx",)),
     # The AWS image holds the S3 backup maintenance scripts.
     (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "AWS", ("compose/production/aws",)),
-    (lambda c: c["use_heroku"] == "n", ("Procfile", "bin")),
+    # Docker Compose is the only consumer of the ``.envs`` files.
     (
-        lambda c: envs_unused(c) and c["keep_local_envs_in_vcs"] == "n",
+        lambda c: c["use_docker"] == "n" and c["keep_local_envs_in_vcs"] == "n",
         (".envs", "merge_production_dotenvs_in_dotenv.py", "tests"),
     ),
     # users/tasks.py and its tests stay: they also hold the Django Tasks example.
@@ -277,11 +271,11 @@ def main(context):
     )
     set_flags_in_settings_files()
 
-    if envs_unused(context):
+    if context["use_docker"] == "n":
         if context["keep_local_envs_in_vcs"] == "y":
             print(
-                INFO + ".env(s) are only utilized when Docker Compose and/or "
-                "Heroku support is enabled. Keeping them as requested, but they may not be useful "
+                INFO + ".env(s) are only utilized when Docker Compose is enabled. "
+                "Keeping them as requested, but they may not be useful "
                 "in your current setup." + TERMINATOR,
             )
     else:

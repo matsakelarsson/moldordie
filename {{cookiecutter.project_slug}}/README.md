@@ -69,9 +69,6 @@ production they are stored in PostgreSQL by django-tasks-db and executed by a wo
 {%- if cookiecutter.use_docker == "y" %}
 
     docker compose -f docker-compose.production.yml up taskworker
-{%- elif cookiecutter.use_heroku == "y" %}
-
-    heroku ps:scale taskworker=1
 {%- else %}
 
     uv run python manage.py db_worker
@@ -189,13 +186,6 @@ You must set the DSN url in production.
 ## Deployment
 
 The following details how to deploy this application.
-{%- if cookiecutter.use_heroku.lower() == "y" %}
-
-### Heroku
-
-See detailed [moldordie Heroku documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/3-deployment/deployment-on-heroku.rst).
-
-{%- endif %}
 {%- if cookiecutter.use_docker.lower() == "y" %}
 
 ### Docker

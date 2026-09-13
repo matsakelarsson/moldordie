@@ -25,7 +25,6 @@
   "mail_catcher": ["None", "Mailpit", "Mailtrap Local"],
   "use_sentry": "n",
   "use_whitenoise": "n",
-  "use_heroku": "n",
   "ci_tool": ["None", "Gitlab", "Github"],
   "keep_local_envs_in_vcs": "y",
   "debug": "n",

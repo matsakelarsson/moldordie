@@ -12,7 +12,6 @@ import pytest
 from hooks.post_gen_project import FLAG_OPTIONS
 from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import append_to_gitignore_file
-from hooks.post_gen_project import envs_unused
 from hooks.post_gen_project import normalize_context
 from hooks.post_gen_project import prune
 from hooks.post_gen_project import remove_channels_tests
@@ -50,14 +49,6 @@ def test_normalize_context_lowercases_only_the_flags_on_a_copy():
         "project_name": "Yes Project",
     }
     assert context["use_docker"] == "Y"
-
-
-@pytest.mark.parametrize(
-    ("use_docker", "use_heroku", "expected"),
-    [("n", "n", True), ("y", "n", False), ("n", "y", False), ("y", "y", False)],
-)
-def test_envs_unused_when_neither_docker_nor_heroku(use_docker, use_heroku, expected):
-    assert envs_unused({"use_docker": use_docker, "use_heroku": use_heroku}) is expected
 
 
 @pytest.fixture
@@ -159,7 +150,6 @@ NO_NGINX = {"compose/production/nginx"}
 NO_AWS_IMAGE = {"compose/production/aws"}
 NO_CELERY = {"config/celery_app.py"}
 NO_CELERY_IMAGES = {"compose/local/django/celery", "compose/production/django/celery"}
-NO_HEROKU = {"Procfile", "bin"}
 UNUSED_ENVS = {".envs", "merge_production_dotenvs_in_dotenv.py", "tests"}
 CI_CONFIGS = {"Gitlab": ".gitlab-ci.yml", "Github": ".github"}
 NO_CI = set(CI_CONFIGS.values())
@@ -168,9 +158,9 @@ NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
 NO_REST_API = {"config/api_router.py", "config/api.py", f"{PKG}/users/api", f"{PKG}/users/tests/api"}
 NO_CHANNELS = {"config/websocket.py", f"{PKG}/tests/test_websocket.py"}
 
-# cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery, no Heroku,
+# cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
 # envs kept, no CI, no REST API, no Channels.
-DEFAULTS = NOT_GPL | USERNAME_LOGIN | NO_DOCKER | NO_HEROKU | NO_CELERY | NO_CI | NO_REST_API | NO_CHANNELS
+DEFAULTS = NOT_GPL | USERNAME_LOGIN | NO_DOCKER | NO_CELERY | NO_CI | NO_REST_API | NO_CHANNELS
 # Docker on, everything else at its default: the helper scripts and the Celery images go instead of compose.
 WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES
 
@@ -184,7 +174,7 @@ def test_prune_reads_the_flags_case_insensitively(unpruned_project):
 
 
 def test_prune_fails_on_a_missing_target(unpruned_project):
-    (unpruned_project / "Procfile").unlink()
+    (unpruned_project / "COPYING").unlink()
     with pytest.raises(FileNotFoundError):
         prune(default_context(), unpruned_project)
 
@@ -239,23 +229,20 @@ def test_prune_docker_and_celery(unpruned_project, use_docker, use_celery, expec
 
 
 @pytest.mark.parametrize(
-    ("use_docker", "use_heroku", "keep_local_envs_in_vcs", "expected"),
+    ("use_docker", "keep_local_envs_in_vcs", "expected"),
     [
         # The envs only go when nothing uses them and the user did not ask to keep them.
-        ("n", "n", "n", DEFAULTS | UNUSED_ENVS),
-        ("n", "n", "y", DEFAULTS),
-        ("y", "n", "n", WITH_DOCKER | NO_NGINX),
-        ("n", "y", "n", DEFAULTS - NO_HEROKU),
-        ("n", "y", "y", DEFAULTS - NO_HEROKU),
-        ("y", "y", "n", (WITH_DOCKER | NO_NGINX) - NO_HEROKU),
+        ("n", "n", DEFAULTS | UNUSED_ENVS),
+        ("n", "y", DEFAULTS),
+        ("y", "n", WITH_DOCKER | NO_NGINX),
+        ("y", "y", WITH_DOCKER | NO_NGINX),
     ],
 )
-def test_prune_docker_heroku_and_envs(unpruned_project, use_docker, use_heroku, keep_local_envs_in_vcs, expected):
+def test_prune_docker_and_envs(unpruned_project, use_docker, keep_local_envs_in_vcs, expected):
     assert_prunes(
         unpruned_project,
         expected,
         use_docker=use_docker,
-        use_heroku=use_heroku,
         keep_local_envs_in_vcs=keep_local_envs_in_vcs,
     )
 
@@ -302,7 +289,6 @@ REMOVAL_OPTIONS = (
     "username_type",
     "use_docker",
     "cloud_provider",
-    "use_heroku",
     "keep_local_envs_in_vcs",
     "use_celery",
     "ci_tool",

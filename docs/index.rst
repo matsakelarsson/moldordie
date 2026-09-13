@@ -27,7 +27,6 @@ moldordie is a fork of `cookiecutter-django`_. Powered by Cookiecutter_, it is a
    :caption: Deployment
 
    3-deployment/deployment-on-pythonanywhere
-   3-deployment/deployment-on-heroku
    3-deployment/deployment-with-docker
    3-deployment/cloud-storage
 

@@ -114,10 +114,6 @@ use_sentry:
 use_whitenoise:
     Indicates whether the project should be configured to use WhiteNoise_.
 
-use_heroku:
-    Indicates whether the project should be configured so as to be deployable
-    to Heroku_.
-
 ci_tool:
     Select a CI tool for running tests. The choices are:
 
@@ -161,8 +157,6 @@ debug:
 .. _Sentry: https://github.com/getsentry/sentry
 
 .. _WhiteNoise: https://github.com/evansd/whitenoise
-
-.. _Heroku: https://github.com/heroku/heroku-buildpack-python
 
 .. _GitLab CI: https://docs.gitlab.com/ee/ci/
 
