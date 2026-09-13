@@ -23,29 +23,17 @@ dependencies = [
   "channels==4.3.2",
   "channels-redis==4.3.0",
 {%- endif %}
-{%- if cookiecutter.use_whitenoise == 'n' and cookiecutter.cloud_provider in ('AWS', 'GCP', 'Azure') %}
+{%- if cookiecutter.use_whitenoise == 'n' and cookiecutter.cloud_provider == 'AWS' %}
   "collectfasta==3.3.4",
 {%- endif %}
   "django==6.0.8",
   "django-allauth[mfa]==65.19.2",
-{%- if cookiecutter.mail_service == 'Mailgun' %}
-  "django-anymail[mailgun]==15.2",
+{%- if cookiecutter.mail_service == 'Other SMTP' %}
+  "django-anymail==15.2",
 {%- elif cookiecutter.mail_service == 'Amazon SES' %}
   "django-anymail[amazon-ses]==15.2",
-{%- elif cookiecutter.mail_service == 'Mailjet' %}
-  "django-anymail[mailjet]==15.2",
-{%- elif cookiecutter.mail_service == 'Mandrill' %}
-  "django-anymail[mandrill]==15.2",
-{%- elif cookiecutter.mail_service == 'Postmark' %}
-  "django-anymail[postmark]==15.2",
-{%- elif cookiecutter.mail_service == 'Sendgrid' %}
-  "django-anymail[sendgrid]==15.2",
-{%- elif cookiecutter.mail_service == 'Brevo' %}
-  "django-anymail[brevo]==15.2",
-{%- elif cookiecutter.mail_service == 'SparkPost' %}
-  "django-anymail[sparkpost]==15.2",
-{%- elif cookiecutter.mail_service == 'Other SMTP' %}
-  "django-anymail==15.2",
+{%- elif cookiecutter.mail_service == 'Mailgun' %}
+  "django-anymail[mailgun]==15.2",
 {%- endif %}
 {%- if cookiecutter.use_celery == 'y' %}
   "django-celery-beat==2.9.0",
@@ -62,10 +50,6 @@ dependencies = [
   "django-redis==7.0.0",
 {%- if cookiecutter.cloud_provider == 'AWS' %}
   "django-storages[s3]==1.14.6",
-{%- elif cookiecutter.cloud_provider == 'GCP' %}
-  "django-storages[google]==1.14.6",
-{%- elif cookiecutter.cloud_provider == 'Azure' %}
-  "django-storages[azure]==1.14.6",
 {%- endif %}
   "django-stubs-ext==6.1.0",
   "django-tasks-db==0.13.0",

@@ -144,12 +144,6 @@ AWS_S3_REGION_NAME = env("DJANGO_AWS_S3_REGION_NAME", default=None)
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#cloudfront
 AWS_S3_CUSTOM_DOMAIN = env("DJANGO_AWS_S3_CUSTOM_DOMAIN", default=None)
 aws_s3_domain = AWS_S3_CUSTOM_DOMAIN or f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
-{% elif cookiecutter.cloud_provider == 'GCP' %}
-GS_BUCKET_NAME = env("DJANGO_GCP_STORAGE_BUCKET_NAME")
-{% elif cookiecutter.cloud_provider == 'Azure' %}
-AZURE_ACCOUNT_KEY = env("DJANGO_AZURE_ACCOUNT_KEY")
-AZURE_ACCOUNT_NAME = env("DJANGO_AZURE_ACCOUNT_NAME")
-AZURE_CONTAINER = env("DJANGO_AZURE_CONTAINER_NAME")
 {% endif -%}
 
 {% if cookiecutter.cloud_provider != 'None' or cookiecutter.use_whitenoise == 'y' -%}
@@ -183,46 +177,6 @@ STORAGES = {
         },
     },
     {%- endif %}
-{%- elif cookiecutter.cloud_provider == 'GCP' %}
-    "default": {
-        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
-        "OPTIONS": {
-            "location": "media",
-            "file_overwrite": False,
-        },
-    },
-    {%- if cookiecutter.use_whitenoise == 'y' %}
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-    {%- else %}
-    "staticfiles": {
-        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
-        "OPTIONS": {
-            "location": "static",
-        },
-    },
-    {%- endif %}
-{%- elif cookiecutter.cloud_provider == 'Azure' %}
-    "default": {
-        "BACKEND": "storages.backends.azure_storage.AzureStorage",
-        "OPTIONS": {
-            "location": "media",
-            "overwrite_files": False,
-        },
-    },
-    {%- if cookiecutter.use_whitenoise == 'y' %}
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-    {%- else %}
-    "staticfiles": {
-        "BACKEND": "storages.backends.azure_storage.AzureStorage",
-        "OPTIONS": {
-            "location": "static",
-        },
-    },
-    {%- endif %}
 {%- endif %}
 }
 {%- endif %}
@@ -232,18 +186,6 @@ MEDIA_URL = f"https://{aws_s3_domain}/media/"
 {%- if cookiecutter.use_whitenoise == 'n' %}
 COLLECTFASTA_STRATEGY = "collectfasta.strategies.boto3.Boto3Strategy"
 STATIC_URL = f"https://{aws_s3_domain}/static/"
-{%- endif %}
-{%- elif cookiecutter.cloud_provider == 'GCP' %}
-MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
-{%- if cookiecutter.use_whitenoise == 'n' %}
-COLLECTFASTA_STRATEGY = "collectfasta.strategies.gcloud.GoogleCloudStrategy"
-STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
-{%- endif %}
-{%- elif cookiecutter.cloud_provider == 'Azure' %}
-MEDIA_URL = f"https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/media/"
-{%- if cookiecutter.use_whitenoise == 'n' %}
-COLLECTFASTA_STRATEGY = "collectfasta.strategies.azure.AzureBlobStrategy"
-STATIC_URL = f"https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/static/"
 {%- endif %}
 {%- endif %}
 
@@ -274,7 +216,15 @@ ADMIN_URL = env("DJANGO_ADMIN_URL")
 INSTALLED_APPS += ["anymail"]
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 # https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
-{%- if cookiecutter.mail_service == 'Mailgun' %}
+{%- if cookiecutter.mail_service == 'Other SMTP' %}
+# https://anymail.readthedocs.io/en/stable/esps
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+ANYMAIL: dict[str, Any] = {}
+{%- elif cookiecutter.mail_service == 'Amazon SES' %}
+# https://anymail.readthedocs.io/en/stable/esps/amazon_ses/
+EMAIL_BACKEND = "anymail.backends.amazon_ses.EmailBackend"
+ANYMAIL: dict[str, Any] = {}
+{%- elif cookiecutter.mail_service == 'Mailgun' %}
 # https://anymail.readthedocs.io/en/stable/esps/mailgun/
 EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
 ANYMAIL = {
@@ -282,59 +232,9 @@ ANYMAIL = {
     "MAILGUN_SENDER_DOMAIN": env("MAILGUN_DOMAIN"),
     "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
 }
-{%- elif cookiecutter.mail_service == 'Amazon SES' %}
-# https://anymail.readthedocs.io/en/stable/esps/amazon_ses/
-EMAIL_BACKEND = "anymail.backends.amazon_ses.EmailBackend"
-ANYMAIL: dict[str, Any] = {}
-{%- elif cookiecutter.mail_service == 'Mailjet' %}
-# https://anymail.readthedocs.io/en/stable/esps/mailjet/
-EMAIL_BACKEND = "anymail.backends.mailjet.EmailBackend"
-ANYMAIL = {
-    "MAILJET_API_KEY": env("MAILJET_API_KEY"),
-    "MAILJET_SECRET_KEY": env("MAILJET_SECRET_KEY"),
-}
-{%- elif cookiecutter.mail_service == 'Mandrill' %}
-# https://anymail.readthedocs.io/en/stable/esps/mandrill/
-EMAIL_BACKEND = "anymail.backends.mandrill.EmailBackend"
-ANYMAIL = {
-    "MANDRILL_API_KEY": env("MANDRILL_API_KEY"),
-    "MANDRILL_API_URL": env("MANDRILL_API_URL", default="https://mandrillapp.com/api/1.0"),
-}
-{%- elif cookiecutter.mail_service == 'Postmark' %}
-# https://anymail.readthedocs.io/en/stable/esps/postmark/
-EMAIL_BACKEND = "anymail.backends.postmark.EmailBackend"
-ANYMAIL = {
-    "POSTMARK_SERVER_TOKEN": env("POSTMARK_SERVER_TOKEN"),
-    "POSTMARK_API_URL": env("POSTMARK_API_URL", default="https://api.postmarkapp.com/"),
-}
-{%- elif cookiecutter.mail_service == 'Sendgrid' %}
-# https://anymail.readthedocs.io/en/stable/esps/sendgrid/
-EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
-ANYMAIL = {
-    "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
-    "SENDGRID_API_URL": env("SENDGRID_API_URL", default="https://api.sendgrid.com/v3/"),
-}
-{%- elif cookiecutter.mail_service == 'Brevo' %}
-# https://anymail.readthedocs.io/en/stable/esps/brevo/
-EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
-ANYMAIL = {
-    "BREVO_API_KEY": env("BREVO_API_KEY"),
-    "BREVO_API_URL": env("BREVO_API_URL", default="https://api.brevo.com/v3/"),
-}
-{%- elif cookiecutter.mail_service == 'SparkPost' %}
-# https://anymail.readthedocs.io/en/stable/esps/sparkpost/
-EMAIL_BACKEND = "anymail.backends.sparkpost.EmailBackend"
-ANYMAIL = {
-    "SPARKPOST_API_KEY": env("SPARKPOST_API_KEY"),
-    "SPARKPOST_API_URL": env("SPARKPOST_API_URL", default="https://api.sparkpost.com/api/v1"),
-}
-{%- elif cookiecutter.mail_service == 'Other SMTP' %}
-# https://anymail.readthedocs.io/en/stable/esps
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-ANYMAIL: dict[str, Any] = {}
 {%- endif %}
 
-{% if cookiecutter.use_whitenoise == 'n' and cookiecutter.cloud_provider in ('AWS', 'GCP', 'Azure') -%}
+{% if cookiecutter.use_whitenoise == 'n' and cookiecutter.cloud_provider == 'AWS' -%}
 # Collectfasta
 # ------------------------------------------------------------------------------
 # https://github.com/jasongi/collectfasta#installation
