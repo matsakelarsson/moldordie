@@ -128,10 +128,9 @@ Answer the prompts with your own desired [options](docs/1-getting-started/projec
     use_heroku [n]: y
     Select ci_tool:
     1 - None
-    2 - Travis
-    3 - Gitlab
-    4 - Github
-    Choose from 1, 2, 3, 4 [1]: 4
+    2 - Gitlab
+    3 - Github
+    Choose from 1, 2, 3 [1]: 3
     keep_local_envs_in_vcs [y]: y
     debug [n]: n
 

@@ -36,7 +36,7 @@
   "use_sentry": "n",
   "use_whitenoise": "n",
   "use_heroku": "n",
-  "ci_tool": ["None", "Travis", "Gitlab", "Github", "Drone"],
+  "ci_tool": ["None", "Gitlab", "Github"],
   "keep_local_envs_in_vcs": "y",
   "debug": "n",
   "_copy_without_render": ["*/static/vendor/*"],

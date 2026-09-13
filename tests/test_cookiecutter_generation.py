@@ -163,10 +163,8 @@ SUPPORTED_COMBINATIONS = [
     {"use_heroku": "y"},
     {"use_heroku": "n"},
     {"ci_tool": "None"},
-    {"ci_tool": "Travis"},
     {"ci_tool": "Gitlab"},
     {"ci_tool": "Github"},
-    {"ci_tool": "Drone"},
     {"keep_local_envs_in_vcs": "y"},
     {"keep_local_envs_in_vcs": "n"},
     {"debug": "y"},
@@ -361,34 +359,6 @@ CI_SCRIPT_CASES = [
         "docker compose -f docker-compose.local.yml run django pytest",
     ),
 ]
-
-
-@pytest.mark.parametrize(
-    ("use_docker", "expected_typecheck_script", "expected_test_script"),
-    CI_SCRIPT_CASES,
-)
-def test_travis_invokes_mypy_and_pytest(
-    cookies,
-    context,
-    use_docker,
-    expected_typecheck_script,
-    expected_test_script,
-):
-    context.update({"ci_tool": "Travis", "use_docker": use_docker})
-    result = cookies.bake(extra_context=context)
-
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert result.project_path.name == context["project_slug"]
-    assert result.project_path.is_dir()
-
-    with (result.project_path / ".travis.yml").open() as travis_yml:
-        try:
-            yml = yaml.safe_load(travis_yml)["jobs"]["include"]
-            assert yml[0]["script"] == ["ruff check ."]
-            assert yml[1]["script"] == [expected_typecheck_script, expected_test_script]
-        except yaml.YAMLError as e:
-            pytest.fail(str(e))
 
 
 @pytest.mark.parametrize(
