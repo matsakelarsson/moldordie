@@ -45,7 +45,7 @@ To run the tests, check your test coverage, and generate an HTML coverage report
 
     uv run coverage run -m pytest
     uv run coverage html
-    uv run open htmlcov/index.html
+    open htmlcov/index.html
 
 #### Running tests with pytest
 
@@ -85,26 +85,23 @@ See the [tasks guide](https://github.com/matsakelarsson/moldordie/blob/main/docs
 
 This app comes with Celery.
 
+Please note: for Celery's import magic to work, it is important _where_ the celery commands are run. Run them from the project root, the folder holding _manage.py_.
+
 To run a celery worker:
 
 ```bash
-cd {{cookiecutter.project_slug}}
 uv run celery -A config.celery_app worker -l info
 ```
-
-Please note: For Celery's import magic to work, it is important _where_ the celery commands are run. If you are in the same folder with _manage.py_, you should be right.
 
 To run [periodic tasks](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html), you'll need to start the celery beat scheduler service. You can start it as a standalone process:
 
 ```bash
-cd {{cookiecutter.project_slug}}
 uv run celery -A config.celery_app beat
 ```
 
 or you can embed the beat service inside a worker with the `-B` option (not recommended for production use):
 
 ```bash
-cd {{cookiecutter.project_slug}}
 uv run celery -A config.celery_app worker -B -l info
 ```
 
@@ -184,7 +181,7 @@ Now you have your own mail server running locally, ready to receive whatever you
 ### Sentry
 
 Sentry is an error logging aggregator service. You can sign up for a free account at <https://sentry.io/signup/> or download and host it yourself.
-The system is set up with reasonable defaults, including 404 logging and integration with the ASGI application.
+The system is set up with reasonable defaults: unhandled exceptions are captured through the Django integration, and log records of level `ERROR` and above are sent as events.
 
 You must set the DSN url in production.
 {%- endif %}

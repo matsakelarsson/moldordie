@@ -87,10 +87,8 @@ REMOVALS = (
         lambda c: c["use_celery"] == "n" and c["use_docker"] == "y",
         ("compose/local/django/celery", "compose/production/django/celery"),
     ),
-    (lambda c: c["ci_tool"] != "Travis", (".travis.yml",)),
     (lambda c: c["ci_tool"] != "Gitlab", (".gitlab-ci.yml",)),
     (lambda c: c["ci_tool"] != "Github", (".github",)),
-    (lambda c: c["ci_tool"] != "Drone", (".drone.yml",)),
     (lambda c: c["rest_api"] == "DRF", ("config/api.py", "{project_slug}/users/api/schema.py")),
     (
         lambda c: c["rest_api"] == "Django Ninja",

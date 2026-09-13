@@ -123,10 +123,8 @@ ci_tool:
     Select a CI tool for running tests. The choices are:
 
     1. None
-    2. `Travis CI`_
-    3. `Gitlab CI`_
-    4. `Github Actions`_
-    5. `Drone CI`_
+    2. `Gitlab CI`_
+    3. `Github Actions`_
 
 keep_local_envs_in_vcs:
     Indicates whether the project’s .envs/.local/ should be kept in VCS (comes in handy when working in teams where local environment reproducibility is strongly encouraged).
@@ -175,11 +173,7 @@ debug:
 
 .. _Heroku: https://github.com/heroku/heroku-buildpack-python
 
-.. _Travis CI: https://travis-ci.org/
-
 .. _GitLab CI: https://docs.gitlab.com/ee/ci/
-
-.. _Drone CI: https://docs.drone.io/pipeline/overview/
 
 .. _Github Actions: https://docs.github.com/en/actions
 .. _Django Channels: https://channels.readthedocs.io/

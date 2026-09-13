@@ -4,14 +4,14 @@ How To - Project Documentation
 Get Started
 ----------------------------------------------------------------------
 
-Documentation can be written as rst files in `{{cookiecutter.project_slug}}/docs`.
+Documentation can be written as rst files in the `docs` directory at the root of the project.
 
 {% if cookiecutter.use_docker == 'n' %}
 To build and serve docs, use the command::
 
     uv run make livehtml
 
-from inside the `{{cookiecutter.project_slug}}/docs` directory.
+from inside that `docs` directory.
 {% else %}
 To build and serve docs, use the commands::
 
@@ -19,7 +19,7 @@ To build and serve docs, use the commands::
 
 {% endif %}
 
-Changes to files in `docs/_source` will be picked up and reloaded automatically.
+Changes to the files in `docs`, and to the application code they document, are picked up and reloaded automatically.
 
 `Sphinx <https://www.sphinx-doc.org/>`_ is the tool used to build documentation.
 
@@ -41,5 +41,5 @@ To compile all docstrings automatically into documentation source files, use the
 This can be done in the docker container:
     ::
 
-        docker run --rm docs make apidocs
+        docker compose -f docker-compose.docs.yml run --rm docs make apidocs
 {% endif -%}

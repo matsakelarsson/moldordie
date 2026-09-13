@@ -161,7 +161,7 @@ NO_CELERY = {"config/celery_app.py"}
 NO_CELERY_IMAGES = {"compose/local/django/celery", "compose/production/django/celery"}
 NO_HEROKU = {"Procfile", "bin"}
 UNUSED_ENVS = {".envs", "merge_production_dotenvs_in_dotenv.py", "tests"}
-CI_CONFIGS = {"Travis": ".travis.yml", "Gitlab": ".gitlab-ci.yml", "Github": ".github", "Drone": ".drone.yml"}
+CI_CONFIGS = {"Gitlab": ".gitlab-ci.yml", "Github": ".github"}
 NO_CI = set(CI_CONFIGS.values())
 NO_DRF = {"config/api_router.py", f"{PKG}/users/api/serializers.py"}
 NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
@@ -264,7 +264,7 @@ def test_prune_docker_heroku_and_envs(unpruned_project, use_docker, use_heroku, 
     )
 
 
-@pytest.mark.parametrize("ci_tool", ["None", "Travis", "Gitlab", "Github", "Drone"])
+@pytest.mark.parametrize("ci_tool", ["None", "Gitlab", "Github"])
 def test_prune_keeps_only_the_chosen_ci_config(unpruned_project, ci_tool):
     other_configs = {path for tool, path in CI_CONFIGS.items() if tool != ci_tool}
     assert_prunes(unpruned_project, (DEFAULTS - NO_CI) | other_configs, ci_tool=ci_tool)
