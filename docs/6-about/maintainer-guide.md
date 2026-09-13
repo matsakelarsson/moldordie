@@ -8,7 +8,7 @@ Dependabot keeps the template's own Python deps, the GitHub actions and the Dock
 
 Nothing updates the generated project's Python deps automatically. They are pinned in `{{cookiecutter.project_slug}}/pyproject.toml`, which is a Jinja template that Dependabot cannot parse, so bump them by hand. cookiecutter-django used PyUp for this; the fork does not, and the `.pyup.yml` it left behind pointed at `requirements/*.txt` files that no longer exist.
 
-Three of those pins — `ruff`, `djlint` and `django-upgrade` — also appear in the template's own `pyproject.toml` and in both `.pre-commit-config.yaml` files, because the template's test suite lints the generated output with them. The generated project's pin is the source of truth: `align-versions.yml` copies it to the other four places whenever a pull request changes `{{cookiecutter.project_slug}}/pyproject.toml`. Dependabot is told to ignore those three so it cannot bump them out of step.
+Three of those pins — `ruff`, `djlint` and `django-upgrade` — also appear in the template's own `pyproject.toml` and `uv.lock` and in the generated project's `.pre-commit-config.yaml`, because the template's test suite lints the generated output with them; `ruff` is in the template's own `.pre-commit-config.yaml` as well. The generated project's pin is the source of truth: `align-versions.yml` copies it to the other places whenever a pull request changes `{{cookiecutter.project_slug}}/pyproject.toml`. Dependabot is told to ignore those three so it cannot bump them out of step.
 
 Updates for the template should be labelled as `project infrastructure` while the ones about the generated project should be labelled as `update`. This is use to work in conjunction with our changelog script (see later).
 
@@ -22,7 +22,7 @@ We have a few workflows which have been automated over time. They usually run us
 
 The CI workflow tries to cover 2 main aspects of the template:
 
-- Check all combinations to make sure that valid files are generated with no major linting issues. Issues which are fixed by an auto-formatter after generation aren't considered major, and only aim for best effort. This is under the `test` job.
+- Check all combinations to make sure that valid files are generated and pass `ruff check` and `djlint --lint`: the `tests` job, on three Python versions. The `auto-fixable` job checks, on one, that `ruff format`, djlint's formatter and `django-upgrade` would change nothing in the generated output; those tests run only with `AUTOFIXABLE_STYLES=1`, and the job selects them by their `auto_fixable` marker.
 - Run more in-depth tests on a few combinations, by installing dependencies, running type checker and the test suite of the generated project. We try to cover docker (`docker` job) and non-docker (`bare` job) setups.
 
 We also run the deployment checks, but we don't do much more beyond that for testing the production setup.
@@ -31,7 +31,7 @@ We also run the deployment checks, but we don't do much more beyond that for tes
 
 `align-versions.yml`
 
-Runs `scripts/python_dependency_version.py` for `ruff`, `djlint` and `django-upgrade` on every pull request that touches `{{cookiecutter.project_slug}}/pyproject.toml`, and commits the result back to the branch. Each run reads the version the generated project pins and writes it into the template's own `pyproject.toml` and into both `.pre-commit-config.yaml` files, so a pin only ever has to be edited in one place.
+Runs `scripts/python_dependency_version.py` for `ruff`, `djlint` and `django-upgrade` on every pull request that touches `{{cookiecutter.project_slug}}/pyproject.toml`, and commits the result back to the branch. Each run reads the version the generated project pins, writes it into the template's own `pyproject.toml` and into both `.pre-commit-config.yaml` files (the template's own has only a `ruff` hook, so for `djlint` and `django-upgrade` that write changes nothing there) and refreshes `uv.lock`, so a pin only ever has to be edited in one place.
 
 #### Limitations
 

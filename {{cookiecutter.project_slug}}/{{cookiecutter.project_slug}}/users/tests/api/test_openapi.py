@@ -1,4 +1,4 @@
-{%- if cookiecutter.rest_api != 'None' %}
+{%- if cookiecutter.rest_api != 'None' -%}
 from http import HTTPStatus
 
 import pytest

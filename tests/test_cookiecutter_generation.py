@@ -54,11 +54,16 @@ FRONTEND_TOOLCHAIN_TOKENS = [
 if sys.platform.startswith("darwin") and os.getenv("CI"):
     pytest.skip("skipping slow macOS tests on CI", allow_module_level=True)
 
-# Run auto-fixable styles checks - skipped on CI by default. These can be fixed
-# automatically by running pre-commit after generation. However, they are tedious
-# to fix in the template, so we don't insist too much on fixing them.
+# The style checks that a formatter run after generation would fix: ruff format, djlint's
+# formatter and django-upgrade. They take longer than the rest of the suite, so they run
+# only with AUTOFIXABLE_STYLES=1; CI runs just them in its own job, selected by the marker.
+# A defect they find is fixed in the template, so the generated project starts clean.
 AUTOFIXABLE_STYLES = os.getenv("AUTOFIXABLE_STYLES") == "1"
-auto_fixable = pytest.mark.skipif(not AUTOFIXABLE_STYLES, reason="auto-fixable")
+
+
+def auto_fixable(test):
+    """Mark ``test`` as an auto-fixable style check: skipped without the flag, selectable with ``-m``."""
+    return pytest.mark.auto_fixable(pytest.mark.skipif(not AUTOFIXABLE_STYLES, reason="auto-fixable")(test))
 
 
 @pytest.fixture
@@ -247,15 +252,11 @@ def test_ruff_check_passes(cookies, context_override):
 @auto_fixable
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
 def test_ruff_format_passes(cookies, context_override):
-    """Check whether generated project passes ruff format."""
+    """The generated project is formatted as ruff format would leave it."""
     result = cookies.bake(extra_context=context_override)
 
     try:
-        sh.ruff(
-            "format",
-            ".",
-            _cwd=str(result.project_path),
-        )
+        sh.ruff("format", "--check", ".", _cwd=str(result.project_path))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
 
@@ -263,7 +264,7 @@ def test_ruff_format_passes(cookies, context_override):
 @auto_fixable
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
 def test_django_upgrade_passes(cookies, context_override):
-    """Check whether generated project passes django-upgrade."""
+    """django-upgrade, for the Django the project pins, would rewrite nothing in it."""
     result = cookies.bake(extra_context=context_override)
 
     python_files = [
@@ -278,7 +279,8 @@ def test_django_upgrade_passes(cookies, context_override):
             _cwd=str(result.project_path),
         )
     except sh.ErrorReturnCode as e:
-        pytest.fail(e.stdout.decode())
+        # django-upgrade names the files it rewrote on stderr.
+        pytest.fail(e.stdout.decode() + e.stderr.decode())
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
