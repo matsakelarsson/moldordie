@@ -239,13 +239,13 @@ Start the Celery worker by running the following command in another terminal::
 That Celery worker should be running whenever your app is running, typically as a background process,
 so that it can pick up any tasks that get queued. Learn more from the `Celery Workers Guide`_.
 
-The project comes with a simple task for manual testing purposes, inside `<project_slug>/users/tasks.py`. To queue that task locally, start the Django shell, import the task, and call `delay()` on it::
+The project comes with a Celery task for manual testing purposes, ``cache_users_count`` inside `<project_slug>/users/tasks.py`. To queue that task locally, start the Django shell, import the task, and call `delay()` on it::
 
     uv run python manage.py shell
-    >> from <project_slug>.users.tasks import get_users_count_with_celery
-    >> get_users_count_with_celery.delay()
+    >> from <project_slug>.users.tasks import cache_users_count
+    >> cache_users_count.delay()
 
-You can also use Django admin to queue up tasks, thanks to the `django-celerybeat`_ package.
+That task is written the way Celery work usually is: it retries itself on a transient database error and is meant to run on a schedule. Give it one under *Periodic Tasks* in the Django admin, which the `django-celerybeat`_ package provides. Work that needs neither belongs in the Tasks framework above; :ref:`tasks` draws the line.
 
 .. _Getting started with Redis: https://redis.io/docs/latest/get-started/
 .. _Celery Workers Guide: https://docs.celeryq.dev/en/stable/userguide/workers.html

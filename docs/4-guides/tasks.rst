@@ -75,8 +75,36 @@ An exception in the task does not propagate: the result ends up ``FAILED`` with 
 Relation to Celery
 ------------------
 
-Django Tasks covers the common case: run a function later, outside the request. It has no scheduler, no retries and no monitoring UI. Generating the project with ``use_celery`` set to ``y`` adds Celery_ (a Redis broker, the beat scheduler and Flower) for workloads that need those; both can be used side by side, and ``users/tasks.py`` then contains both variants of the example.
+The Tasks framework is an API, not a queue. Django itself ships only ``ImmediateBackend`` and ``DummyBackend``, both documented as development and testing backends, so the durable one always comes from a third-party package: `django-tasks-db`_ here, with `django-tasks-rq`_ and huey_ among the alternatives on Django's `ecosystem page`_. What the API exposes is the common ground of those queues: enqueue a function, defer it with ``run_after``, give it a priority and a queue name, read the result back.
+
+Celery is not one of those backends. There is no official Celery backend for ``django.tasks`` (`celery#10062`_ asks for one and has no answer yet), and the community bridges that do exist cannot expose the things that make Celery worth running anyway: periodic schedules, automatic retries, and chains, groups and chords all sit outside the API. So ``use_celery`` set to ``y`` does not swap the queue underneath the Tasks framework; it stands Celery_ up next to it, with its own API, its own worker and its own example in ``users/tasks.py``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 40 40
+
+   * -
+     - Django Tasks
+     - Celery
+   * - Example
+     - ``get_users_count.enqueue()``
+     - ``cache_users_count.delay()``
+   * - For
+     - Running a function later, outside the request
+     - The same, plus schedules, retry policies and workflows
+   * - Infrastructure
+     - The project's PostgreSQL and the ``taskworker`` process
+     - Redis, a worker, beat, and Flower to watch them
+   * - Trade-off
+     - No scheduler, no retries, no monitoring UI
+     - A broker and three more processes to run and pay for
+
+Reach for Celery when the work needs a schedule, a retry policy or a workflow, and for the Tasks framework otherwise. The choice is not permanent: both decorate a plain function, so moving a task from one to the other means swapping the decorator and the call.
 
 .. _Tasks framework: https://docs.djangoproject.com/en/6.0/topics/tasks/
 .. _django-tasks-db: https://github.com/RealOrangeOne/django-tasks-db
+.. _django-tasks-rq: https://github.com/RealOrangeOne/django-tasks-rq
+.. _huey: https://huey.readthedocs.io
+.. _ecosystem page: https://www.djangoproject.com/community/ecosystem/#tasks
+.. _celery#10062: https://github.com/celery/celery/issues/10062
 .. _Celery: https://docs.celeryq.dev

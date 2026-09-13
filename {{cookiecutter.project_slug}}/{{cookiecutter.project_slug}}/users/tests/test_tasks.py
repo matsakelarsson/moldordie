@@ -1,13 +1,15 @@
 import pytest
 {%- if cookiecutter.use_celery == 'y' %}
 from celery.result import EagerResult
+from django.core.cache import cache
 {%- endif %}
 from django.tasks import TaskResultStatus
 
+{% if cookiecutter.use_celery == 'y' -%}
+from {{ cookiecutter.project_slug }}.users.tasks import USERS_COUNT_CACHE_KEY
+from {{ cookiecutter.project_slug }}.users.tasks import cache_users_count
+{% endif -%}
 from {{ cookiecutter.project_slug }}.users.tasks import get_users_count
-{%- if cookiecutter.use_celery == 'y' %}
-from {{ cookiecutter.project_slug }}.users.tasks import get_users_count_with_celery
-{%- endif %}
 from {{ cookiecutter.project_slug }}.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
@@ -23,12 +25,13 @@ def test_get_users_count():
 {%- if cookiecutter.use_celery == 'y' %}
 
 
-def test_get_users_count_with_celery(settings):
-    """The Celery variant runs eagerly."""
+def test_cache_users_count(settings):
+    """The Celery example runs eagerly and caches what it counted."""
     batch_size = 3
     UserFactory.create_batch(batch_size)
     settings.CELERY_TASK_ALWAYS_EAGER = True
-    task_result = get_users_count_with_celery.delay()
+    task_result = cache_users_count.delay()
     assert isinstance(task_result, EagerResult)
     assert task_result.result == batch_size
+    assert cache.get(USERS_COUNT_CACHE_KEY) == batch_size
 {%- endif %}
