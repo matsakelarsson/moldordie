@@ -102,48 +102,17 @@ SUPPORTED_COMBINATIONS = [
     {"postgresql_version": "16"},
     {"postgresql_version": "15"},
     {"postgresql_version": "14"},
+    # cloud_provider and use_whitenoise decide together which storage backends are configured.
     {"cloud_provider": "AWS", "use_whitenoise": "y"},
     {"cloud_provider": "AWS", "use_whitenoise": "n"},
-    {"cloud_provider": "GCP", "use_whitenoise": "y"},
-    {"cloud_provider": "GCP", "use_whitenoise": "n"},
-    {"cloud_provider": "Azure", "use_whitenoise": "y"},
-    {"cloud_provider": "Azure", "use_whitenoise": "n"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Mailgun"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Mailjet"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Mandrill"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Postmark"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Sendgrid"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Brevo"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "SparkPost"},
-    {"cloud_provider": "None", "use_whitenoise": "y", "mail_service": "Other SMTP"},
+    {"cloud_provider": "None", "use_whitenoise": "y"},
     # Note: cloud_provider=None AND use_whitenoise=n is not supported
-    {"cloud_provider": "AWS", "mail_service": "Mailgun"},
-    {"cloud_provider": "AWS", "mail_service": "Amazon SES"},
-    {"cloud_provider": "AWS", "mail_service": "Mailjet"},
-    {"cloud_provider": "AWS", "mail_service": "Mandrill"},
-    {"cloud_provider": "AWS", "mail_service": "Postmark"},
-    {"cloud_provider": "AWS", "mail_service": "Sendgrid"},
-    {"cloud_provider": "AWS", "mail_service": "Brevo"},
-    {"cloud_provider": "AWS", "mail_service": "SparkPost"},
-    {"cloud_provider": "AWS", "mail_service": "Other SMTP"},
-    {"cloud_provider": "GCP", "mail_service": "Mailgun"},
-    {"cloud_provider": "GCP", "mail_service": "Mailjet"},
-    {"cloud_provider": "GCP", "mail_service": "Mandrill"},
-    {"cloud_provider": "GCP", "mail_service": "Postmark"},
-    {"cloud_provider": "GCP", "mail_service": "Sendgrid"},
-    {"cloud_provider": "GCP", "mail_service": "Brevo"},
-    {"cloud_provider": "GCP", "mail_service": "SparkPost"},
-    {"cloud_provider": "GCP", "mail_service": "Other SMTP"},
-    {"cloud_provider": "Azure", "mail_service": "Mailgun"},
-    {"cloud_provider": "Azure", "mail_service": "Mailjet"},
-    {"cloud_provider": "Azure", "mail_service": "Mandrill"},
-    {"cloud_provider": "Azure", "mail_service": "Postmark"},
-    {"cloud_provider": "Azure", "mail_service": "Sendgrid"},
-    {"cloud_provider": "Azure", "mail_service": "Brevo"},
-    {"cloud_provider": "Azure", "mail_service": "SparkPost"},
-    {"cloud_provider": "Azure", "mail_service": "Other SMTP"},
-    # Note: cloud_providers GCP, Azure, and None
-    # with mail_service Amazon SES is not supported
+    # mail_service shares no conditional with cloud_provider anywhere in the template, so the two
+    # need no cross product. Amazon SES bakes on the default cloud_provider=AWS, the only one it
+    # supports.
+    {"mail_service": "Mailgun"},
+    {"mail_service": "Amazon SES"},
+    {"mail_service": "Other SMTP"},
     {"rest_api": "None"},
     {"rest_api": "DRF"},
     {"rest_api": "Django Ninja"},
@@ -158,8 +127,6 @@ SUPPORTED_COMBINATIONS = [
     {"mail_catcher": "Mailtrap Local"},
     {"use_sentry": "y"},
     {"use_sentry": "n"},
-    {"use_whitenoise": "y"},
-    {"use_whitenoise": "n"},
     {"use_heroku": "y"},
     {"use_heroku": "n"},
     {"ci_tool": "None"},
@@ -173,8 +140,6 @@ SUPPORTED_COMBINATIONS = [
 
 UNSUPPORTED_COMBINATIONS = [
     {"cloud_provider": "None", "use_whitenoise": "n"},
-    {"cloud_provider": "GCP", "mail_service": "Amazon SES"},
-    {"cloud_provider": "Azure", "mail_service": "Amazon SES"},
     {"cloud_provider": "None", "mail_service": "Amazon SES"},
 ]
 
@@ -560,7 +525,7 @@ DEPENDENCY_CASES = [
     ({"use_whitenoise": "y"}, {"whitenoise"}, {"collectfasta"}),
     ({"cloud_provider": "AWS", "use_whitenoise": "n"}, {"django-storages", "collectfasta"}, {"whitenoise"}),
     ({"cloud_provider": "None", "use_whitenoise": "y"}, {"whitenoise"}, {"django-storages", "collectfasta"}),
-    ({"mail_service": "Postmark"}, {"django-anymail"}, set()),
+    ({"mail_service": "Other SMTP"}, {"django-anymail"}, set()),
 ]
 
 

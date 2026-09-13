@@ -215,14 +215,10 @@ def test_prune_custom_user_manager(unpruned_project, username_type, expected):
         # Docker off: all of compose goes, whatever serves the media files.
         ("n", "None", DEFAULTS),
         ("n", "AWS", DEFAULTS),
-        ("n", "GCP", DEFAULTS),
         # Docker on, no cloud: nginx serves the media files, the AWS image is not needed.
         ("y", "None", WITH_DOCKER | NO_AWS_IMAGE),
         # Docker on, AWS: the AWS image stays for the backups, nginx is not needed.
         ("y", "AWS", WITH_DOCKER | NO_NGINX),
-        # Docker on, another cloud: neither is needed.
-        ("y", "GCP", WITH_DOCKER | NO_NGINX | NO_AWS_IMAGE),
-        ("y", "Azure", WITH_DOCKER | NO_NGINX | NO_AWS_IMAGE),
     ],
 )
 def test_prune_docker_and_cloud_provider(unpruned_project, use_docker, cloud_provider, expected):

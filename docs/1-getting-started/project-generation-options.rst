@@ -66,9 +66,11 @@ cloud_provider:
     Select a cloud provider for static & media files. The choices are:
 
     1. AWS_
-    2. GCP_
-    3. Azure_
-    4. None
+    2. None
+
+    AWS means S3, so any S3-compatible service (Cloudflare R2, Backblaze B2, DigitalOcean
+    Spaces, MinIO) works too: point ``AWS_S3_ENDPOINT_URL`` at it in
+    ``config/settings/production.py``.
 
     If you choose no cloud provider and docker, the production stack will serve the media files via an nginx Docker service. Without Docker, the media files won't work.
 
@@ -77,13 +79,10 @@ mail_service:
 
     1. Mailgun_
     2. `Amazon SES`_
-    3. Mailjet_
-    4. Mandrill_
-    5. Postmark_
-    6. SendGrid_
-    7. `Brevo (formerly SendinBlue)`_
-    8. SparkPost_
-    9. `Other SMTP`_
+    3. `Other SMTP`_
+
+    ``Other SMTP`` uses Django's own SMTP backend, so any service Anymail supports can be
+    reached by installing its Anymail extra and setting ``EMAIL_BACKEND`` yourself.
 
 rest_api:
     Select a REST API framework to use. The choices are:
@@ -145,17 +144,9 @@ debug:
 .. _PostgreSQL: https://www.postgresql.org/docs/
 
 .. _AWS: https://aws.amazon.com/s3/
-.. _GCP: https://cloud.google.com/storage/
-.. _Azure: https://azure.microsoft.com/en-us/products/storage/blobs/
 
 .. _Amazon SES: https://aws.amazon.com/ses/
 .. _Mailgun: https://www.mailgun.com
-.. _Mailjet: https://www.mailjet.com
-.. _Mandrill: http://mandrill.com
-.. _Postmark: https://postmarkapp.com
-.. _SendGrid: https://sendgrid.com
-.. _Brevo (formerly SendinBlue): https://www.brevo.com
-.. _SparkPost: https://www.sparkpost.com
 .. _Other SMTP: https://anymail.readthedocs.io/en/stable/
 
 .. _Django Rest Framework: https://github.com/encode/django-rest-framework/

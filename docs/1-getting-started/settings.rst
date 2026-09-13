@@ -57,11 +57,6 @@ DJANGO_AWS_STORAGE_BUCKET_NAME AWS_STORAGE_BUCKET_NAME          n/a             
 DJANGO_AWS_S3_REGION_NAME      AWS_S3_REGION_NAME               n/a                 None
 DJANGO_AWS_S3_CUSTOM_DOMAIN    AWS_S3_CUSTOM_DOMAIN             n/a                 None
 DJANGO_AWS_S3_MAX_MEMORY_SIZE  AWS_S3_MAX_MEMORY_SIZE           n/a                 100_000_000
-DJANGO_GCP_STORAGE_BUCKET_NAME GS_BUCKET_NAME                   n/a                 raises error
-GOOGLE_APPLICATION_CREDENTIALS n/a                              n/a                 read by google-cloud-storage
-DJANGO_AZURE_ACCOUNT_KEY       AZURE_ACCOUNT_KEY                n/a                 raises error
-DJANGO_AZURE_ACCOUNT_NAME      AZURE_ACCOUNT_NAME               n/a                 raises error
-DJANGO_AZURE_CONTAINER_NAME    AZURE_CONTAINER                  n/a                 raises error
 SENTRY_DSN                     SENTRY_DSN                       n/a                 raises error
 SENTRY_ENVIRONMENT             n/a                              n/a                 "production"
 SENTRY_TRACES_SAMPLE_RATE      n/a                              n/a                 0.0
@@ -69,18 +64,6 @@ DJANGO_SENTRY_LOG_LEVEL        SENTRY_LOG_LEVEL                 n/a             
 MAILGUN_API_KEY                ANYMAIL["MAILGUN_API_KEY"]       n/a                 raises error
 MAILGUN_DOMAIN                 ANYMAIL["MAILGUN_SENDER_DOMAIN"] n/a                 raises error
 MAILGUN_API_URL                ANYMAIL["MAILGUN_API_URL"]       n/a                 "https://api.mailgun.net/v3"
-MAILJET_API_KEY                ANYMAIL["MAILJET_API_KEY"]       n/a                 raises error
-MAILJET_SECRET_KEY             ANYMAIL["MAILJET_SECRET_KEY"]    n/a                 raises error
-MANDRILL_API_KEY               ANYMAIL["MANDRILL_API_KEY"]      n/a                 raises error
-MANDRILL_API_URL               ANYMAIL["MANDRILL_API_URL"]      n/a                 "https://mandrillapp.com/api/1.0"
-POSTMARK_SERVER_TOKEN          ANYMAIL["POSTMARK_SERVER_TOKEN"] n/a                 raises error
-POSTMARK_API_URL               ANYMAIL["POSTMARK_API_URL"]      n/a                 "https://api.postmarkapp.com/"
-SENDGRID_API_KEY               ANYMAIL["SENDGRID_API_KEY"]      n/a                 raises error
-SENDGRID_API_URL               ANYMAIL["SENDGRID_API_URL"]      n/a                 "https://api.sendgrid.com/v3/"
-BREVO_API_KEY                  ANYMAIL["BREVO_API_KEY"]         n/a                 raises error
-BREVO_API_URL                  ANYMAIL["BREVO_API_URL"]         n/a                 "https://api.brevo.com/v3/"
-SPARKPOST_API_KEY              ANYMAIL["SPARKPOST_API_KEY"]     n/a                 raises error
-SPARKPOST_API_URL              ANYMAIL["SPARKPOST_API_URL"]     n/a                 "https://api.sparkpost.com/api/v1"
 ============================== ================================ =================== ==================================
 
 --------------------------

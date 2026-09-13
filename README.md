@@ -23,7 +23,7 @@ production-ready Django projects quickly.
 - Comes with custom user model ready to go
 - Served through ASGI with [Uvicorn](https://www.uvicorn.org/), with optional [Django Channels](https://channels.readthedocs.io/) support for websockets
 - Send emails via [Anymail](https://github.com/anymail/django-anymail) (using [Mailgun](http://www.mailgun.com/) by default or Amazon SES if AWS is selected cloud provider, but switchable)
-- Media storage using Amazon S3, Google Cloud Storage, Azure Storage or nginx
+- Media storage using Amazon S3 (or any S3-compatible service) or nginx
 - Docker support using [docker-compose](https://github.com/docker/compose) for development and production (using [Traefik](https://traefik.io/) with [LetsEncrypt](https://letsencrypt.org/) support)
 - [Procfile](https://devcenter.heroku.com/articles/procfile) for deploying to Heroku
 - Instructions for deploying to [PythonAnywhere](https://www.pythonanywhere.com/)
@@ -35,7 +35,7 @@ production-ready Django projects quickly.
 
 _These features can be enabled during initial project setup._
 
-- Serve static files from Amazon S3, Google Cloud Storage, Azure Storage or [Whitenoise](https://whitenoise.readthedocs.io/)
+- Serve static files from Amazon S3 (or any S3-compatible service) or [Whitenoise](https://whitenoise.readthedocs.io/)
 - Configuration for [Celery](https://docs.celeryq.dev) and [Flower](https://github.com/mher/flower) as an additional task queue with scheduling (the latter in Docker setup only)
 - Integration with [Mailpit](https://github.com/axllent/mailpit/) or [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) for local email testing
 - Integration with [Sentry](https://sentry.io/welcome/) for error logging
@@ -94,21 +94,13 @@ Answer the prompts with your own desired [options](docs/1-getting-started/projec
         Choose from [1/2/3/4/5] (1): 1
       [13/24] Select cloud_provider
         1 - AWS
-        2 - GCP
-        3 - Azure
-        4 - None
-        Choose from [1/2/3/4] (1): 1
+        2 - None
+        Choose from [1/2] (1): 1
       [14/24] Select mail_service
         1 - Mailgun
         2 - Amazon SES
-        3 - Mailjet
-        4 - Mandrill
-        5 - Postmark
-        6 - Sendgrid
-        7 - Brevo
-        8 - SparkPost
-        9 - Other SMTP
-        Choose from [1/2/3/4/5/6/7/8/9] (1): 1
+        3 - Other SMTP
+        Choose from [1/2/3] (1): 1
       [15/24] Select rest_api
         1 - None
         2 - DRF
