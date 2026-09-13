@@ -58,7 +58,7 @@ CACHES = {
 # https://docs.djangoproject.com/en/dev/ref/settings/#tasks
 # https://github.com/RealOrangeOne/django-tasks-db
 # Tasks are stored in PostgreSQL and run by ``python manage.py db_worker``, the
-# ``taskworker`` Compose service / Heroku process type. With ATOMIC_REQUESTS the task
+# ``taskworker`` Compose service / worker process. With ATOMIC_REQUESTS the task
 # row is committed together with the request, so a worker never sees a task whose
 # data was rolled back. Code that enqueues inside its own transaction.atomic()
 # block should defer with transaction.on_commit(partial(task.enqueue, ...)).

@@ -50,7 +50,7 @@ sh tests/test_docker.sh use_celery=y rest_api=DRF  # with options
 
 # Bare metal (needs PostgreSQL and Redis running)
 sh tests/test_bare.sh
-sh tests/test_bare.sh use_celery=y use_heroku=y
+sh tests/test_bare.sh use_celery=y rest_api=DRF
 ```
 
 ### Generate a project locally for debugging

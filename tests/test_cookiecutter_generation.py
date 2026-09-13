@@ -127,8 +127,6 @@ SUPPORTED_COMBINATIONS = [
     {"mail_catcher": "Mailtrap Local"},
     {"use_sentry": "y"},
     {"use_sentry": "n"},
-    {"use_heroku": "y"},
-    {"use_heroku": "n"},
     {"ci_tool": "None"},
     {"ci_tool": "Gitlab"},
     {"ci_tool": "Github"},
@@ -630,7 +628,7 @@ def test_strict_typing_setup(cookies, context, rest_api):
 @pytest.mark.parametrize("realtime", ["none", "channels"])
 def test_asgi_entrypoint(cookies, context, realtime):
     """Every project is served through ASGI; the Channels wiring is only generated on request."""
-    context.update({"realtime": realtime, "use_heroku": "y"})
+    context.update({"realtime": realtime})
     result = cookies.bake(extra_context=context)
     assert result.exit_code == 0
 
@@ -640,8 +638,6 @@ def test_asgi_entrypoint(cookies, context, realtime):
     base_settings = (config / "settings" / "base.py").read_text()
     assert 'ASGI_APPLICATION = "config.asgi.application"' in base_settings
     assert "WSGI_APPLICATION" not in base_settings
-    procfile = (result.project_path / "Procfile").read_text()
-    assert "web: gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker" in procfile
 
     uses_channels = realtime == "channels"
     assert (config / "websocket.py").exists() is uses_channels
@@ -697,18 +693,6 @@ def test_docker_serves_asgi(cookies, context, realtime):
     compose = yaml.safe_load((result.project_path / "docker-compose.local.yml").read_text())
     assert "redis" not in compose["services"]
     assert "taskworker" not in compose["services"]
-
-
-def test_pre_commit_without_heroku(cookies, context):
-    context.update({"use_heroku": "n"})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
-
-    pre_commit_config = result.project_path / ".pre-commit-config.yaml"
-
-    data = pre_commit_config.read_text()
-
-    assert "uv-pre-commit" not in data
 
 
 def test_frontend_stack(cookies, context):
@@ -845,7 +829,7 @@ def test_content_security_policy(cookies, context, realtime, rest_api):
 @pytest.mark.parametrize("use_celery", ["n", "y"])
 def test_tasks_framework(cookies, context, use_celery):
     """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
-    context.update({"use_celery": use_celery, "use_docker": "y", "use_heroku": "y"})
+    context.update({"use_celery": use_celery, "use_docker": "y"})
     result = cookies.bake(extra_context=context)
     assert result.exit_code == 0
 
@@ -876,6 +860,3 @@ def test_tasks_framework(cookies, context, use_celery):
     django_compose = result.project_path / "compose" / "production" / "django"
     assert "db_worker" in (django_compose / "tasks" / "worker" / "start").read_text()
     assert "/start-taskworker" in (django_compose / "Dockerfile").read_text()
-    procfile = (result.project_path / "Procfile").read_text()
-    assert "taskworker: python manage.py db_worker" in procfile
-    assert ("REMAP_SIGTERM" in procfile) is celery

@@ -10,7 +10,7 @@ What you get
 
 - ``django_tasks_db`` in ``INSTALLED_APPS``, so ``migrate`` creates the task tables in every environment.
 - A backend per environment in the ``TASKS`` setting: ``ImmediateBackend`` in ``local.py`` and ``test.py`` (tasks run inline, in the process that enqueues them, so no worker is needed while developing or testing) and ``django_tasks_db.DatabaseBackend`` in ``production.py``.
-- A worker process for production: the ``taskworker`` service in ``docker-compose.production.yml`` and the ``taskworker`` process type in the ``Procfile``, both running ``python manage.py db_worker``.
+- A worker process for production: the ``taskworker`` service in ``docker-compose.production.yml``, or ``python manage.py db_worker`` under your own process manager.
 - An example task in ``<project_slug>/users/tasks.py`` with a test in ``<project_slug>/users/tests/test_tasks.py``.
 
 Defining a task
@@ -54,7 +54,6 @@ Running the worker
 In production the database backend only stores tasks; a worker has to run them:
 
 - Docker: the ``taskworker`` service starts with the stack. Several workers are safe (rows are claimed with ``SELECT ... FOR UPDATE SKIP LOCKED``), so ``docker compose -f docker-compose.production.yml up --scale taskworker=2`` works.
-- Heroku: ``heroku ps:scale taskworker=1``. This is a second dyno with its own cost; without it enqueued tasks stay in the ``READY`` state forever.
 - Bare metal: ``python manage.py db_worker`` under your process manager. ``--queue-name``, ``--interval``, ``--batch`` and ``--max-tasks`` tune it; ``--reload`` (on by default when ``DEBUG`` is true) restarts the worker when code changes.
 
 Locally the immediate backend needs no worker. To try the real queue, point ``TASKS["default"]["BACKEND"]`` in ``config/settings/local.py`` at ``"django_tasks_db.DatabaseBackend"`` and run ``uv run python manage.py db_worker`` (``docker compose -f docker-compose.local.yml run --rm django python manage.py db_worker`` with Docker).
