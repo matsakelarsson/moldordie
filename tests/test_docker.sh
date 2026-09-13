@@ -1,5 +1,5 @@
 #!/bin/sh
-# this is a very simple script that tests the docker configuration for cookiecutter-django
+# this is a very simple script that generates a project and tests its docker configuration
 # it is meant to be run from the root directory of the repository, eg:
 # sh tests/test_docker.sh
 
