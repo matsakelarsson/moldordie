@@ -1,6 +1,6 @@
 [project]
 name = "moldordie"
-version = "2026.9.8"
+version = "2026.9.13"
 description = "A fork of cookiecutter-django for creating production-ready Django projects quickly."
 readme = "README.md"
 keywords = [
