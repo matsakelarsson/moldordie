@@ -21,19 +21,12 @@ description:
 author_name:
     This is you! The value goes into places like ``LICENSE`` and such.
 
-email:
-    The email address you want to identify yourself in the project.
-
-username_type:
-    The type of username you want to use in the project. This can be either
-    ``username`` or ``email``. If you choose ``username``, the ``email`` field
-    will be included. If you choose ``email``, the ``username`` field will be
-    excluded. It is best practice to always include an email field, so there is
-    no option for having just the ``username`` field.
-
 domain_name:
     The domain name you plan to use for your project once it goes live.
     Note that it can be safely changed later on whenever you need to.
+
+email:
+    The email address you want to identify yourself in the project.
 
 version:
     The version of the project at its inception.
@@ -46,6 +39,15 @@ open_source_license:
     3. GPLv3_
     4. `Apache Software License 2.0`_
     5. Not open source
+
+username_type:
+    How users log in. The choices are:
+
+    1. ``username``, with an email field as well
+    2. ``email``, with no username field
+
+    It is best practice to always include an email field, so there is no option for
+    having just the ``username`` field.
 
 timezone:
     The value to be used for the ``TIME_ZONE`` setting of the project.
@@ -88,7 +90,7 @@ rest_api:
     Select a REST API framework to use. The choices are:
 
     1. None
-    2. `Django Rest Framework`_
+    2. ``DRF``, `Django Rest Framework`_
     3. `Django Ninja`_
 
 realtime:
@@ -96,7 +98,7 @@ realtime:
     decides whether websocket support is included. The choices are:
 
     1. none
-    2. `Django Channels`_, with the in-memory channel layer in development and Redis in production
+    2. ``channels``, `Django Channels`_ with the in-memory channel layer in development and Redis in production
 
 use_celery:
     Indicates whether the project should be configured to use Celery_. Every project includes Django's built-in Tasks framework for background work (see :ref:`tasks`); Celery adds a broker, the beat scheduler and Flower for workloads that need scheduling, retries or a distributed queue. It runs alongside the Tasks framework rather than underneath it, and ``users/tasks.py`` carries one example of each.
