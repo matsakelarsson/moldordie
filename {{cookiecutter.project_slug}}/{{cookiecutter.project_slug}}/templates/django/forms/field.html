@@ -4,7 +4,7 @@ field rendered through {{ form }} / form.as_div (see FORM_RENDERER in config/set
 Django adds aria-invalid and aria-describedby to the widget automatically.
 {% endcomment %}
 {% if field.use_fieldset %}
-  <fieldset{% if field.aria_describedby %} aria-describedby="{{ field.aria_describedby }}"{% endif %}>
+  <fieldset {% if field.aria_describedby %} aria-describedby="{{ field.aria_describedby }}"{% endif %}>
     {% if field.label %}{{ field.legend_tag }}{% endif %}
     {{ field }}
     {{ field.errors }}

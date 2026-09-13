@@ -1,4 +1,4 @@
-{%- if cookiecutter.username_type == "email" %}
+{%- if cookiecutter.username_type == "email" -%}
 from typing import ClassVar
 
 {% endif -%}

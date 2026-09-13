@@ -60,22 +60,6 @@ docs = [
   "sphinx-rtd-theme>=3",
 ]
 
-# ==== djLint ====
-[tool.djlint]
-profile = "jinja"
-include = "H017,H035"
-indent = 2
-max_line_length = 119
-blank_line_after_tag = "load,extends"
-close_void_tags = true
-format_css = true
-format_js = true
-custom_blocks = "element,slot"
-ignore_blocks = "raw"
-ignore = "H006,H030,H031,T028"
-css.indent_size = 2
-js.indent_size = 2
-
 [tool.ruff]
 line-length = 119
 # Exclude the template content as most files aren't parseable.
@@ -156,6 +140,9 @@ keep_full_version = true
 # ==== pytest ====
 [tool.pytest]
 addopts = [ "-v", "--tb=short" ]
+markers = [
+  "auto_fixable: style check on the generated projects that a formatter would fix; needs AUTOFIXABLE_STYLES=1",
+]
 minversion = "9.0"
 norecursedirs = [
   ".tox",

@@ -1,6 +1,7 @@
 {% raw %}{% load allauth %}
 
-<article role="alert" class="message message-{{ attrs.level|default:'error' }}">
+<article role="alert"
+         class="message message-{{ attrs.level|default:'error' }}">
   {% slot message %}
   {% endslot %}
 </article>

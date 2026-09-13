@@ -28,6 +28,9 @@ uv run pytest tests/test_cookiecutter_generation.py -k "test_name"
 
 # Run with auto-fixable style checks enabled
 AUTOFIXABLE_STYLES=1 uv run pytest -n auto tests
+
+# Only the auto-fixable style checks, as CI's own job runs them
+AUTOFIXABLE_STYLES=1 uv run pytest -n auto tests -m auto_fixable
 ```
 
 ### Linting and formatting
@@ -78,7 +81,7 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 
 ### Test Structure
 
-- **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent. Skips on macOS CI (slow).
+- **`tests/test_cookiecutter_generation.py`** — Main test file. Uses `pytest-cookies` to bake the template with 50+ option combinations defined in `SUPPORTED_COMBINATIONS`. Verifies: no Jinja syntax left in output, generated code passes linting, correct files present/absent and, with `AUTOFIXABLE_STYLES=1`, that `ruff format`, djlint's formatter and `django-upgrade` would change nothing (the `auto_fixable` marker; CI runs just those in its own job). Skips on macOS CI (slow).
 - **`tests/test_hooks.py`** — Unit tests for the hooks: `prune` run on a copy of the template tree against hand-written expected removals, and the removal rules checked for consistency over every combination of the answers they read
 - **`tests/test_local_extensions.py`** — The `string_escape` filter round-tripped through the Python, TOML and YAML parsers, and loaded from `cookiecutter.json`
 - **`tests/test_bare.sh`** / **`tests/test_docker.sh`** — Integration tests that generate a project and run its full test suite
@@ -102,9 +105,9 @@ The generated Django project uses:
 
 - **Python 3.12–3.14** supported (`requires-python = ">=3.12"`); 3.14 is the default via `.python-version` and the Docker images
 - **No inline code in templates**: the CSP has no `unsafe-inline`, so no inline `<script>`/`<style>`, `style=` attributes or `on*=` handlers (enforced by `test_no_inline_code_in_templates`); a necessary inline script takes `nonce="{{ csp_nonce }}"`
-- **Line length**: 119 characters (ruff and djlint) in this repository; generated projects keep ruff's default of 88, so keep template Python within 88 columns
+- **Line length**: 119 characters for ruff in this repository; generated projects keep ruff's default of 88 (their djlint allows 119), so keep template Python within 88 columns
 - **Ruff** for linting/formatting; config in `pyproject.toml` under `[tool.ruff]`
-- **djLint** for HTML template linting with `profile = "jinja"`
+- **djLint** runs on the generated projects, not on the template sources, with the generated `[tool.djlint]` (`profile = "django"`): `test_djlint_lint_passes` lints every combination in the default suite, and `test_djlint_check_passes` checks the formatting with `AUTOFIXABLE_STYLES=1`. This repository has no djlint config or hook of its own, so write template HTML the way djlint leaves the rendered output
 - Template files under `{{cookiecutter.project_slug}}/` are excluded from ruff (not parseable Python)
 - **Calendar versioning**: `YYYY.MM.DD`
 
