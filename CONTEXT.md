@@ -10,7 +10,10 @@ validates, so the hooks read its answer as given. A **flag option** is a yes/no 
 pre-generation hook lowercases all of them before any file is rendered and rejects anything but `y` or
 `n`, so the templates and both hooks read them in one spelling. A **free-text option** takes any text
 (project name, description, author, email, domain, version, time zone) and
-reaches the generated files through escaping. The answers to all options together are the **context**,
+reaches the generated files through escaping. The **catalogue**, `OPTIONS` in `local_extensions.py`, reads
+`cookiecutter.json` and tells each option's kind from its declaration alone: a list of choices, a `y`/`n`
+default, or any other text. The tests import it; the hooks, which run as standalone scripts, receive the
+names by kind through the `option_names` Jinja global. The answers to all options together are the **context**,
 which each hook receives once, as JSON, at its entry point, so a free-text answer cannot break the
 hook's source.
 

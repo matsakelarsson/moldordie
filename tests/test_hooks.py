@@ -1,6 +1,5 @@
 """Unit tests for the hooks"""
 
-import json
 import os
 from itertools import product
 from pathlib import Path
@@ -13,6 +12,8 @@ from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import append_to_gitignore_file
 from hooks.post_gen_project import prune
 from hooks.post_gen_project import remove_channels_tests
+from local_extensions import FREE_TEXT
+from local_extensions import OPTIONS
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATE = REPO / "{{cookiecutter.project_slug}}"
@@ -72,15 +73,8 @@ def test_remove_channels_tests_keeps_other_tests(tmp_path, channels_tests):
 
 
 def default_context():
-    """The answers ``cookiecutter --no-input`` uses: the first choice, or the value itself."""
-    options = json.loads((REPO / "cookiecutter.json").read_text())
-    context = {
-        option: choices[0] if isinstance(choices, list) else choices
-        for option, choices in options.items()
-        if not option.startswith("_")
-    }
-    context["project_slug"] = PROJECT_SLUG
-    return context
+    """The answers ``cookiecutter --no-input`` uses, with the project slug rendered."""
+    return {**{name: option.default for name, option in OPTIONS.items()}, "project_slug": PROJECT_SLUG}
 
 
 @pytest.fixture
@@ -303,15 +297,11 @@ class RemovalContext(dict):
 
 def option_domains():
     """Every value each removal-relevant answer can take, in ``cookiecutter.json`` order."""
-    options = json.loads((REPO / "cookiecutter.json").read_text())
     domains = {}
-    for option in REMOVAL_OPTIONS:
-        if isinstance(options[option], list):
-            domains[option] = tuple(options[option])
-        else:
-            # A yes/no answer, as its declaration shows; the pre-generation hook lets nothing else through.
-            assert options[option] in ("y", "n"), f"{option} is free text, so its values cannot be enumerated"
-            domains[option] = ("y", "n")
+    for name in REMOVAL_OPTIONS:
+        option = OPTIONS[name]
+        assert option.kind != FREE_TEXT, f"{name} is free text, so its values cannot be enumerated"
+        domains[name] = option.choices
     return domains
 
 

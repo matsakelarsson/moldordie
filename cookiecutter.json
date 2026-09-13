@@ -29,5 +29,5 @@
   "keep_local_envs_in_vcs": "y",
   "debug": "n",
   "_copy_without_render": ["*/static/vendor/*"],
-  "_extensions": ["local_extensions.StringEscapeExtension"]
+  "_extensions": ["local_extensions.OptionsExtension", "local_extensions.StringEscapeExtension"]
 }
