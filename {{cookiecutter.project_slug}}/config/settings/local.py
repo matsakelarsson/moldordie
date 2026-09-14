@@ -48,26 +48,20 @@ SECURE_CSP["connect-src"] = [*SECURE_CSP["connect-src"], "ws:"]
 {% endif %}
 # EMAIL
 # ------------------------------------------------------------------------------
-{% if cookiecutter.mail_catcher == 'Mailpit' and cookiecutter.use_docker == 'y' -%}
+{#- The mail catchers: the Compose service that runs each, and the port it listens on #}
+{%- set catcher = {
+    'Mailpit': {'service': 'mailpit', 'port': 1025},
+    'Mailtrap Local': {'service': 'mailtrap-local', 'port': 3535},
+}.get(cookiecutter.mail_catcher) %}
+{% if catcher -%}
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-host
-EMAIL_HOST = env("EMAIL_HOST", default="mailpit")
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-port
-EMAIL_PORT = 1025
-{%- elif cookiecutter.mail_catcher == 'Mailpit' and cookiecutter.use_docker == 'n' -%}
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-host
+{%- if cookiecutter.use_docker == 'y' %}
+EMAIL_HOST = env("EMAIL_HOST", default="{{ catcher.service }}")
+{%- else %}
 EMAIL_HOST = "localhost"
+{%- endif %}
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-port
-EMAIL_PORT = 1025
-{%- elif cookiecutter.mail_catcher == 'Mailtrap Local' and cookiecutter.use_docker == 'y' -%}
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-host
-EMAIL_HOST = env("EMAIL_HOST", default="mailtrap-local")
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-port
-EMAIL_PORT = 3535
-{%- elif cookiecutter.mail_catcher == 'Mailtrap Local' and cookiecutter.use_docker == 'n' -%}
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-host
-EMAIL_HOST = "localhost"
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-port
-EMAIL_PORT = 3535
+EMAIL_PORT = {{ catcher.port }}
 {%- else -%}
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 EMAIL_BACKEND = env(
