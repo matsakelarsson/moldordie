@@ -178,7 +178,7 @@ Now you have your own mail server running locally, ready to receive whatever you
 ### Sentry
 
 Sentry is an error logging aggregator service. You can sign up for a free account at <https://sentry.io/signup/> or download and host it yourself.
-The system is set up with reasonable defaults: unhandled exceptions are captured through the Django integration, and log records of level `ERROR` and above are sent as events.
+The system is set up with reasonable defaults: unhandled exceptions are captured through the Django integration, and log records of level `ERROR` and above are sent as events. The SDK is initialised from the `SENTRY_*` settings in `config/settings/production.py` by the `{{ cookiecutter.project_slug }}.sentry` app once Django's app registry is ready.
 
 You must set the DSN url in production.
 {%- endif %}

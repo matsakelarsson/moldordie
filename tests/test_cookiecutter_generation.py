@@ -16,6 +16,7 @@ from cookiecutter.exceptions import FailedHookException
 from local_extensions import FLAG
 from local_extensions import OPTIONS
 from local_extensions import option_names
+from tests.generated_project import NO_DEFAULT
 from tests.generated_project import EnvRead
 from tests.generated_project import GeneratedProject
 from tests.generated_project import PythonModule
@@ -574,7 +575,7 @@ def test_uppercase_flag_answers_select_the_same_features(bake, context, answer):
 
     selected = answer == "y"
     assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned(uppercase)) is selected
-    assert ("sentry_sdk" in uppercase.settings("production").source) is selected
+    assert ("SENTRY_DSN" in uppercase.settings("production").source) is selected
     assert (uppercase.root / "docker-compose.local.yml").exists() is selected
     assert (uppercase.root / ".envs").exists() is selected
     assert ("!.envs/.local/" in uppercase.text(".gitignore")) is selected
@@ -1051,3 +1052,28 @@ def test_local_mail_without_a_catcher(bake, context):
 
     assert "EMAIL_HOST" not in local.source
     assert env_read(local, "DJANGO_EMAIL_BACKEND").default == "django.core.mail.backends.console.EmailBackend"
+
+
+@pytest.mark.parametrize("use_sentry", ["n", "y"])
+def test_sentry_wiring(bake, context, use_sentry):
+    """The production settings configure Sentry and install the app that initialises the SDK."""
+    context["use_sentry"] = use_sentry
+    project = bake(context)
+
+    selected = use_sentry == "y"
+    package = Path(context["project_slug"])
+    assert (project.root / package / "sentry" / "apps.py").exists() is selected
+    assert (project.root / package / "tests" / "test_sentry.py").exists() is selected
+    assert ("sentry-sdk" in pinned(project)) is selected
+
+    # Importing the settings initialises nothing; the app does, once the registry is ready
+    production = project.settings("production")
+    assert "import sentry_sdk" not in production.source
+    assert "sentry_sdk.init" not in production.source
+    assert (f'INSTALLED_APPS += ["{package}.sentry"]' in production.source) is selected
+    reads = {read.name: read for read in production.env_reads()}
+    assert ("SENTRY_DSN" in reads) is selected
+    if selected:
+        assert reads["SENTRY_DSN"].default is NO_DEFAULT
+        assert reads["SENTRY_ENVIRONMENT"].default == "production"
+        assert "sentry_sdk.init(" in project.text(package / "sentry" / "apps.py")
