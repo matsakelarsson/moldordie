@@ -1,5 +1,3 @@
-from allauth.account.forms import SignupForm
-from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from django.contrib.auth import forms as admin_forms
 {%- if cookiecutter.username_type == "email" %}
 from django.forms import EmailField
@@ -18,10 +16,7 @@ class UserAdminChangeForm(admin_forms.UserChangeForm[User]):
 
 
 class UserAdminCreationForm(admin_forms.AdminUserCreationForm[User]):
-    """
-    Form for User Creation in the Admin Area.
-    To change user signup, see UserSignupForm and UserSocialSignupForm.
-    """
+    """Form for User Creation in the Admin Area."""
 
     class Meta(admin_forms.UserCreationForm.Meta):
         model = User
@@ -36,19 +31,3 @@ class UserAdminCreationForm(admin_forms.AdminUserCreationForm[User]):
             "username": {"unique": _("This username has already been taken.")},
         }
         {%- endif %}
-
-
-class UserSignupForm(SignupForm):
-    """
-    Form that will be rendered on a user sign up section/screen.
-    Default fields will be added automatically.
-    Check UserSocialSignupForm for accounts created from social.
-    """
-
-
-class UserSocialSignupForm(SocialSignupForm):
-    """
-    Renders the form when user has signed up using social accounts.
-    Default fields will be added automatically.
-    See UserSignupForm otherwise.
-    """
