@@ -33,16 +33,6 @@ import logging
 {%- if not mail.settings %}
 from typing import Any
 {%- endif %}
-{%- if sentry %}
-
-import sentry_sdk
-{%- if cookiecutter.use_celery == 'y' %}
-from sentry_sdk.integrations.celery import CeleryIntegration
-{%- endif %}
-from sentry_sdk.integrations.django import DjangoIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
-from sentry_sdk.integrations.redis import RedisIntegration
-{%- endif %}
 {%- if sentry or not mail.settings %}
 {% endif %}
 from .base import *  # noqa: F403
@@ -326,31 +316,15 @@ LOGGING = {
 {% if sentry %}
 # Sentry
 # ------------------------------------------------------------------------------
+# https://docs.sentry.io/platforms/python/integrations/django/
+# The SDK is initialised from these settings once the app registry is ready, by
+# {{ cookiecutter.project_slug }}/sentry/apps.py, so that importing this module has no side effects.
+INSTALLED_APPS += ["{{ cookiecutter.project_slug }}.sentry"]
 SENTRY_DSN = env("SENTRY_DSN")
+SENTRY_ENVIRONMENT = env("SENTRY_ENVIRONMENT", default="production")
+SENTRY_TRACES_SAMPLE_RATE = env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0)
+# Log records at this level and above become breadcrumbs; errors become events
 SENTRY_LOG_LEVEL = env.int("DJANGO_SENTRY_LOG_LEVEL", logging.INFO)
-
-sentry_logging = LoggingIntegration(
-    level=SENTRY_LOG_LEVEL,  # Capture info and above as breadcrumbs
-    event_level=logging.ERROR,  # Send errors as events
-)
-
-{%- if cookiecutter.use_celery == 'y' %}
-integrations = [
-    sentry_logging,
-    DjangoIntegration(),
-    CeleryIntegration(),
-    RedisIntegration(),
-]
-{% else %}
-integrations = [sentry_logging, DjangoIntegration(), RedisIntegration()]
-{% endif -%}
-
-sentry_sdk.init(
-    dsn=SENTRY_DSN,
-    integrations=integrations,
-    environment=env("SENTRY_ENVIRONMENT", default="production"),
-    traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
-)
 {% endif %}
 {% if cookiecutter.rest_api == 'DRF' -%}
 

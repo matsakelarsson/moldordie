@@ -58,8 +58,8 @@ DJANGO_AWS_S3_REGION_NAME      AWS_S3_REGION_NAME               n/a             
 DJANGO_AWS_S3_CUSTOM_DOMAIN    AWS_S3_CUSTOM_DOMAIN             n/a                 None
 DJANGO_AWS_S3_MAX_MEMORY_SIZE  AWS_S3_MAX_MEMORY_SIZE           n/a                 100_000_000
 SENTRY_DSN                     SENTRY_DSN                       n/a                 raises error
-SENTRY_ENVIRONMENT             n/a                              n/a                 "production"
-SENTRY_TRACES_SAMPLE_RATE      n/a                              n/a                 0.0
+SENTRY_ENVIRONMENT             SENTRY_ENVIRONMENT               n/a                 "production"
+SENTRY_TRACES_SAMPLE_RATE      SENTRY_TRACES_SAMPLE_RATE        n/a                 0.0
 DJANGO_SENTRY_LOG_LEVEL        SENTRY_LOG_LEVEL                 n/a                 logging.INFO
 MAILGUN_API_KEY                ANYMAIL["MAILGUN_API_KEY"]       n/a                 raises error
 MAILGUN_DOMAIN                 ANYMAIL["MAILGUN_SENDER_DOMAIN"] n/a                 raises error

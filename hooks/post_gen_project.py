@@ -160,6 +160,8 @@ REMOVALS = (
     ),
     # The websocket test goes in ``remove_channels_tests``, which also decides about its package.
     (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),
+    # The app that initialises the Sentry SDK, installed by the production settings.
+    (lambda c: c["use_sentry"] == "n", ("{project_slug}/sentry", "{project_slug}/tests/test_sentry.py")),
 )
 
 
