@@ -14,6 +14,7 @@ from scripts.update_changelog import DEFAULT_SECTION
 from scripts.update_changelog import EXCLUDED_LABEL
 from scripts.update_changelog import SECTION_LABELS
 from scripts.update_changelog import SECTIONS
+from scripts.update_changelog import generate_md
 from scripts.update_changelog import group_pulls_by_change_type
 from scripts.update_changelog import iter_pulls
 from scripts.update_changelog import todays_release
@@ -141,3 +142,14 @@ def test_a_pull_request_merged_earlier_but_touched_later_is_still_excluded():
 def test_the_release_is_the_current_calendar_date_unpadded():
     today = dt.datetime.now(tz=dt.UTC).date()
     assert todays_release() == f"{today.year}.{today.month}.{today.day}"
+
+
+def test_a_title_is_written_as_markdown_not_html():
+    """The 2026.9.14 notes carried "admin&#39;s": the template renders Markdown, which needs no escaping."""
+    pull_request = SimpleNamespace(
+        title="Wire the admin's login & logout",
+        number=1,
+        html_url="https://example.invalid/1",
+    )
+    rendered = generate_md({DEFAULT_SECTION: [pull_request]})
+    assert "- Wire the admin's login & logout ([#1](https://example.invalid/1))" in rendered

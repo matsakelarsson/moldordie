@@ -169,7 +169,9 @@ def group_pulls_by_change_type(
 def generate_md(grouped_pulls: dict[str, list[github.PullRequest.PullRequest]]) -> str:
     """Generate markdown file from Jinja template."""
     changelog_template = ROOT / ".github" / "changelog-template.md"
-    template = Template(changelog_template.read_text(), autoescape=True)
+    # The template renders Markdown, not HTML: escaping turned the apostrophe of
+    # "admin's" into an entity in the 2026.9.14 notes.
+    template = Template(changelog_template.read_text(), autoescape=False)
     return template.render(grouped_pulls=grouped_pulls)
 
 

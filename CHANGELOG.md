@@ -43,7 +43,7 @@ including release 2026.9.8, is kept in
 
 - Align the checks the two integration scripts run ([#37](https://github.com/matsakelarsson/moldordie/pull/37))
 
-- Wire the admin&#39;s allauth login in UsersConfig.ready() ([#32](https://github.com/matsakelarsson/moldordie/pull/32))
+- Wire the admin's allauth login in UsersConfig.ready() ([#32](https://github.com/matsakelarsson/moldordie/pull/32))
 
 - Bake each set of answers once per test process ([#31](https://github.com/matsakelarsson/moldordie/pull/31))
 
