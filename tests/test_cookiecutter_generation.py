@@ -133,14 +133,17 @@ UNSUPPORTED_COMBINATIONS = [
 # Answers that only show their effect together, baked on top of the derived rows below:
 # cloud_provider and use_whitenoise decide the storage backends between them (and None
 # with WhiteNoise off is rejected, so no single-answer row can reach cloud_provider=None),
-# and Channels has its own wiring in the Docker and Celery files. mail_service shares no
-# conditional with cloud_provider anywhere in the template, so the two need no cross
-# product: Amazon SES bakes on the default cloud_provider=AWS, the only one it supports.
+# Channels has its own wiring in the Docker and Celery files, and a mail catcher's host
+# is the Compose service with Docker. mail_service shares no conditional with
+# cloud_provider anywhere in the template, so the two need no cross product: Amazon SES
+# bakes on the default cloud_provider=AWS, the only one it supports.
 PAIRED_COMBINATIONS = [
     {"cloud_provider": "AWS", "use_whitenoise": "y"},
     {"cloud_provider": "None", "use_whitenoise": "y"},
     {"realtime": "channels", "use_docker": "y"},
     {"realtime": "channels", "use_celery": "y", "use_docker": "y"},
+    {"mail_catcher": "Mailpit", "use_docker": "y"},
+    {"mail_catcher": "Mailtrap Local", "use_docker": "y"},
 ]
 
 DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
@@ -949,3 +952,102 @@ def test_tasks_framework(bake, context, use_celery):
     django_compose = Path("compose") / "production" / "django"
     assert "db_worker" in project.text(django_compose / "tasks" / "worker" / "start")
     assert "/start-taskworker" in project.text(django_compose / "Dockerfile")
+
+
+S3_STORAGE = "storages.backends.s3.S3Storage"
+FILESYSTEM_STORAGE = "django.core.files.storage.FileSystemStorage"
+WHITENOISE_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# (answers, the storage backend for uploads, the one for the static files)
+STORAGE_CELLS = [
+    ({"cloud_provider": "AWS", "use_whitenoise": "n"}, S3_STORAGE, S3_STORAGE),
+    ({"cloud_provider": "AWS", "use_whitenoise": "y"}, S3_STORAGE, WHITENOISE_STORAGE),
+    ({"cloud_provider": "None", "use_whitenoise": "y"}, FILESYSTEM_STORAGE, WHITENOISE_STORAGE),
+]
+
+
+@pytest.mark.parametrize(("context_override", "media", "static"), STORAGE_CELLS, ids=_fixture_id_of_first)
+def test_production_storages(bake, context_override, media, static):
+    """The cloud provider decides where uploads go, WhiteNoise whether the app serves its own static files."""
+    production = bake(context_override).settings("production")
+
+    storages = production.literal("STORAGES")
+    assert storages["default"]["BACKEND"] == media
+    assert storages["staticfiles"]["BACKEND"] == static
+
+    uploads_on_s3 = media == S3_STORAGE
+    assert ("DJANGO_AWS_STORAGE_BUCKET_NAME" in {read.name for read in production.env_reads()}) is uploads_on_s3
+    assert ('MEDIA_URL = f"https://{aws_s3_domain}/media/"' in production.source) is uploads_on_s3
+    static_on_s3 = static == S3_STORAGE
+    assert ('STATIC_URL = f"https://{aws_s3_domain}/static/"' in production.source) is static_on_s3
+    assert ('INSTALLED_APPS = ["collectfasta", *INSTALLED_APPS]' in production.source) is static_on_s3
+
+
+# (mail service, the email backend, the extra of the django-anymail pin, the ANYMAIL settings
+# and the environment variables they read)
+MAIL_SERVICES = [
+    (
+        "Mailgun",
+        "anymail.backends.mailgun.EmailBackend",
+        {"mailgun"},
+        {
+            "MAILGUN_API_KEY": "MAILGUN_API_KEY",
+            "MAILGUN_SENDER_DOMAIN": "MAILGUN_DOMAIN",
+            "MAILGUN_API_URL": "MAILGUN_API_URL",
+        },
+    ),
+    ("Amazon SES", "anymail.backends.amazon_ses.EmailBackend", {"amazon-ses"}, {}),
+    ("Other SMTP", "django.core.mail.backends.smtp.EmailBackend", set(), {}),
+]
+
+
+@pytest.mark.parametrize(
+    ("mail_service", "backend", "extras", "anymail"),
+    MAIL_SERVICES,
+    ids=[row[0] for row in MAIL_SERVICES],
+)
+def test_production_mail_service(bake, mail_service, backend, extras, anymail):
+    """Mail goes through the chosen service's backend, configured from the environment through Anymail."""
+    project = bake({"mail_service": mail_service})
+    production = project.settings("production")
+
+    anymail_pin = next(pin for pin in project.pins["dependencies"] if pin.name == "django-anymail")
+    assert anymail_pin.extras == extras
+    assert 'INSTALLED_APPS += ["anymail"]' in production.source
+    assert production.literal("EMAIL_BACKEND") == backend
+    assert set(production.value("ANYMAIL")) == set(anymail)
+    reads = {read.name: read for read in production.env_reads()}
+    assert set(anymail.values()) <= set(reads)
+    for variable in anymail.values():
+        assert reads[variable].method is None
+    if "MAILGUN_API_URL" in reads:
+        assert reads["MAILGUN_API_URL"].default == "https://api.mailgun.net/v3"
+
+
+# (mail catcher, its Compose service, the port it listens on)
+MAIL_CATCHERS = [("Mailpit", "mailpit", 1025), ("Mailtrap Local", "mailtrap-local", 3535)]
+
+
+@pytest.mark.parametrize("use_docker", ["n", "y"])
+@pytest.mark.parametrize(("mail_catcher", "service", "port"), MAIL_CATCHERS, ids=[row[0] for row in MAIL_CATCHERS])
+def test_local_mail_catcher(bake, mail_catcher, service, port, use_docker):
+    """Development mail goes to the chosen catcher: its Compose service with Docker, localhost without."""
+    project = bake({"mail_catcher": mail_catcher, "use_docker": use_docker})
+    local = project.settings("local")
+
+    assert "EMAIL_BACKEND" not in local.source
+    assert f"EMAIL_PORT = {port}" in local.source
+    if use_docker == "y":
+        # The module is outside the reader's subset with Docker (INTERNAL_IPS += inside an if)
+        assert env_read(local, "EMAIL_HOST").default == service
+        assert service in project.compose("local")["services"]
+    else:
+        assert local.literal("EMAIL_HOST") == "localhost"
+        assert local.literal("EMAIL_PORT") == port
+
+
+def test_local_mail_without_a_catcher(bake, context):
+    """Without a catcher, development mail is printed to the console unless the environment says otherwise."""
+    local = bake({**context, "mail_catcher": "None"}).settings("local")
+
+    assert "EMAIL_HOST" not in local.source
+    assert env_read(local, "DJANGO_EMAIL_BACKEND").default == "django.core.mail.backends.console.EmailBackend"
