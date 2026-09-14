@@ -18,6 +18,21 @@ def test_user_get_absolute_url(user: User):
     {%- endif %}
 
 
+def test_name_methods_return_the_stripped_name():
+    user = UserFactory.build(name="  Ann Lee  ")
+
+    assert user.get_full_name() == "Ann Lee"
+    assert user.get_short_name() == "Ann Lee"
+
+
+@pytest.mark.parametrize("name", ["", "   "])
+def test_name_methods_are_empty_without_a_name(name: str):
+    user = UserFactory.build(name=name)
+
+    assert user.get_full_name() == ""
+    assert user.get_short_name() == ""
+
+
 def test_display_name_is_the_stripped_name():
     user = UserFactory.build(name="  Ann Lee  ")
 

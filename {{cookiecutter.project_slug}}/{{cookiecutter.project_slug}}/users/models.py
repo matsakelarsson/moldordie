@@ -49,6 +49,13 @@ class User(AbstractUser):
         return reverse("users:detail", kwargs={"username": self.username})
         {%- endif %}
 
+    # AbstractUser builds these from first_name and last_name, which this model drops
+    def get_full_name(self) -> str:
+        return self.name.strip()
+
+    def get_short_name(self) -> str:
+        return self.name.strip()
+
     @property
     def display_name(self) -> str:
         """The name, or a fallback that never shows the email address."""
