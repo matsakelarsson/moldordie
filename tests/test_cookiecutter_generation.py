@@ -1,11 +1,9 @@
 import ast  # noqa: EXE002
-import glob
 import hashlib
 import json
 import os
 import re
 import tomllib
-from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -176,18 +174,6 @@ def _fixture_id_of_first(value):
     return _fixture_id(value) if isinstance(value, dict) else ""
 
 
-def build_files_list(base_path: Path):
-    """Build a list containing absolute paths to the generated files."""
-    excluded_dirs = {".venv", "__pycache__"}
-
-    f = []
-    for dirpath, subdirs, files in base_path.walk():
-        subdirs[:] = [d for d in subdirs if d not in excluded_dirs]
-
-        f.extend(dirpath / file_path for file_path in files)
-    return f
-
-
 def check_po(content: str):
     """gettext strings take C's backslash escapes, which Python's literals share."""
     for line in content.splitlines():
@@ -206,13 +192,13 @@ PARSERS = {
 }
 
 
-def check_paths(paths: Iterable[Path]):
+def check_files(project: GeneratedProject):
     """Every text file is fully rendered and, if it has a syntax, parses."""
-    for path in paths:
-        if is_binary(str(path)):
+    for path in project.files():
+        if is_binary(str(project.root / path)):
             continue
 
-        content = path.read_text()
+        content = project.text(path)
         match = RE_OBJ.search(content)
         assert match is None, f"cookiecutter variable not replaced in {path}"
         assert RE_PLACEHOLDER.search(content) is None, f"secret not filled in {path}"
@@ -244,18 +230,15 @@ def test_combinations_name_options_of_the_catalogue():
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_project_generation(cookies, hostile_context, context_override):
+def test_project_generation(bake, hostile_context, context_override):
     """The project is generated, fully rendered and parseable, whatever the free-text answers."""
 
-    result = cookies.bake(extra_context={**hostile_context, **context_override})
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert result.project_path.name == hostile_context["project_slug"]
-    assert result.project_path.is_dir()
+    project = bake({**hostile_context, **context_override})
+    assert project.package == hostile_context["project_slug"]
+    assert project.root.is_dir()
 
-    paths = build_files_list(result.project_path)
-    assert paths
-    check_paths(paths)
+    assert project.files()
+    check_files(project)
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
@@ -287,10 +270,7 @@ def test_django_upgrade_passes(bake, context_override):
     """django-upgrade, for the Django the project pins, would rewrite nothing in it."""
     project = bake(context_override)
 
-    python_files = [
-        file_path.removeprefix(f"{project.root}/")
-        for file_path in glob.glob(str(project.root / "**" / "*.py"), recursive=True)  # noqa: PTH207
-    ]
+    python_files = [str(path) for path in project.files() if path.suffix == ".py"]
     try:
         sh.django_upgrade(
             "--target-version",
@@ -485,9 +465,9 @@ SECRET_FILES = {
 }
 
 
-def project_contents(project_path: Path) -> dict[str, bytes]:
+def project_contents(project: GeneratedProject) -> dict[str, bytes]:
     """Every generated file by its path relative to the project root, with its content."""
-    return {str(path.relative_to(project_path)): path.read_bytes() for path in build_files_list(project_path)}
+    return {str(path): project.bytes(path) for path in project.files()}
 
 
 def env_read(module: PythonModule, name: str) -> EnvRead:
@@ -557,8 +537,8 @@ def test_uppercase_flag_answers_select_the_same_features(bake, context, answer):
     lowercase = bake({**context, **answers})
     uppercase = bake({**context, **dict.fromkeys(FLAG_OPTIONS, answer.upper())})
 
-    expected = project_contents(lowercase.root)
-    generated = project_contents(uppercase.root)
+    expected = project_contents(lowercase)
+    generated = project_contents(uppercase)
     assert generated.keys() == expected.keys()
     differing = {path for path in expected if generated[path] != expected[path]}
     assert differing <= SECRET_FILES
@@ -658,15 +638,14 @@ def test_pyproject_dependencies_are_pinned_and_sorted(bake, context_override):
         assert requirements == expected, f"{name} is not sorted"
 
 
-def test_generation_writes_no_lock_file(cookies, context):
+def test_generation_writes_no_lock_file(bake, context):
     """Generation resolves nothing: the developer's first ``uv sync`` writes the lock file."""
-    result = cookies.bake(extra_context={**context, "use_docker": "y"})
-    assert result.exit_code == 0
+    project = bake({**context, "use_docker": "y"})
 
-    assert not (result.project_path / "uv.lock").exists()
-    assert not (result.project_path / ".venv").exists()
-    assert not (result.project_path / "requirements").exists()
-    assert not (result.project_path / "compose" / "local" / "uv").exists()
+    assert not (project.root / "uv.lock").exists()
+    assert not (project.root / ".venv").exists()
+    assert not (project.root / "requirements").exists()
+    assert not (project.root / "compose" / "local" / "uv").exists()
 
 
 def test_free_text_answers_survive_escaping(bake, hostile_context):
@@ -757,11 +736,10 @@ def test_asgi_entrypoint(bake, context, realtime):
 
 
 @pytest.mark.parametrize("use_docker", ["y", "n"])
-def test_docker_compose_files_match_use_docker(cookies, context, use_docker):
+def test_docker_compose_files_match_use_docker(bake, context, use_docker):
     """All docker-compose files, including the docs one, are only generated with use_docker=y."""
     context.update({"use_docker": use_docker})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     compose_files = [
         "docker-compose.local.yml",
@@ -769,7 +747,7 @@ def test_docker_compose_files_match_use_docker(cookies, context, use_docker):
         "docker-compose.docs.yml",
     ]
     for compose_file in compose_files:
-        assert (result.project_path / compose_file).exists() is (use_docker == "y")
+        assert (project.root / compose_file).exists() is (use_docker == "y")
 
 
 @pytest.mark.parametrize("realtime", ["none", "channels"])
@@ -797,10 +775,10 @@ def test_frontend_stack(bake, context):
         assert not (project.root / path).exists(), f"{path} should not be generated"
 
     offenders = []
-    for path in build_files_list(project.root):
-        if "static/vendor/" in path.as_posix() or is_binary(str(path)):
+    for path in project.files():
+        if "static/vendor/" in path.as_posix() or is_binary(str(project.root / path)):
             continue
-        content = path.read_text().lower()
+        content = project.text(path).lower()
         offenders.extend(f"{path}: {token}" for token in FRONTEND_TOOLCHAIN_TOKENS if token in content)
     assert offenders == []
 
@@ -815,15 +793,12 @@ def test_frontend_stack(bake, context):
     assert "vendor/pico/pico.min.css" in base_html
 
 
-def test_no_remote_assets(cookies, context):
+def test_no_remote_assets(bake, context):
     """No stylesheet or script is loaded from a CDN or any other remote host."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     offenders = [
-        path
-        for path in build_files_list(result.project_path)
-        if path.suffix == ".html" and RE_REMOTE_ASSET.search(path.read_text())
+        path for path in project.files() if path.suffix == ".html" and RE_REMOTE_ASSET.search(project.text(path))
     ]
     assert offenders == []
 
@@ -841,36 +816,34 @@ def test_vendored_pico_intact(bake, context):
     assert project.text(vendor_dir / "LICENSE.md").startswith("MIT License")
 
 
-def test_no_inline_code_in_templates(cookies, context):
+def test_no_inline_code_in_templates(bake, context):
     """Templates contain no inline scripts, styles or event handlers, which the CSP would block."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     offenders = []
-    for path in build_files_list(result.project_path):
+    for path in project.files():
         if path.suffix != ".html":
             continue
-        match = RE_INLINE_CODE.search(path.read_text())
+        match = RE_INLINE_CODE.search(project.text(path))
         if match:
             offenders.append(f"{path}: {match.group(0)}")
     assert offenders == []
 
 
-def test_template_partials(cookies, context):
+def test_template_partials(bake, context):
     """htmx fragments are Django template partials selected by HtmxTemplateMixin."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    templates = result.project_path / context["project_slug"] / "templates"
-    assert not (templates / "users" / "partials").exists()
-    assert not (templates / "partials" / "messages.html").exists()
-    assert "{% partialdef messages inline %}" in (templates / "base.html").read_text()
+    templates = Path(context["project_slug"]) / "templates"
+    assert not (project.root / templates / "users" / "partials").exists()
+    assert not (project.root / templates / "partials" / "messages.html").exists()
+    assert "{% partialdef messages inline %}" in project.template("base.html")
     for name in ("user_detail.html", "user_form.html"):
-        template = (templates / "users" / name).read_text()
+        template = project.template(f"users/{name}")
         assert "{% partialdef profile inline %}" in template
         assert '{% include "base.html#messages" %}' in template
 
-    views = (result.project_path / context["project_slug"] / "users" / "views.py").read_text()
+    views = project.text(f"{context['project_slug']}/users/views.py")
     assert 'htmx_partial = "profile"' in views
     assert "htmx_template_name" not in views
 
@@ -878,8 +851,8 @@ def test_template_partials(cookies, context):
     # that reads the request makes every page including it vary by HX-Request.
     offenders = [
         path
-        for path in build_files_list(result.project_path / context["project_slug"] / "templates")
-        if path.suffix == ".html" and "request.htmx" in path.read_text()
+        for path in project.files()
+        if path.is_relative_to(templates) and path.suffix == ".html" and "request.htmx" in project.text(path)
     ]
     assert offenders == []
 
