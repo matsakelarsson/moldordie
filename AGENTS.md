@@ -112,6 +112,7 @@ The generated Django project uses:
 - **Ruff** for linting/formatting; config in `pyproject.toml` under `[tool.ruff]`
 - **djLint** runs on the generated projects, not on the template sources, with the generated `[tool.djlint]` (`profile = "django"`): `test_djlint_lint_passes` lints every combination in the default suite, and `test_djlint_check_passes` checks the formatting with `AUTOFIXABLE_STYLES=1`. This repository has no djlint config or hook of its own, so write template HTML the way djlint leaves the rendered output
 - Template files under `{{cookiecutter.project_slug}}/` are excluded from ruff (not parseable Python)
+- **Settings templates** render each setting from one block: the answers a module forks on are bound to names at its top, a choice from a list (mail service, mail catcher) is a row in a table there, and the block forks on each answer where it decides something (`docs/adr/0005`)
 - **Calendar versioning**: `YYYY.MM.DD`
 
 ## Adding a New Template Option

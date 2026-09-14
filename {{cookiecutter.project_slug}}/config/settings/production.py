@@ -1,11 +1,39 @@
 # ruff: noqa: E501
-{%- if cookiecutter.use_sentry == 'y' %}
+{#- The answers this module forks on, and the mail service's Anymail wiring: its page
+    in the Anymail documentation, the email backend, and the ANYMAIL settings it reads
+    from the environment as (setting, variable, default). Adding a service is adding a row. #}
+{%- set aws = cookiecutter.cloud_provider == 'AWS' %}
+{%- set whitenoise = cookiecutter.use_whitenoise == 'y' %}
+{%- set channels = cookiecutter.realtime == 'channels' %}
+{%- set sentry = cookiecutter.use_sentry == 'y' %}
+{%- set mail = {
+    'Mailgun': {
+        'docs': 'https://anymail.readthedocs.io/en/stable/esps/mailgun/',
+        'backend': 'anymail.backends.mailgun.EmailBackend',
+        'settings': [
+            ('MAILGUN_API_KEY', 'MAILGUN_API_KEY', none),
+            ('MAILGUN_SENDER_DOMAIN', 'MAILGUN_DOMAIN', none),
+            ('MAILGUN_API_URL', 'MAILGUN_API_URL', 'https://api.mailgun.net/v3'),
+        ],
+    },
+    'Amazon SES': {
+        'docs': 'https://anymail.readthedocs.io/en/stable/esps/amazon_ses/',
+        'backend': 'anymail.backends.amazon_ses.EmailBackend',
+        'settings': [],
+    },
+    'Other SMTP': {
+        'docs': 'https://anymail.readthedocs.io/en/stable/esps',
+        'backend': 'django.core.mail.backends.smtp.EmailBackend',
+        'settings': [],
+    },
+}[cookiecutter.mail_service] %}
+{%- if sentry %}
 import logging
 {%- endif %}
-{%- if cookiecutter.mail_service in ('Amazon SES', 'Other SMTP') %}
+{%- if not mail.settings %}
 from typing import Any
 {%- endif %}
-{%- if cookiecutter.use_sentry == 'y' %}
+{%- if sentry %}
 
 import sentry_sdk
 {%- if cookiecutter.use_celery == 'y' %}
@@ -15,7 +43,7 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 {%- endif %}
-{%- if cookiecutter.use_sentry == 'y' or cookiecutter.mail_service in ('Amazon SES', 'Other SMTP') %}
+{%- if sentry or not mail.settings %}
 {% endif %}
 from .base import *  # noqa: F403
 from .base import DATABASES
@@ -63,7 +91,7 @@ CACHES = {
 # data was rolled back. Code that enqueues inside its own transaction.atomic()
 # block should defer with transaction.on_commit(partial(task.enqueue, ...)).
 TASKS = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}
-{% if cookiecutter.realtime == 'channels' %}
+{% if channels %}
 # CHANNELS
 # ------------------------------------------------------------------------------
 # https://channels.readthedocs.io/en/latest/topics/channel_layers.html#redis-channel-layer
@@ -105,7 +133,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = env.bool(
     default=True,
 )
 # https://docs.djangoproject.com/en/dev/ref/csp/
-{%- if cookiecutter.realtime == 'channels' %}
+{%- if channels %}
 # 'self' does not cover websocket schemes in every browser
 SECURE_CSP["connect-src"] = [*SECURE_CSP["connect-src"], "wss:"]
 {%- endif %}
@@ -119,7 +147,7 @@ if env.bool("DJANGO_CSP_REPORT_ONLY", default=False):
     SECURE_CSP_REPORT_ONLY = SECURE_CSP
     SECURE_CSP = {}
 
-{% if cookiecutter.cloud_provider == 'AWS' %}
+{% if aws %}
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
 AWS_ACCESS_KEY_ID = env("DJANGO_AWS_ACCESS_KEY_ID")
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
@@ -147,40 +175,36 @@ aws_s3_domain = AWS_S3_CUSTOM_DOMAIN or f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws
 {% endif -%}
 # STATIC & MEDIA
 # ------------------------
+{#- The cloud provider decides where uploads go, WhiteNoise whether the app serves the
+    static files itself; without it the provider serves them (no provider without
+    WhiteNoise is refused when the project is generated). #}
 STORAGES = {
-{%- if cookiecutter.use_whitenoise == 'y' and cookiecutter.cloud_provider == 'None' %}
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-{%- elif cookiecutter.cloud_provider == 'AWS' %}
-    "default": {
+{%- if aws %}
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
             "location": "media",
             "file_overwrite": False,
         },
+{%- else %}
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+{%- endif %}
     },
-    {%- if cookiecutter.use_whitenoise == 'y' %}
     "staticfiles": {
+{%- if whitenoise %}
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-    {%- else %}
-    "staticfiles": {
+{%- else %}
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
             "location": "static",
         },
-    },
-    {%- endif %}
 {%- endif %}
+    },
 }
 
-{%- if cookiecutter.cloud_provider == 'AWS' %}
+{%- if aws %}
 MEDIA_URL = f"https://{aws_s3_domain}/media/"
-{%- if cookiecutter.use_whitenoise == 'n' %}
+{%- if not whitenoise %}
 COLLECTFASTA_STRATEGY = "collectfasta.strategies.boto3.Boto3Strategy"
 STATIC_URL = f"https://{aws_s3_domain}/static/"
 {%- endif %}
@@ -213,25 +237,19 @@ ADMIN_URL = env("DJANGO_ADMIN_URL")
 INSTALLED_APPS += ["anymail"]
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 # https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
-{%- if cookiecutter.mail_service == 'Other SMTP' %}
-# https://anymail.readthedocs.io/en/stable/esps
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-ANYMAIL: dict[str, Any] = {}
-{%- elif cookiecutter.mail_service == 'Amazon SES' %}
-# https://anymail.readthedocs.io/en/stable/esps/amazon_ses/
-EMAIL_BACKEND = "anymail.backends.amazon_ses.EmailBackend"
-ANYMAIL: dict[str, Any] = {}
-{%- elif cookiecutter.mail_service == 'Mailgun' %}
-# https://anymail.readthedocs.io/en/stable/esps/mailgun/
-EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
+# {{ mail.docs }}
+EMAIL_BACKEND = "{{ mail.backend }}"
+{%- if mail.settings %}
 ANYMAIL = {
-    "MAILGUN_API_KEY": env("MAILGUN_API_KEY"),
-    "MAILGUN_SENDER_DOMAIN": env("MAILGUN_DOMAIN"),
-    "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
+{%- for setting, variable, default in mail.settings %}
+    "{{ setting }}": env("{{ variable }}"{% if default is not none %}, default="{{ default }}"{% endif %}),
+{%- endfor %}
 }
+{%- else %}
+ANYMAIL: dict[str, Any] = {}
 {%- endif %}
 
-{% if cookiecutter.use_whitenoise == 'n' and cookiecutter.cloud_provider == 'AWS' -%}
+{% if aws and not whitenoise -%}
 # Collectfasta
 # ------------------------------------------------------------------------------
 # https://github.com/jasongi/collectfasta#installation
@@ -242,25 +260,34 @@ INSTALLED_APPS = ["collectfasta", *INSTALLED_APPS]
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
 # See https://docs.djangoproject.com/en/dev/topics/logging for
 # more details on how to customize your logging configuration.
-{% if cookiecutter.use_sentry == 'n' -%}
+{#- Without Sentry, errors are mailed to the admins; with it, the SDK reports them,
+    and the loggers the SDK itself uses stay on the console. #}
+{%- if not sentry %}
 # A sample logging configuration. The only tangible logging
 # performed by this configuration is to send an email to
 # the site admins on every HTTP 500 error when DEBUG=False.
+{%- endif %}
 LOGGING = {
     "version": 1,
+{%- if sentry %}
+    "disable_existing_loggers": True,
+{%- else %}
     "disable_existing_loggers": False,
     "filters": {"require_debug_false": {"()": "django.utils.log.RequireDebugFalse"}},
+{%- endif %}
     "formatters": {
         "verbose": {
             "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
         },
     },
     "handlers": {
+{%- if not sentry %}
         "mail_admins": {
             "level": "ERROR",
             "filters": ["require_debug_false"],
             "class": "django.utils.log.AdminEmailHandler",
         },
+{%- endif %}
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
@@ -269,36 +296,7 @@ LOGGING = {
     },
     "root": {"level": "INFO", "handlers": ["console"]},
     "loggers": {
-        "django.request": {
-            "handlers": ["mail_admins"],
-            "level": "ERROR",
-            "propagate": True,
-        },
-        "django.security.DisallowedHost": {
-            "level": "ERROR",
-            "handlers": ["console", "mail_admins"],
-            "propagate": True,
-        },
-    },
-}
-{% else %}
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": True,
-    "formatters": {
-        "verbose": {
-            "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
-        },
-    },
-    "handlers": {
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
-        },
-    },
-    "root": {"level": "INFO", "handlers": ["console"]},
-    "loggers": {
+{%- if sentry %}
         "django.db.backends": {
             "level": "ERROR",
             "handlers": ["console"],
@@ -311,9 +309,21 @@ LOGGING = {
             "handlers": ["console"],
             "propagate": False,
         },
+{%- else %}
+        "django.request": {
+            "handlers": ["mail_admins"],
+            "level": "ERROR",
+            "propagate": True,
+        },
+        "django.security.DisallowedHost": {
+            "level": "ERROR",
+            "handlers": ["console", "mail_admins"],
+            "propagate": True,
+        },
+{%- endif %}
     },
 }
-
+{% if sentry %}
 # Sentry
 # ------------------------------------------------------------------------------
 SENTRY_DSN = env("SENTRY_DSN")
