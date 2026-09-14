@@ -31,8 +31,17 @@ def test_user_list():
 
 
 def test_user_me():
-    assert reverse("api:user-me") == "/api/users/me/"
-    assert resolve("/api/users/me/").view_name == "api:user-me"
+    assert reverse("api:user-me") == "/api/users/~me/"
+    assert resolve("/api/users/~me/").view_name == "api:user-me"
+{%- if cookiecutter.username_type == "username" %}
+
+
+def test_a_user_named_me_is_addressable():
+    match = resolve("/api/users/me/")
+
+    assert match.view_name == "api:user-detail"
+    assert match.kwargs == {"username": "me"}
+{%- endif %}
 {%- elif cookiecutter.rest_api == 'Django Ninja' %}
 
 
@@ -57,8 +66,18 @@ def test_user_list():
 
 
 def test_current_user():
-    assert reverse("api:retrieve_current_user") == "/api/users/me/"
-    assert resolve("/api/users/me/").view_name == "api:retrieve_current_user"
+    assert reverse("api:retrieve_current_user") == "/api/users/~me/"
+    assert reverse("api:update_current_user") == "/api/users/~me/"
+    assert resolve("/api/users/~me/").view_name == "api:retrieve_current_user"
+{%- if cookiecutter.username_type == "username" %}
+
+
+def test_a_user_named_me_is_addressable():
+    match = resolve("/api/users/me/")
+
+    assert match.view_name == "api:retrieve_user"
+    assert match.kwargs == {"username": "me"}
+{%- endif %}
 
 
 def test_update_user():
