@@ -247,8 +247,8 @@ python_version = "3.12"
 # Strict mode: every function is annotated and every call is checked.
 strict = true
 warn_unreachable = true
-# django-allauth ships no type information, so its adapters and forms are
-# subclassed from ``Any``. Keep that permitted.
+# django-allauth ships no type information, so its adapters are subclassed
+# from ``Any``. Keep that permitted.
 disallow_subclassing_any = false
 enable_error_code = [
   "ignore-without-code",

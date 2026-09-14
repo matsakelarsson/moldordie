@@ -81,7 +81,7 @@ msgstr "Dates importantes"
 msgid "Users"
 msgstr "Utilisateurs"
 
-#: {{cookiecutter.project_slug}}/users/forms.py:23
+#: {{cookiecutter.project_slug}}/users/forms.py:18
 #: {{cookiecutter.project_slug}}/users/tests/test_forms.py:41
 msgid "This username has already been taken."
 msgstr "Ce nom d'utilisateur est déjà pris."
@@ -100,7 +100,7 @@ msgstr "Utilisateur"
 msgid "Information successfully updated"
 msgstr "Informations mises à jour avec succès"
 
-#: {{cookiecutter.project_slug}}/users/forms.py:27
+#: {{cookiecutter.project_slug}}/users/forms.py:22
 #: {{cookiecutter.project_slug}}/users/tests/test_forms.py:41
 msgid "This email has already been taken."
 msgstr "Cet e-mail est déjà utilisé."
