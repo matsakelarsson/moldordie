@@ -90,7 +90,7 @@ msgstr "Ce nom d'utilisateur est déjà pris."
 msgid "Name of User"
 msgstr "Nom de l'utilisateur"
 
-#: {{cookiecutter.project_slug}}/users/models.py:43
+#: {{cookiecutter.project_slug}}/users/models.py:50
 msgid "User"
 msgstr "Utilisateur"
 
