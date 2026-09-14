@@ -276,10 +276,11 @@ NO_DRF = {"config/api_router.py", f"{PKG}/users/api/serializers.py"}
 NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
 NO_REST_API = {"config/api_router.py", "config/api.py", f"{PKG}/users/api", f"{PKG}/users/tests/api"}
 NO_CHANNELS = {"config/websocket.py", f"{PKG}/tests/test_websocket.py"}
+NO_SENTRY = {f"{PKG}/sentry", f"{PKG}/tests/test_sentry.py"}
 
 # cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
-# envs kept, no CI, no REST API, no Channels.
-DEFAULTS = NOT_GPL | USERNAME_LOGIN | NO_DOCKER | NO_CELERY | NO_CI | NO_REST_API | NO_CHANNELS
+# envs kept, no CI, no REST API, no Channels, no Sentry.
+DEFAULTS = NOT_GPL | USERNAME_LOGIN | NO_DOCKER | NO_CELERY | NO_CI | NO_REST_API | NO_CHANNELS | NO_SENTRY
 # Docker on, everything else at its default: the helper scripts and the Celery images go instead of compose.
 WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES
 
@@ -392,6 +393,14 @@ def test_prune_channels_files(unpruned_project, realtime, expected):
     assert_prunes(unpruned_project, expected, realtime=realtime)
 
 
+@pytest.mark.parametrize(
+    ("use_sentry", "expected"),
+    [("n", DEFAULTS), ("y", DEFAULTS - NO_SENTRY)],
+)
+def test_prune_sentry_app(unpruned_project, use_sentry, expected):
+    assert_prunes(unpruned_project, expected, use_sentry=use_sentry)
+
+
 # The removal rules checked for self-consistency over every combination of the answers they
 # read. This shows the table can be applied in any order and that every listed path is in the
 # template, not that the rules are right: the behaviour tests above cover that for
@@ -409,6 +418,7 @@ REMOVAL_OPTIONS = (
     "ci_tool",
     "rest_api",
     "realtime",
+    "use_sentry",
 )
 
 
