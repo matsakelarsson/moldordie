@@ -97,7 +97,7 @@ The generated Django project uses:
 - `config/urls.py` — URL routing
 - `config/settings/base.py` — nonce-based Content Security Policy (`SECURE_CSP`, Django's `ContentSecurityPolicyMiddleware`) and the `TASKS` framework wiring (`django_tasks_db` app; immediate backend in local/test, database backend plus the `taskworker` process in production)
 - `config/asgi.py` — ASGI entry point served by Uvicorn (Gunicorn + Uvicorn worker in production); with `realtime=channels` it also routes websockets to `config/websocket.py`
-- `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth); `users/tasks.py` holds the Django Tasks example (plus a Celery variant with `use_celery=y`)
+- `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth); `User.get_absolute_url` says how a user is addressed and `User.display_name` how one is shown, and templates and views go through them instead of forking on `username_type` (`docs/adr/0003`); `users/tasks.py` holds the Django Tasks example (plus a Celery variant with `use_celery=y`)
 - `<project_slug>/htmx.py` — `HtmxTemplateMixin` (renders `template.html#partial` for htmx requests, adds `Vary: HX-Request`) and `HtmxLoginRedirectMiddleware` (turns login redirects into `HX-Redirect` for htmx requests)
 - `<project_slug>/tests/` — Project-level tests that belong to no single app: the Content Security Policy, the htmx helpers and, with `realtime=channels`, the websocket consumer
 - `compose/` — Docker configs for local and production

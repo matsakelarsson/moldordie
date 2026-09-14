@@ -11,6 +11,8 @@ from django.test import Client
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from {{ cookiecutter.project_slug }}.users.tests.factories import UserFactory
+
 if TYPE_CHECKING:
     from {{ cookiecutter.project_slug }}.users.models import User
 
@@ -180,3 +182,34 @@ class TestUserDetailView:
 
         assert response.status_code == HTTPStatus.FOUND
         assert response["Location"] == login_redirect(url)
+
+    def test_nameless_user_is_shown_without_the_address(self, client: Client):
+        # Every signed-in user can view a profile: the address must not be the fallback
+        nameless = UserFactory.create(email="hidden@example.com", name="")
+        client.force_login(UserFactory.create())
+
+        response = client.get(nameless.get_absolute_url())
+
+        assert response.status_code == HTTPStatus.OK
+        assert f"<h1>{nameless.display_name}</h1>".encode() in response.content
+        assert b"hidden@example.com" not in response.content
+    {%- if cookiecutter.username_type == "username" %}
+
+    def test_named_user_keeps_the_username_as_a_sub_line(self, client: Client):
+        user = UserFactory.create(name="Ann Lee")
+        client.force_login(user)
+
+        response = client.get(user.get_absolute_url())
+
+        assert b"<h1>Ann Lee</h1>" in response.content
+        assert f"<p>{user.username}</p>".encode() in response.content
+
+    def test_nameless_user_shows_the_username_once(self, client: Client):
+        user = UserFactory.create(name="")
+        client.force_login(user)
+
+        response = client.get(user.get_absolute_url())
+
+        assert f"<h1>{user.username}</h1>".encode() in response.content
+        assert f"<p>{user.username}</p>".encode() not in response.content
+    {%- endif %}

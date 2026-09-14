@@ -90,6 +90,10 @@ msgstr "Este nome de usuário já foi usado."
 msgid "Name of User"
 msgstr "Nome do Usuário"
 
+#: {{cookiecutter.project_slug}}/users/models.py:43
+msgid "User"
+msgstr "Usuário"
+
 #: {{cookiecutter.project_slug}}/users/tests/test_views.py:98
 #: {{cookiecutter.project_slug}}/users/tests/test_views.py:170
 #: {{cookiecutter.project_slug}}/users/views.py:45

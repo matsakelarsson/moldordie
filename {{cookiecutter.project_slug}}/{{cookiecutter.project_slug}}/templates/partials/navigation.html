@@ -17,7 +17,7 @@
     </li>
     {% if request.user.is_authenticated %}
       <li>
-        <a href="{% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{% url 'users:detail' request.user.pk %}{% endraw %}{% else %}{% raw %}{% url 'users:detail' request.user.username %}{% endraw %}{% endif %}{% raw %}">{% translate "My Profile" %}</a>
+        <a href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
       </li>
       <li>
         {# URL provided by django-allauth/account/urls.py #}

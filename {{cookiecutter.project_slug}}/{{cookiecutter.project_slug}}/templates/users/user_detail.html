@@ -3,7 +3,7 @@
 {% load i18n %}
 
 {% block title %}
-  User: {% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{{ object.name }}{% endraw %}{% else %}{% raw %}{{ object.username }}{% endraw %}{% endif %}{% raw %}
+  User: {{ object.display_name }}
 {% endblock title %}
 {% block content %}
   {% comment %}
@@ -16,13 +16,13 @@
     {% endif %}
     <article id="user-profile">
       <header>
-        <h1>{% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{{ object.name }}{% endraw %}{% else %}{% raw %}{{ object.username }}{% endraw %}{% endif %}{% raw %}</h1>
+        <h1>{{ object.display_name }}</h1>
       </header>
       {%- endraw %}
       {%- if cookiecutter.username_type == "username" %}
       {%- raw %}
-      {% if object.name %}
-        <p>{{ object.name }}</p>
+      {% if object.display_name != object.username %}
+        <p>{{ object.username }}</p>
       {% endif %}
       {%- endraw %}
       {%- endif %}
