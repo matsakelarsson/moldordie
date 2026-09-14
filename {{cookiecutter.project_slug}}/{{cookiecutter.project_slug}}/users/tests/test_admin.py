@@ -1,8 +1,7 @@
-import contextlib
 from http import HTTPStatus
-from importlib import reload
 
 import pytest
+from django.apps import apps
 from django.contrib import admin
 from django.contrib.auth.models import AnonymousUser
 from django.urls import reverse
@@ -57,13 +56,11 @@ class TestUserAdmin:
         assert response.status_code == HTTPStatus.OK
 
     @pytest.fixture
-    def _force_allauth(self, settings):
+    def _force_allauth(self, settings, monkeypatch):
         settings.DJANGO_ADMIN_FORCE_ALLAUTH = True
-        # Reload the admin module to apply the setting change
-        import {{ cookiecutter.project_slug }}.users.admin as users_admin  # noqa: PLC0415
-
-        with contextlib.suppress(admin.sites.AlreadyRegistered):  # type: ignore[attr-defined]
-            reload(users_admin)
+        # Wrap the login view as the app does at startup; unwrap it afterwards
+        monkeypatch.setattr(admin.site, "login", admin.site.login)
+        apps.get_app_config("users").ready()
 
     @pytest.mark.django_db
     @pytest.mark.usefixtures("_force_allauth")
