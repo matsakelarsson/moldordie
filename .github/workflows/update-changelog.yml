@@ -11,6 +11,10 @@ jobs:
     if: github.repository_owner == 'matsakelarsson'
 
     runs-on: ubuntu-latest
+    # The repository's default token is read-only; a release pushes a commit and a
+    # tag to main and publishes a GitHub release.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - name: Install uv
