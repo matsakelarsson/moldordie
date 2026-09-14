@@ -45,10 +45,14 @@ docker compose -f docker-compose.local.yml run --rm django pytest
 # return non-zero status code if there are migrations that have not been created
 docker compose -f docker-compose.local.yml run --rm django python manage.py makemigrations --check || { echo "ERROR: there were changes in the models, but migration listed above have not been created and are not saved in version control"; exit 1; }
 
-# Test support for translations
+# Make sure the check doesn't raise any warnings
+docker compose -f docker-compose.local.yml run --rm django python manage.py check --settings=config.settings.local --fail-level WARNING
+
+# Check that message extraction completes and updates the catalogues
 docker compose -f docker-compose.local.yml run --rm django python manage.py makemessages --all
 
-# Make sure the check doesn't raise any warnings
+# Run the deployment checks against the production settings; the placeholders stand in
+# for the deployment's secrets
 docker compose -f docker-compose.local.yml run --rm \
   -e DJANGO_SECRET_KEY="$(openssl rand -base64 64)" \
   -e REDIS_URL=redis://redis:6379/0 \
