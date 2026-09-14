@@ -5,19 +5,5 @@ build-essential
 gettext
 python3-dev
 
-##shared dependencies of:
-##Pillow, pylibmc
-zlib1g-dev
-
 ##Postgresql and psycopg dependencies
 libpq-dev
-
-##Pillow dependencies
-libtiff5-dev
-libjpeg8-dev
-libfreetype6-dev
-liblcms2-dev
-libwebp-dev
-
-##django-extensions
-libgraphviz-dev
