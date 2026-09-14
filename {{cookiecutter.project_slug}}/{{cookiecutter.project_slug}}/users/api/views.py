@@ -40,7 +40,7 @@ class UserViewSet(
     def get_queryset(self) -> QuerySet[User]:
         return self.queryset.filter(id=self.request.user.id)
 
-    @action(detail=False)
+    @action(detail=False, url_path="~me")
     def me(self, request: AuthenticatedApiRequest) -> Response:
         serializer = UserSerializer(request.user, context={"request": request})
         return Response(status=status.HTTP_200_OK, data=serializer.data)
@@ -68,7 +68,7 @@ def list_users(request: AuthenticatedHttpRequest) -> QuerySet[User]:
     return _get_users_queryset(request)
 
 
-@router.get("/me/", response=UserSchema)
+@router.get("/~me/", response=UserSchema)
 def retrieve_current_user(request: AuthenticatedHttpRequest) -> User:
     return request.user
 {%- if cookiecutter.username_type == "email" %}
@@ -88,7 +88,7 @@ def retrieve_user(request: AuthenticatedHttpRequest, username: str) -> User:
 {%- endif %}
 
 
-@router.patch("/me/", response=UserSchema)
+@router.patch("/~me/", response=UserSchema)
 def update_current_user(
     request: AuthenticatedHttpRequest,
     data: UpdateUserSchema,

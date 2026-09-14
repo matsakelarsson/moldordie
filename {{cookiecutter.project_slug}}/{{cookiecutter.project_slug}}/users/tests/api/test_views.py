@@ -153,6 +153,17 @@ def test_retrieve_user(client: Client, user: User):
         "url": f"/api/users/{user.username}/",
         "username": user.username,
     }
+
+
+def test_retrieve_a_user_named_me(client: Client):
+    user = UserFactory.create(username="me")
+    client.force_login(user)
+
+    response = client.get("/api/users/me/")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["username"] == "me"
+    assert response.json()["url"] == "/api/users/me/"
 {%- endif %}
 
 
