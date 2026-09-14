@@ -66,6 +66,8 @@ MAILGUN_DOMAIN                 ANYMAIL["MAILGUN_SENDER_DOMAIN"] n/a             
 MAILGUN_API_URL                ANYMAIL["MAILGUN_API_URL"]       n/a                 "https://api.mailgun.net/v3"
 ============================== ================================ =================== ==================================
 
+The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.envs/.production`` declares.
+
 --------------------------
 Other Environment Settings
 --------------------------

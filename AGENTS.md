@@ -93,14 +93,15 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 
 The generated Django project uses:
 
-- `config/settings/{base,local,test,production}.py` — Split settings with django-environ
+- `config/settings/{base,local,test,production}.py` — Split settings with django-environ; importing a settings module has no side effect beyond binding names, so the generated `tests/test_production_settings.py` loads `production.py` under the environment `.envs/.production` declares (`docs/adr/0006`)
 - `config/urls.py` — URL routing
 - `config/settings/base.py` — nonce-based Content Security Policy (`SECURE_CSP`, Django's `ContentSecurityPolicyMiddleware`) and the `TASKS` framework wiring (`django_tasks_db` app; immediate backend in local/test, database backend plus the `taskworker` process in production)
 - `config/asgi.py` — ASGI entry point served by Uvicorn (Gunicorn + Uvicorn worker in production); with `realtime=channels` it also routes websockets to `config/websocket.py`
 - `<project_slug>/users/` — Custom user model (username or email-based auth via django-allauth); `User.get_absolute_url` says how a user is addressed and `User.display_name` how one is shown, and templates and views go through them instead of forking on `username_type` (`docs/adr/0003`); `users/tasks.py` holds the Django Tasks example (plus a Celery variant with `use_celery=y`)
 - `<project_slug>/htmx.py` — `HtmxTemplateMixin` (renders `template.html#partial` for htmx requests, adds `Vary: HX-Request`) and `HtmxLoginRedirectMiddleware` (turns login redirects into `HX-Redirect` for htmx requests)
-- `<project_slug>/sentry/` — With `use_sentry=y`, the app whose `ready()` initialises the Sentry SDK from the `SENTRY_*` settings that `production.py` defines and that install it
+- `<project_slug>/sentry/` — With `use_sentry=y`, the app whose `ready()` initialises the Sentry SDK from the `SENTRY_*` settings that `production.py` defines and that install it (`docs/adr/0006`)
 - `<project_slug>/tests/` — Project-level tests that belong to no single app: the Content Security Policy, the htmx helpers, with `realtime=channels` the websocket consumer and with `use_sentry=y` the Sentry wiring
+- `tests/` — Tests of the root-level files, pruned together with `.envs`: the dotenv merge script and the production settings loaded under the declared environment
 - `compose/` — Docker configs for local and production
 - `pyproject.toml` — The pinned dependencies, templated into `[project.dependencies]` and the `dev` dependency group; generation writes no `uv.lock`, the developer's first `uv sync` does
 - `<project_slug>/templates/` — Semantic HTML styled by the vendored Pico CSS (`<project_slug>/static/vendor/pico/`, pinned with SHA-256 metadata); htmx is loaded through django-htmx's `{% htmx_script %}` (with the `hx-ws` extension when `realtime=channels`). htmx fragments are `{% partialdef %}` partials inside the page template, selected with `htmx_partial` on the view. No Node.js, Bootstrap or asset pipeline.
