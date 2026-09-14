@@ -78,11 +78,12 @@ function install_or_upgrade()
         else
             upgrade_packages;
         fi
+        status=$?
 
         # cleaning downloaded packages from apt-get cache
         apt-get clean
 
-        exit 0
+        exit $status
     fi
 }
 
