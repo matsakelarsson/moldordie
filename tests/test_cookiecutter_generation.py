@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import tomllib
 from pathlib import Path
 
@@ -95,20 +96,29 @@ def hostile_context(context):
     }
 
 
-@pytest.fixture
-def bake(cookies):
-    """Generate the project ``answers`` select and open it through the reader.
+@pytest.fixture(scope="session")
+def bake(cookies_session):
+    """Generate the project ``answers`` select, once per test process, and open it through the reader.
 
     The answers reach Cookiecutter verbatim: a test that wants the defaults merges ``context``
     in itself. Generation must succeed; a test expecting the hook to refuse bakes through
     ``cookies``.
+
+    The complete answers, the catalogue's defaults filling in what ``answers`` leaves out,
+    are baked once per test process and every later call gets the same tree, so a test must
+    not modify it: a tool that rewrites files runs on a copy. Under xdist a process is a
+    worker, so a combination is baked once per worker that runs one of its tests.
     """
+    projects: dict[tuple[tuple[str, str], ...], GeneratedProject] = {}
 
     def bake(answers: dict[str, str]) -> GeneratedProject:
-        result = cookies.bake(extra_context=answers)
-        assert result.exception is None
-        assert result.exit_code == 0
-        return GeneratedProject(result.project_path)
+        key = tuple(sorted({**DEFAULT_ANSWERS, **answers}.items()))
+        if key not in projects:
+            result = cookies_session.bake(extra_context=answers)
+            assert result.exception is None
+            assert result.exit_code == 0
+            projects[key] = GeneratedProject(result.project_path)
+        return projects[key]
 
     return bake
 
@@ -246,8 +256,9 @@ def test_ruff_check_passes(bake, context_override):
     """Generated project should pass ruff check."""
     project = bake(context_override)
 
+    # No cache: ruff would write it into the shared tree.
     try:
-        sh.ruff("check", ".", _cwd=str(project.root))
+        sh.ruff("check", "--no-cache", ".", _cwd=str(project.root))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
 
@@ -259,16 +270,19 @@ def test_ruff_format_passes(bake, context_override):
     project = bake(context_override)
 
     try:
-        sh.ruff("format", "--check", ".", _cwd=str(project.root))
+        sh.ruff("format", "--check", "--no-cache", ".", _cwd=str(project.root))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
 
 
 @auto_fixable
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_django_upgrade_passes(bake, context_override):
+def test_django_upgrade_passes(bake, tmp_path, context_override):
     """django-upgrade, for the Django the project pins, would rewrite nothing in it."""
     project = bake(context_override)
+    # django-upgrade rewrites in place, so it runs on a copy of the shared tree.
+    copy = tmp_path / project.root.name
+    shutil.copytree(project.root, copy)
 
     python_files = [str(path) for path in project.files() if path.suffix == ".py"]
     try:
@@ -276,7 +290,7 @@ def test_django_upgrade_passes(bake, context_override):
             "--target-version",
             "6.0",
             *python_files,
-            _cwd=str(project.root),
+            _cwd=str(copy),
         )
     except sh.ErrorReturnCode as e:
         # django-upgrade names the files it rewrote on stderr.
