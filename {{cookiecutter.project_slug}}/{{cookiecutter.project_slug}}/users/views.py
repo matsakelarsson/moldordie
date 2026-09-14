@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.forms import ModelForm
-from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView
 from django.views.generic import RedirectView
@@ -61,11 +60,7 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
     request: AuthenticatedHttpRequest
 
     def get_redirect_url(self) -> str:
-        {%- if cookiecutter.username_type == "email" %}
-        return reverse("users:detail", kwargs={"pk": self.request.user.pk})
-        {%- else %}
-        return reverse("users:detail", kwargs={"username": self.request.user.username})
-        {%- endif %}
+        return self.request.user.get_absolute_url()
 
 
 user_redirect_view = UserRedirectView.as_view()

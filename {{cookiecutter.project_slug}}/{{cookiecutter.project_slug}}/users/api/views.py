@@ -66,12 +66,12 @@ def _get_users_queryset(request: AuthenticatedHttpRequest) -> QuerySet[User]:
 @router.get("/", response=list[UserSchema])
 def list_users(request: AuthenticatedHttpRequest) -> QuerySet[User]:
     return _get_users_queryset(request)
-{%- if cookiecutter.username_type == "email" %}
 
 
 @router.get("/me/", response=UserSchema)
 def retrieve_current_user(request: AuthenticatedHttpRequest) -> User:
     return request.user
+{%- if cookiecutter.username_type == "email" %}
 
 
 @router.get("/{pk}/", response=UserSchema)
@@ -79,11 +79,6 @@ def retrieve_user(request: AuthenticatedHttpRequest, pk: int) -> User:
     users_qs = _get_users_queryset(request)
     return get_object_or_404(users_qs, pk=pk)
 {%- else %}
-
-
-@router.get("/me/", response=UserSchema)
-def retrieve_current_user(request: AuthenticatedHttpRequest) -> User:
-    return request.user
 
 
 @router.get("/{username}/", response=UserSchema)

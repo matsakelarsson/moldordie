@@ -48,3 +48,12 @@ class User(AbstractUser):
         {%- else %}
         return reverse("users:detail", kwargs={"username": self.username})
         {%- endif %}
+
+    @property
+    def display_name(self) -> str:
+        """The name, or a fallback that never shows the email address."""
+        {%- if cookiecutter.username_type == "email" %}
+        return self.name.strip() or str(_("User"))
+        {%- else %}
+        return self.name.strip() or self.username
+        {%- endif %}

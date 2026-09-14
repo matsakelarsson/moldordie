@@ -3,7 +3,7 @@
 {% load i18n %}
 
 {% block title %}
-  {% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{{ user.name }}{% endraw %}{% else %}{% raw %}{{ user.username }}{% endraw %}{% endif %}{% raw %}
+  {{ user.display_name }}
 {% endblock title %}
 {% block content %}
   {% comment %}
@@ -17,7 +17,7 @@
     {% endif %}
     <article id="user-profile">
       <header>
-        <h1>{% endraw %}{% if cookiecutter.username_type == "email" %}{% raw %}{{ user.name }}{% endraw %}{% else %}{% raw %}{{ user.username }}{% endraw %}{% endif %}{% raw %}</h1>
+        <h1>{{ user.display_name }}</h1>
       </header>
       <form method="post"
             action="{% url 'users:update' %}"
