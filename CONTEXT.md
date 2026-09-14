@@ -71,6 +71,20 @@ on which other tests the context kept there.
 
 _Avoid_: describing it as a removal rule.
 
+## Bake
+
+Generating one project in the tests from a complete set of answers, through the `bake` fixture
+in `tests/test_cookiecutter_generation.py`, which returns the reader. The complete answers, the
+catalogue's defaults filling in what the test leaves out, are baked once per test process, and
+every test that bakes them gets the same tree, so no test modifies it: a tool that rewrites
+files runs on a copy. The hostile free-text answers are a bake of their own. Under xdist a
+process is a worker: the tests parametrized over the combinations are grouped so that one
+worker runs a combination's, and the hand-written tests bake on the worker that runs them
+(`docs/adr/0002`).
+
+_Avoid_: generating a project per test; result (pytest-cookies' object, which the fixture keeps
+to itself).
+
 ## Reader
 
 The view of a generated project that the tests use to locate files and inspect their contents:
