@@ -140,7 +140,9 @@ keep_full_version = true
 
 # ==== pytest ====
 [tool.pytest]
-addopts = [ "-v", "--tb=short" ]
+# --dist loadgroup is inert without -n. With it, xdist runs the tests that carry the same
+# xdist_group mark on one worker: the generation tests that share a bake share a worker.
+addopts = [ "-v", "--tb=short", "--dist", "loadgroup" ]
 markers = [
   "auto_fixable: style check on the generated projects that a formatter would fix; needs AUTOFIXABLE_STYLES=1",
 ]

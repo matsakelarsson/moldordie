@@ -107,7 +107,8 @@ def bake(cookies_session):
     The complete answers, the catalogue's defaults filling in what ``answers`` leaves out,
     are baked once per test process and every later call gets the same tree, so a test must
     not modify it: a tool that rewrites files runs on a copy. Under xdist a process is a
-    worker, so a combination is baked once per worker that runs one of its tests.
+    worker; the tests that share a combination's bake are grouped onto one worker
+    (``GROUPED_COMBINATIONS``), the hand-written tests bake on whichever worker runs them.
     """
     projects: dict[tuple[tuple[str, str], ...], GeneratedProject] = {}
 
@@ -184,6 +185,15 @@ def _fixture_id_of_first(value):
     return _fixture_id(value) if isinstance(value, dict) else ""
 
 
+# The supported combinations as parameters named after their answers, for the tests that bake
+# a combination's plain answers and so share its bake: they carry its name as their xdist
+# group, and loadgroup scheduling (``addopts`` in pyproject.toml) runs a group on one worker.
+GROUPED_COMBINATIONS = [
+    pytest.param(row, id=_fixture_id(row), marks=pytest.mark.xdist_group(_fixture_id(row)))
+    for row in SUPPORTED_COMBINATIONS
+]
+
+
 def check_po(content: str):
     """gettext strings take C's backslash escapes, which Python's literals share."""
     for line in content.splitlines():
@@ -241,8 +251,10 @@ def test_combinations_name_options_of_the_catalogue():
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
 def test_project_generation(bake, hostile_context, context_override):
-    """The project is generated, fully rendered and parseable, whatever the free-text answers."""
+    """The project is generated, fully rendered and parseable, whatever the free-text answers.
 
+    The hostile answers are this test's alone, so its cases join no group.
+    """
     project = bake({**hostile_context, **context_override})
     assert project.package == hostile_context["project_slug"]
     assert project.root.is_dir()
@@ -251,7 +263,7 @@ def test_project_generation(bake, hostile_context, context_override):
     check_files(project)
 
 
-@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_ruff_check_passes(bake, context_override):
     """Generated project should pass ruff check."""
     project = bake(context_override)
@@ -264,7 +276,7 @@ def test_ruff_check_passes(bake, context_override):
 
 
 @auto_fixable
-@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_ruff_format_passes(bake, context_override):
     """The generated project is formatted as ruff format would leave it."""
     project = bake(context_override)
@@ -276,7 +288,7 @@ def test_ruff_format_passes(bake, context_override):
 
 
 @auto_fixable
-@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_django_upgrade_passes(bake, tmp_path, context_override):
     """django-upgrade, for the Django the project pins, would rewrite nothing in it."""
     project = bake(context_override)
@@ -297,7 +309,7 @@ def test_django_upgrade_passes(bake, tmp_path, context_override):
         pytest.fail(e.stdout.decode() + e.stderr.decode())
 
 
-@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_djlint_lint_passes(bake, context_override):
     """Check whether generated project passes djLint --lint."""
     project = bake(context_override)
@@ -318,7 +330,7 @@ def test_djlint_lint_passes(bake, context_override):
 
 
 @auto_fixable
-@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_djlint_check_passes(bake, context_override):
     """Check whether generated project passes djLint --check."""
     project = bake(context_override)
@@ -638,7 +650,7 @@ def test_pyproject_pins_the_dependencies_of_the_chosen_options(bake, context_ove
     assert not unexpected & names
 
 
-@pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_pyproject_dependencies_are_pinned_and_sorted(bake, context_override):
     """Every dependency is pinned to one version, and the arrays are in the order pyproject-fmt keeps."""
     project = bake(context_override)
