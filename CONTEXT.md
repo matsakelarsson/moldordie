@@ -70,3 +70,10 @@ the websocket test goes, and the project-level tests package goes with it only i
 on which other tests the context kept there.
 
 _Avoid_: describing it as a removal rule.
+
+## Reader
+
+The view of a generated project that the tests use to locate files and inspect their contents:
+`GeneratedProject` in `tests/generated_project.py`, with `PythonModule` for what a Python file
+binds at module scope, read from its source alone (`docs/adr/0001`). Expected behaviour belongs
+to the tests: the reader asserts nothing, makes no existence check and validates no tree.

@@ -1,11 +1,9 @@
 import ast  # noqa: EXE002
-import glob
 import hashlib
 import json
 import os
 import re
 import tomllib
-from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -17,6 +15,9 @@ from cookiecutter.exceptions import FailedHookException
 from local_extensions import FLAG
 from local_extensions import OPTIONS
 from local_extensions import option_names
+from tests.generated_project import EnvRead
+from tests.generated_project import GeneratedProject
+from tests.generated_project import PythonModule
 
 PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
@@ -94,6 +95,24 @@ def hostile_context(context):
     }
 
 
+@pytest.fixture
+def bake(cookies):
+    """Generate the project ``answers`` select and open it through the reader.
+
+    The answers reach Cookiecutter verbatim: a test that wants the defaults merges ``context``
+    in itself. Generation must succeed; a test expecting the hook to refuse bakes through
+    ``cookies``.
+    """
+
+    def bake(answers: dict[str, str]) -> GeneratedProject:
+        result = cookies.bake(extra_context=answers)
+        assert result.exception is None
+        assert result.exit_code == 0
+        return GeneratedProject(result.project_path)
+
+    return bake
+
+
 # The pre-generation hook rejects these pairs of answers.
 UNSUPPORTED_COMBINATIONS = [
     {"cloud_provider": "None", "use_whitenoise": "n"},
@@ -155,18 +174,6 @@ def _fixture_id_of_first(value):
     return _fixture_id(value) if isinstance(value, dict) else ""
 
 
-def build_files_list(base_path: Path):
-    """Build a list containing absolute paths to the generated files."""
-    excluded_dirs = {".venv", "__pycache__"}
-
-    f = []
-    for dirpath, subdirs, files in base_path.walk():
-        subdirs[:] = [d for d in subdirs if d not in excluded_dirs]
-
-        f.extend(dirpath / file_path for file_path in files)
-    return f
-
-
 def check_po(content: str):
     """gettext strings take C's backslash escapes, which Python's literals share."""
     for line in content.splitlines():
@@ -185,13 +192,13 @@ PARSERS = {
 }
 
 
-def check_paths(paths: Iterable[Path]):
+def check_files(project: GeneratedProject):
     """Every text file is fully rendered and, if it has a syntax, parses."""
-    for path in paths:
-        if is_binary(str(path)):
+    for path in project.files():
+        if is_binary(str(project.root / path)):
             continue
 
-        content = path.read_text()
+        content = project.text(path)
         match = RE_OBJ.search(content)
         assert match is None, f"cookiecutter variable not replaced in {path}"
         assert RE_PLACEHOLDER.search(content) is None, f"secret not filled in {path}"
@@ -201,25 +208,6 @@ def check_paths(paths: Iterable[Path]):
                 parse(content)
             except (SyntaxError, ValueError, yaml.YAMLError) as e:
                 pytest.fail(f"{path} does not parse: {e}")
-
-
-def literal_assignments(path: Path) -> dict[str, object]:
-    """The module-level names a Python file binds to literals, with their values."""
-    values = {}
-    for node in ast.parse(path.read_text()).body:
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        else:
-            continue
-        for target in targets:
-            if isinstance(target, ast.Name):
-                try:
-                    values[target.id] = ast.literal_eval(node.value)
-                except ValueError:
-                    continue
-    return values
 
 
 def test_every_choice_is_baked():
@@ -242,59 +230,53 @@ def test_combinations_name_options_of_the_catalogue():
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_project_generation(cookies, hostile_context, context_override):
+def test_project_generation(bake, hostile_context, context_override):
     """The project is generated, fully rendered and parseable, whatever the free-text answers."""
 
-    result = cookies.bake(extra_context={**hostile_context, **context_override})
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert result.project_path.name == hostile_context["project_slug"]
-    assert result.project_path.is_dir()
+    project = bake({**hostile_context, **context_override})
+    assert project.package == hostile_context["project_slug"]
+    assert project.root.is_dir()
 
-    paths = build_files_list(result.project_path)
-    assert paths
-    check_paths(paths)
+    assert project.files()
+    check_files(project)
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_ruff_check_passes(cookies, context_override):
+def test_ruff_check_passes(bake, context_override):
     """Generated project should pass ruff check."""
-    result = cookies.bake(extra_context=context_override)
+    project = bake(context_override)
 
     try:
-        sh.ruff("check", ".", _cwd=str(result.project_path))
+        sh.ruff("check", ".", _cwd=str(project.root))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
 
 
 @auto_fixable
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_ruff_format_passes(cookies, context_override):
+def test_ruff_format_passes(bake, context_override):
     """The generated project is formatted as ruff format would leave it."""
-    result = cookies.bake(extra_context=context_override)
+    project = bake(context_override)
 
     try:
-        sh.ruff("format", "--check", ".", _cwd=str(result.project_path))
+        sh.ruff("format", "--check", ".", _cwd=str(project.root))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
 
 
 @auto_fixable
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_django_upgrade_passes(cookies, context_override):
+def test_django_upgrade_passes(bake, context_override):
     """django-upgrade, for the Django the project pins, would rewrite nothing in it."""
-    result = cookies.bake(extra_context=context_override)
+    project = bake(context_override)
 
-    python_files = [
-        file_path.removeprefix(f"{result.project_path}/")
-        for file_path in glob.glob(str(result.project_path / "**" / "*.py"), recursive=True)  # noqa: PTH207
-    ]
+    python_files = [str(path) for path in project.files() if path.suffix == ".py"]
     try:
         sh.django_upgrade(
             "--target-version",
             "6.0",
             *python_files,
-            _cwd=str(result.project_path),
+            _cwd=str(project.root),
         )
     except sh.ErrorReturnCode as e:
         # django-upgrade names the files it rewrote on stderr.
@@ -302,9 +284,9 @@ def test_django_upgrade_passes(cookies, context_override):
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_djlint_lint_passes(cookies, context_override):
+def test_djlint_lint_passes(bake, context_override):
     """Check whether generated project passes djLint --lint."""
-    result = cookies.bake(extra_context=context_override)
+    project = bake(context_override)
 
     autofixable_rules = "H014,T001"
     # TODO: remove T002 when fixed https://github.com/Riverside-Healthcare/djLint/issues/687
@@ -315,7 +297,7 @@ def test_djlint_lint_passes(cookies, context_override):
             "--ignore",
             f"{autofixable_rules},{ignored_rules}",
             ".",
-            _cwd=str(result.project_path),
+            _cwd=str(project.root),
         )
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
@@ -323,12 +305,12 @@ def test_djlint_lint_passes(cookies, context_override):
 
 @auto_fixable
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_djlint_check_passes(cookies, context_override):
+def test_djlint_check_passes(bake, context_override):
     """Check whether generated project passes djLint --check."""
-    result = cookies.bake(extra_context=context_override)
+    project = bake(context_override)
 
     try:
-        sh.djlint("--check", ".", _cwd=str(result.project_path))
+        sh.djlint("--check", ".", _cwd=str(project.root))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
 
@@ -349,32 +331,26 @@ CI_SCRIPT_CASES = [
     CI_SCRIPT_CASES,
 )
 def test_gitlab_invokes_precommit_mypy_and_pytest(
-    cookies,
+    bake,
     context,
     use_docker,
     expected_typecheck_script,
     expected_test_script,
 ):
     context.update({"ci_tool": "Gitlab", "use_docker": use_docker})
-    result = cookies.bake(extra_context=context)
+    project = bake(context)
 
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert result.project_path.name == context["project_slug"]
-    assert result.project_path.is_dir()
+    assert project.package == context["project_slug"]
+    assert project.root.is_dir()
 
-    with (result.project_path / ".gitlab-ci.yml").open() as gitlab_yml:
-        try:
-            gitlab_config = yaml.safe_load(gitlab_yml)
-            assert gitlab_config["precommit"]["script"] == [
-                "uv run pre-commit run --show-diff-on-failure --color=always --all-files",
-            ]
-            assert gitlab_config["pytest"]["script"] == [
-                expected_typecheck_script,
-                expected_test_script,
-            ]
-        except yaml.YAMLError as e:
-            pytest.fail(e)
+    gitlab_config = project.yaml(".gitlab-ci.yml")
+    assert gitlab_config["precommit"]["script"] == [
+        "uv run pre-commit run --show-diff-on-failure --color=always --all-files",
+    ]
+    assert gitlab_config["pytest"]["script"] == [
+        expected_typecheck_script,
+        expected_test_script,
+    ]
 
 
 @pytest.mark.parametrize(
@@ -382,37 +358,31 @@ def test_gitlab_invokes_precommit_mypy_and_pytest(
     CI_SCRIPT_CASES,
 )
 def test_github_invokes_linter_mypy_and_pytest(
-    cookies,
+    bake,
     context,
     use_docker,
     expected_typecheck_script,
     expected_test_script,
 ):
     context.update({"ci_tool": "Github", "use_docker": use_docker})
-    result = cookies.bake(extra_context=context)
+    project = bake(context)
 
-    assert result.exit_code == 0
-    assert result.exception is None
-    assert result.project_path.name == context["project_slug"]
-    assert result.project_path.is_dir()
+    assert project.package == context["project_slug"]
+    assert project.root.is_dir()
 
-    with (result.project_path / ".github" / "workflows" / "ci.yml").open() as github_yml:
-        try:
-            github_config = yaml.safe_load(github_yml)
-            linter_present = False
-            for action_step in github_config["jobs"]["linter"]["steps"]:
-                if action_step.get("uses", "NA").startswith("pre-commit"):
-                    linter_present = True
-            assert linter_present
+    github_config = project.yaml(".github/workflows/ci.yml")
+    linter_present = False
+    for action_step in github_config["jobs"]["linter"]["steps"]:
+        if action_step.get("uses", "NA").startswith("pre-commit"):
+            linter_present = True
+    assert linter_present
 
-            typecheck_steps = [step.get("run") for step in github_config["jobs"]["typecheck"]["steps"]]
-            assert expected_typecheck_script in typecheck_steps
+    typecheck_steps = [step.get("run") for step in github_config["jobs"]["typecheck"]["steps"]]
+    assert expected_typecheck_script in typecheck_steps
 
-            pytest_steps = [step.get("run") for step in github_config["jobs"]["pytest"]["steps"]]
-            assert expected_test_script in pytest_steps
-            assert expected_typecheck_script not in pytest_steps
-        except yaml.YAMLError as e:
-            pytest.fail(e)
+    pytest_steps = [step.get("run") for step in github_config["jobs"]["pytest"]["steps"]]
+    assert expected_test_script in pytest_steps
+    assert expected_typecheck_script not in pytest_steps
 
 
 @pytest.mark.parametrize("slug", ["project slug", "Project_Slug"])
@@ -469,7 +439,7 @@ def test_error_if_incompatible(cookies, context, invalid_context):
     assert isinstance(result.exception, FailedHookException)
 
 
-def test_trim_domain_email(cookies, context):
+def test_trim_domain_email(bake, context):
     """Check that leading and trailing spaces are trimmed in domain and email."""
     context.update(
         {
@@ -478,15 +448,10 @@ def test_trim_domain_email(cookies, context):
             "email": "  me@example.com  ",
         },
     )
-    result = cookies.bake(extra_context=context)
+    project = bake(context)
 
-    assert result.exit_code == 0
-
-    prod_django_env = result.project_path / ".envs" / ".production" / ".django"
-    assert "DJANGO_ALLOWED_HOSTS=.example.com" in prod_django_env.read_text()
-
-    base_settings = result.project_path / "config" / "settings" / "base.py"
-    assert "<me@example.com>" in base_settings.read_text()
+    assert project.env("production", "django")["DJANGO_ALLOWED_HOSTS"] == ".example.com"
+    assert "<me@example.com>" in project.settings("base").source
 
 
 # The generated files that hold a secret drawn on each bake, so two bakes never agree on them.
@@ -500,22 +465,16 @@ SECRET_FILES = {
 }
 
 
-def project_contents(project_path: Path) -> dict[str, bytes]:
+def project_contents(project: GeneratedProject) -> dict[str, bytes]:
     """Every generated file by its path relative to the project root, with its content."""
-    return {str(path.relative_to(project_path)): path.read_bytes() for path in build_files_list(project_path)}
+    return {str(path): project.bytes(path) for path in project.files()}
 
 
-def env_values(path: Path) -> dict[str, str]:
-    """The ``NAME=value`` lines of a generated env file."""
-    lines = (line for line in path.read_text().splitlines() if line and not line.startswith("#"))
-    return dict(line.split("=", 1) for line in lines)
-
-
-def settings_default(path: Path, name: str) -> str:
-    """The default a generated settings file gives ``env()`` for ``name``."""
-    match = re.search(rf'"{name}",\s*default="([^"]*)"', path.read_text())
-    assert match is not None, f"{path} has no default for {name}"
-    return match.group(1)
+def env_read(module: PythonModule, name: str) -> EnvRead:
+    """The one read of ``name`` through ``env`` in ``module``."""
+    reads = [read for read in module.env_reads() if read.name == name]
+    assert len(reads) == 1, f"{module.path} reads {name} {len(reads)} times, not once"
+    return reads[0]
 
 
 TOKEN = re.compile(r"[A-Za-z0-9]{64}")
@@ -524,16 +483,13 @@ ROLE = re.compile(r"[A-Za-z]{32}")
 SHARED_ROLES = ("POSTGRES_USER", "CELERY_FLOWER_USER")
 
 
-def test_secrets_are_drawn_once_each(cookies, context):
+def test_secrets_are_drawn_once_each(bake, context):
     """The database and Flower roles are the same in both environments; every other secret is its own."""
-    result = cookies.bake(extra_context={**context, "use_celery": "y"})
-    assert result.exit_code == 0
-    envs = result.project_path / ".envs"
-    local_django = env_values(envs / ".local" / ".django")
-    local_postgres = env_values(envs / ".local" / ".postgres")
-    production_django = env_values(envs / ".production" / ".django")
-    production_postgres = env_values(envs / ".production" / ".postgres")
-    settings = result.project_path / "config" / "settings"
+    project = bake({**context, "use_celery": "y"})
+    local_django = project.env("local", "django")
+    local_postgres = project.env("local", "postgres")
+    production_django = project.env("production", "django")
+    production_postgres = project.env("production", "postgres")
 
     roles = {local_postgres["POSTGRES_USER"], local_django["CELERY_FLOWER_USER"]}
     assert local_postgres["POSTGRES_USER"] == production_postgres["POSTGRES_USER"]
@@ -547,31 +503,29 @@ def test_secrets_are_drawn_once_each(cookies, context):
         local_django["CELERY_FLOWER_PASSWORD"],
         production_django["CELERY_FLOWER_PASSWORD"],
         production_django["DJANGO_SECRET_KEY"],
-        settings_default(settings / "local.py", "DJANGO_SECRET_KEY"),
-        settings_default(settings / "test.py", "DJANGO_SECRET_KEY"),
+        env_read(project.settings("local"), "DJANGO_SECRET_KEY").default,
+        env_read(project.settings("test"), "DJANGO_SECRET_KEY").default,
     ]
     assert len(set(tokens)) == len(tokens)
     assert all(TOKEN.fullmatch(token) for token in tokens)
     assert re.fullmatch(r"[A-Za-z0-9]{32}/", production_django["DJANGO_ADMIN_URL"])
 
 
-def test_debug_answer_fixes_the_credentials(cookies, context):
+def test_debug_answer_fixes_the_credentials(bake, context):
     """With debug, the credentials read ``debug`` while the keys and the admin URL stay random."""
-    result = cookies.bake(extra_context={**context, "use_celery": "y", "debug": "y"})
-    assert result.exit_code == 0
-    envs = result.project_path / ".envs"
-    for environment in (".local", ".production"):
-        django = env_values(envs / environment / ".django")
-        postgres = env_values(envs / environment / ".postgres")
+    project = bake({**context, "use_celery": "y", "debug": "y"})
+    for environment in ("local", "production"):
+        django = project.env(environment, "django")
+        postgres = project.env(environment, "postgres")
         assert postgres["POSTGRES_USER"] == postgres["POSTGRES_PASSWORD"] == "debug"
         assert django["CELERY_FLOWER_USER"] == django["CELERY_FLOWER_PASSWORD"] == "debug"
-    production_django = env_values(envs / ".production" / ".django")
+    production_django = project.env("production", "django")
     assert TOKEN.fullmatch(production_django["DJANGO_SECRET_KEY"])
     assert re.fullmatch(r"[A-Za-z0-9]{32}/", production_django["DJANGO_ADMIN_URL"])
 
 
 @pytest.mark.parametrize("answer", ["y", "n"])
-def test_uppercase_flag_answers_select_the_same_features(cookies, context, answer):
+def test_uppercase_flag_answers_select_the_same_features(bake, context, answer):
     """Every yes/no answer typed in uppercase generates the project its lowercase spelling does.
 
     The answers are lowercased before rendering, so every reader sees one spelling: the
@@ -580,30 +534,26 @@ def test_uppercase_flag_answers_select_the_same_features(cookies, context, answe
     pass on two projects that ignored the answers alike.
     """
     answers = dict.fromkeys(FLAG_OPTIONS, answer)
-    lowercase = cookies.bake(extra_context={**context, **answers})
-    uppercase = cookies.bake(extra_context={**context, **dict.fromkeys(FLAG_OPTIONS, answer.upper())})
-    assert lowercase.exit_code == 0
-    assert uppercase.exit_code == 0
+    lowercase = bake({**context, **answers})
+    uppercase = bake({**context, **dict.fromkeys(FLAG_OPTIONS, answer.upper())})
 
-    expected = project_contents(lowercase.project_path)
-    generated = project_contents(uppercase.project_path)
+    expected = project_contents(lowercase)
+    generated = project_contents(uppercase)
     assert generated.keys() == expected.keys()
     differing = {path for path in expected if generated[path] != expected[path]}
     assert differing <= SECRET_FILES
 
-    project = uppercase.project_path
     selected = answer == "y"
-    pinned = {package_name(requirement) for array in pinned_dependencies(project).values() for requirement in array}
-    assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned) is selected
-    assert ("sentry_sdk" in (project / "config" / "settings" / "production.py").read_text()) is selected
-    assert (project / "docker-compose.local.yml").exists() is selected
-    assert (project / ".envs").exists() is selected
-    assert ("!.envs/.local/" in (project / ".gitignore").read_text()) is selected
+    assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned(uppercase)) is selected
+    assert ("sentry_sdk" in uppercase.settings("production").source) is selected
+    assert (uppercase.root / "docker-compose.local.yml").exists() is selected
+    assert (uppercase.root / ".envs").exists() is selected
+    assert ("!.envs/.local/" in uppercase.text(".gitignore")) is selected
     if selected:
-        assert "POSTGRES_USER=debug" in (project / ".envs" / ".local" / ".postgres").read_text()
+        assert uppercase.env("local", "postgres")["POSTGRES_USER"] == "debug"
 
 
-def test_pyproject_toml(cookies, context):
+def test_pyproject_toml(bake, context):
     # Free-text answers with the characters that end or escape a TOML string.
     author_name = 'Project "Quoted" Author'
     author_email = "me@example.com"
@@ -616,12 +566,9 @@ def test_pyproject_toml(cookies, context):
             "author_name": author_name,
         },
     )
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    pyproject_toml = result.project_path / "pyproject.toml"
-
-    data = tomllib.loads(pyproject_toml.read_text())
+    data = project.pyproject
 
     assert data
     assert data["project"]["authors"][0]["email"] == author_email
@@ -635,15 +582,9 @@ def test_pyproject_toml(cookies, context):
     assert data["tool"]["mypy"]["python_version"] == "3.12"
 
 
-def pinned_dependencies(project_path: Path) -> dict[str, list[str]]:
-    """The requirements each array of the generated ``pyproject.toml`` lists."""
-    data = tomllib.loads((project_path / "pyproject.toml").read_text())
-    return {"dependencies": data["project"]["dependencies"], **data["dependency-groups"]}
-
-
-def package_name(requirement: str) -> str:
-    """The distribution name of a pinned requirement, without its extras."""
-    return requirement.split("==", maxsplit=1)[0].split("[", maxsplit=1)[0]
+def pinned(project: GeneratedProject) -> set[str]:
+    """The distribution names the generated ``pyproject.toml`` pins, across its arrays."""
+    return {pin.name for array in project.pins.values() for pin in array}
 
 
 # (answers, packages the generated project must pin, packages it must not)
@@ -674,47 +615,40 @@ DEPENDENCY_CASES = [
 
 
 @pytest.mark.parametrize(("context_override", "expected", "unexpected"), DEPENDENCY_CASES, ids=_fixture_id_of_first)
-def test_pyproject_pins_the_dependencies_of_the_chosen_options(cookies, context_override, expected, unexpected):
+def test_pyproject_pins_the_dependencies_of_the_chosen_options(bake, context_override, expected, unexpected):
     """The dependencies an option needs are pinned in pyproject.toml, and only then."""
-    result = cookies.bake(extra_context=context_override)
-    assert result.exit_code == 0
+    project = bake(context_override)
 
-    pinned = {
-        package_name(requirement)
-        for array in pinned_dependencies(result.project_path).values()
-        for requirement in array
-    }
-    assert expected <= pinned
-    assert not unexpected & pinned
+    names = pinned(project)
+    assert expected <= names
+    assert not unexpected & names
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
-def test_pyproject_dependencies_are_pinned_and_sorted(cookies, context_override):
+def test_pyproject_dependencies_are_pinned_and_sorted(bake, context_override):
     """Every dependency is pinned to one version, and the arrays are in the order pyproject-fmt keeps."""
-    result = cookies.bake(extra_context=context_override)
-    assert result.exit_code == 0
+    project = bake(context_override)
 
-    arrays = pinned_dependencies(result.project_path)
+    arrays = project.pins
     assert set(arrays) == {"dependencies", "dev"}
     for name, requirements in arrays.items():
-        unpinned = [requirement for requirement in requirements if "==" not in requirement]
+        unpinned = [str(pin) for pin in requirements if [spec.operator for spec in pin.specifier] != ["=="]]
         assert not unpinned, f"{name} does not pin {unpinned}"
-        expected = sorted(requirements, key=lambda requirement: (package_name(requirement), requirement))
+        expected = sorted(requirements, key=lambda pin: (pin.name, str(pin)))
         assert requirements == expected, f"{name} is not sorted"
 
 
-def test_generation_writes_no_lock_file(cookies, context):
+def test_generation_writes_no_lock_file(bake, context):
     """Generation resolves nothing: the developer's first ``uv sync`` writes the lock file."""
-    result = cookies.bake(extra_context={**context, "use_docker": "y"})
-    assert result.exit_code == 0
+    project = bake({**context, "use_docker": "y"})
 
-    assert not (result.project_path / "uv.lock").exists()
-    assert not (result.project_path / ".venv").exists()
-    assert not (result.project_path / "requirements").exists()
-    assert not (result.project_path / "compose" / "local" / "uv").exists()
+    assert not (project.root / "uv.lock").exists()
+    assert not (project.root / ".venv").exists()
+    assert not (project.root / "requirements").exists()
+    assert not (project.root / "compose" / "local" / "uv").exists()
 
 
-def test_free_text_answers_survive_escaping(cookies, hostile_context):
+def test_free_text_answers_survive_escaping(bake, hostile_context):
     """Each free-text answer reads back unchanged from the generated file it was escaped into."""
     hostile_context.update(
         {
@@ -723,96 +657,89 @@ def test_free_text_answers_survive_escaping(cookies, hostile_context):
             "timezone": 'Zone/"Quoted"',  # nothing here starts Django, which would reject it
         },
     )
-    result = cookies.bake(extra_context=hostile_context)
-    assert result.exit_code == 0
-    project_slug = hostile_context["project_slug"]
+    project = bake(hostile_context)
     project_name = hostile_context["project_name"]
     author_name = hostile_context["author_name"]
     email = hostile_context["email"]
 
-    settings = literal_assignments(result.project_path / "config" / "settings" / "base.py")
-    assert settings["TIME_ZONE"] == hostile_context["timezone"]
-    assert settings["ADMINS"] == [f'"{author_name}" <{email}>']
-    assert settings["SPECTACULAR_SETTINGS"]["TITLE"] == f"{project_name} API"
+    settings = project.settings("base")
+    assert settings.literal("TIME_ZONE") == hostile_context["timezone"]
+    assert settings.literal("ADMINS") == [f'"{author_name}" <{email}>']
+    assert settings.literal("SPECTACULAR_SETTINGS")["TITLE"] == f"{project_name} API"
 
-    sphinx = literal_assignments(result.project_path / "docs" / "conf.py")
-    assert sphinx["project"] == project_name
-    assert sphinx["author"] == author_name
-    assert sphinx["copyright"].endswith(f", {author_name}")
+    sphinx = project.module("docs/conf.py")
+    assert sphinx.literal("project") == project_name
+    assert sphinx.literal("author") == author_name
+    assert sphinx.literal("copyright").endswith(f", {author_name}")
 
-    package = literal_assignments(result.project_path / project_slug / "__init__.py")
-    assert package["__version__"] == hostile_context["version"]
+    package = project.module(f"{hostile_context['project_slug']}/__init__.py")
+    assert package.literal("__version__") == hostile_context["version"]
 
-    traefik = yaml.safe_load((result.project_path / "compose" / "production" / "traefik" / "traefik.yml").read_text())
+    traefik = project.yaml("compose/production/traefik/traefik.yml")
     assert traefik["certificatesResolvers"]["letsencrypt"]["acme"]["email"] == email
 
-    base_html = (result.project_path / project_slug / "templates" / "base.html").read_text()
+    base_html = project.template("base.html")
     assert "My &#34;Test&#34; Project\\" in base_html
     assert 'content="She said &#34;hi&#34; &amp; &lt;left&gt; C:\\path, it&#39;s fine."' in base_html
     assert 'content="Tess &#34;Quoted&#34; O&#39;Brien"' in base_html
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
-def test_strict_typing_setup(cookies, context, rest_api):
+def test_strict_typing_setup(bake, context, rest_api):
     """The generated project is type checked in strict mode with the right plugins and request types."""
     context.update({"rest_api": rest_api})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    pyproject = (result.project_path / "pyproject.toml").read_text()
-    assert "strict = true" in pyproject
-    assert "mypy_django_plugin.main" in pyproject
-    assert ("mypy_drf_plugin.main" in pyproject) is (rest_api == "DRF")
-    assert ("runtime-evaluated-decorators" in pyproject) is (rest_api == "Django Ninja")
+    pyproject = project.pyproject
+    assert pyproject["tool"]["mypy"]["strict"] is True
+    assert "mypy_django_plugin.main" in pyproject["tool"]["mypy"]["plugins"]
+    assert ("mypy_drf_plugin.main" in pyproject["tool"]["mypy"]["plugins"]) is (rest_api == "DRF")
+    type_checking = pyproject["tool"]["ruff"]["lint"].get("flake8-type-checking", {})
+    assert ("runtime-evaluated-decorators" in type_checking) is (rest_api == "Django Ninja")
 
-    typedefs = (result.project_path / context["project_slug"] / "typedefs.py").read_text()
+    typedefs = project.text(f"{context['project_slug']}/typedefs.py")
     assert "class AuthenticatedHttpRequest(HttpRequest):" in typedefs
     assert "class AuthenticatedHtmxRequest(" in typedefs
     assert ("class AuthenticatedApiRequest(Request):" in typedefs) is (rest_api == "DRF")
 
 
 @pytest.mark.parametrize("realtime", ["none", "channels"])
-def test_asgi_entrypoint(cookies, context, realtime):
+def test_asgi_entrypoint(bake, context, realtime):
     """Every project is served through ASGI; the Channels wiring is only generated on request."""
     context.update({"realtime": realtime})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    config = result.project_path / "config"
+    config = project.root / "config"
     assert (config / "asgi.py").exists()
     assert not (config / "wsgi.py").exists()
-    base_settings = (config / "settings" / "base.py").read_text()
-    assert 'ASGI_APPLICATION = "config.asgi.application"' in base_settings
-    assert "WSGI_APPLICATION" not in base_settings
+    base = project.settings("base")
+    assert 'ASGI_APPLICATION = "config.asgi.application"' in base.source
+    assert "WSGI_APPLICATION" not in base.source
 
     uses_channels = realtime == "channels"
     assert (config / "websocket.py").exists() is uses_channels
-    websocket_test = result.project_path / context["project_slug"] / "tests" / "test_websocket.py"
+    websocket_test = project.root / context["project_slug"] / "tests" / "test_websocket.py"
     assert websocket_test.exists() is uses_channels
-    assert ('"channels",' in base_settings) is uses_channels
-    assert "CHANNEL_LAYERS" not in base_settings
-    local_settings = (config / "settings" / "local.py").read_text()
-    assert ("InMemoryChannelLayer" in local_settings) is uses_channels
-    test_settings = (config / "settings" / "test.py").read_text()
-    assert ("InMemoryChannelLayer" in test_settings) is uses_channels
-    production_settings = (config / "settings" / "production.py").read_text()
-    assert ("channels_redis.core.RedisChannelLayer" in production_settings) is uses_channels
-    pyproject = (result.project_path / "pyproject.toml").read_text()
-    assert "uvicorn[standard]" in pyproject
-    assert "uvicorn-worker" in pyproject
-    assert ("channels-redis" in pyproject) is uses_channels
-    assert ("types-channels" in pyproject) is uses_channels
-    base_html = (result.project_path / context["project_slug"] / "templates" / "base.html").read_text()
+    assert ("channels" in base.literal("INSTALLED_APPS")) is uses_channels
+    assert "CHANNEL_LAYERS" not in base.source
+    assert ("InMemoryChannelLayer" in project.settings("local").source) is uses_channels
+    assert ("InMemoryChannelLayer" in project.settings("test").source) is uses_channels
+    assert ("channels_redis.core.RedisChannelLayer" in project.settings("production").source) is uses_channels
+    assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "uvicorn"] == [{"standard"}]
+    names = pinned(project)
+    assert "uvicorn-worker" in names
+    assert ("channels-redis" in names) is uses_channels
+    assert ("types-channels" in names) is uses_channels
+    base_html = project.template("base.html")
     assert ('{% htmx_script extensions="hx-ws" %}' in base_html) is uses_channels
     assert ("{% htmx_script %}" in base_html) is not uses_channels
 
 
 @pytest.mark.parametrize("use_docker", ["y", "n"])
-def test_docker_compose_files_match_use_docker(cookies, context, use_docker):
+def test_docker_compose_files_match_use_docker(bake, context, use_docker):
     """All docker-compose files, including the docs one, are only generated with use_docker=y."""
     context.update({"use_docker": use_docker})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     compose_files = [
         "docker-compose.local.yml",
@@ -820,111 +747,103 @@ def test_docker_compose_files_match_use_docker(cookies, context, use_docker):
         "docker-compose.docs.yml",
     ]
     for compose_file in compose_files:
-        assert (result.project_path / compose_file).exists() is (use_docker == "y")
+        assert (project.root / compose_file).exists() is (use_docker == "y")
 
 
 @pytest.mark.parametrize("realtime", ["none", "channels"])
-def test_docker_serves_asgi(cookies, context, realtime):
+def test_docker_serves_asgi(bake, context, realtime):
     """The Docker start scripts run Uvicorn; local development needs no Redis for Channels."""
     context.update({"realtime": realtime, "use_docker": "y"})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    local_start = (result.project_path / "compose" / "local" / "django" / "start").read_text()
+    local_start = project.text("compose/local/django/start")
     assert "exec uvicorn config.asgi:application" in local_start
-    production_start = (result.project_path / "compose" / "production" / "django" / "start").read_text()
+    production_start = project.text("compose/production/django/start")
     assert "exec gunicorn config.asgi" in production_start
     assert "uvicorn_worker.UvicornWorker" in production_start
 
-    compose = yaml.safe_load((result.project_path / "docker-compose.local.yml").read_text())
+    compose = project.compose("local")
     assert "redis" not in compose["services"]
     assert "taskworker" not in compose["services"]
 
 
-def test_frontend_stack(cookies, context):
+def test_frontend_stack(bake, context):
     """Generated project uses django-htmx + vendored Pico CSS and has no Node.js/asset pipeline leftovers."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     for path in FRONTEND_TOOLCHAIN_PATHS:
-        assert not (result.project_path / path).exists(), f"{path} should not be generated"
+        assert not (project.root / path).exists(), f"{path} should not be generated"
 
     offenders = []
-    for path in build_files_list(result.project_path):
-        if "static/vendor/" in path.as_posix() or is_binary(str(path)):
+    for path in project.files():
+        if "static/vendor/" in path.as_posix() or is_binary(str(project.root / path)):
             continue
-        content = path.read_text().lower()
+        content = project.text(path).lower()
         offenders.extend(f"{path}: {token}" for token in FRONTEND_TOOLCHAIN_TOKENS if token in content)
     assert offenders == []
 
-    settings = (result.project_path / "config" / "settings" / "base.py").read_text()
-    assert '"django_htmx",' in settings
-    assert '"django_htmx.middleware.HtmxMiddleware",' in settings
-    assert "django-htmx==" in (result.project_path / "pyproject.toml").read_text()
+    base = project.settings("base")
+    assert "django_htmx" in base.literal("INSTALLED_APPS")
+    assert "django_htmx.middleware.HtmxMiddleware" in base.literal("MIDDLEWARE")
+    assert "django-htmx" in pinned(project)
 
-    base_html = (result.project_path / "my_test_project" / "templates" / "base.html").read_text()
+    base_html = project.template("base.html")
     assert "{% htmx_script %}" in base_html
     assert 'hx-headers=\'{"X-CSRFToken": "{{ csrf_token }}"}\'' in base_html
     assert "vendor/pico/pico.min.css" in base_html
 
 
-def test_no_remote_assets(cookies, context):
+def test_no_remote_assets(bake, context):
     """No stylesheet or script is loaded from a CDN or any other remote host."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     offenders = [
-        path
-        for path in build_files_list(result.project_path)
-        if path.suffix == ".html" and RE_REMOTE_ASSET.search(path.read_text())
+        path for path in project.files() if path.suffix == ".html" and RE_REMOTE_ASSET.search(project.text(path))
     ]
     assert offenders == []
 
 
-def test_vendored_pico_intact(cookies, context):
+def test_vendored_pico_intact(bake, context):
     """The vendored Pico CSS is copied byte-for-byte and matches its recorded checksum."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    vendor_dir = result.project_path / "my_test_project" / "static" / "vendor" / "pico"
-    metadata = json.loads((vendor_dir / "pico.json").read_text())
-    css = (vendor_dir / metadata["file"]).read_bytes()
+    vendor_dir = Path("my_test_project") / "static" / "vendor" / "pico"
+    metadata = project.json(vendor_dir / "pico.json")
+    css = project.bytes(vendor_dir / metadata["file"])
 
     assert hashlib.sha256(css).hexdigest() == metadata["sha256"]
     assert f"v{metadata['version']}".encode() in css[:300]
-    assert (vendor_dir / "LICENSE.md").read_text().startswith("MIT License")
+    assert project.text(vendor_dir / "LICENSE.md").startswith("MIT License")
 
 
-def test_no_inline_code_in_templates(cookies, context):
+def test_no_inline_code_in_templates(bake, context):
     """Templates contain no inline scripts, styles or event handlers, which the CSP would block."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     offenders = []
-    for path in build_files_list(result.project_path):
+    for path in project.files():
         if path.suffix != ".html":
             continue
-        match = RE_INLINE_CODE.search(path.read_text())
+        match = RE_INLINE_CODE.search(project.text(path))
         if match:
             offenders.append(f"{path}: {match.group(0)}")
     assert offenders == []
 
 
-def test_template_partials(cookies, context):
+def test_template_partials(bake, context):
     """htmx fragments are Django template partials selected by HtmxTemplateMixin."""
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    templates = result.project_path / context["project_slug"] / "templates"
-    assert not (templates / "users" / "partials").exists()
-    assert not (templates / "partials" / "messages.html").exists()
-    assert "{% partialdef messages inline %}" in (templates / "base.html").read_text()
+    templates = Path(context["project_slug"]) / "templates"
+    assert not (project.root / templates / "users" / "partials").exists()
+    assert not (project.root / templates / "partials" / "messages.html").exists()
+    assert "{% partialdef messages inline %}" in project.template("base.html")
     for name in ("user_detail.html", "user_form.html"):
-        template = (templates / "users" / name).read_text()
+        template = project.template(f"users/{name}")
         assert "{% partialdef profile inline %}" in template
         assert '{% include "base.html#messages" %}' in template
 
-    views = (result.project_path / context["project_slug"] / "users" / "views.py").read_text()
+    views = project.text(f"{context['project_slug']}/users/views.py")
     assert 'htmx_partial = "profile"' in views
     assert "htmx_template_name" not in views
 
@@ -932,77 +851,75 @@ def test_template_partials(cookies, context):
     # that reads the request makes every page including it vary by HX-Request.
     offenders = [
         path
-        for path in build_files_list(result.project_path / context["project_slug"] / "templates")
-        if path.suffix == ".html" and "request.htmx" in path.read_text()
+        for path in project.files()
+        if path.is_relative_to(templates) and path.suffix == ".html" and "request.htmx" in project.text(path)
     ]
     assert offenders == []
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
 @pytest.mark.parametrize("realtime", ["none", "channels"])
-def test_content_security_policy(cookies, context, realtime, rest_api):
+def test_content_security_policy(bake, context, realtime, rest_api):
     """Every project sends a nonce-based CSP; the websocket and API docs exceptions follow the options."""
     context.update({"realtime": realtime, "rest_api": rest_api})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
-    settings_dir = result.project_path / "config" / "settings"
-    base_settings = (settings_dir / "base.py").read_text()
-    assert '"django.middleware.csp.ContentSecurityPolicyMiddleware",' in base_settings
-    assert '"django.template.context_processors.csp",' in base_settings
-    assert "SECURE_CSP: dict[str, list[str]] = {" in base_settings
-    assert "UNSAFE_INLINE" not in base_settings
-    assert "UNSAFE_EVAL" not in base_settings
-    assert f'"{context["project_slug"]}.htmx.HtmxLoginRedirectMiddleware",' in base_settings
-    assert ('"ninja",' in base_settings) is (rest_api == "Django Ninja")
+    base = project.settings("base")
+    assert "django.middleware.csp.ContentSecurityPolicyMiddleware" in base.literal("MIDDLEWARE")
+    context_processors = base.value("TEMPLATES")[0]["OPTIONS"]["context_processors"]
+    assert "django.template.context_processors.csp" in context_processors
+    assert "SECURE_CSP: dict[str, list[str]] = {" in base.source
+    assert "UNSAFE_INLINE" not in base.source
+    assert "UNSAFE_EVAL" not in base.source
+    assert f"{context['project_slug']}.htmx.HtmxLoginRedirectMiddleware" in base.literal("MIDDLEWARE")
+    assert ("ninja" in base.literal("INSTALLED_APPS")) is (rest_api == "Django Ninja")
 
     uses_channels = realtime == "channels"
-    assert ('"ws:"' in (settings_dir / "local.py").read_text()) is uses_channels
-    production_settings = (settings_dir / "production.py").read_text()
-    assert ('"wss:"' in production_settings) is uses_channels
-    assert 'env("DJANGO_CSP_REPORT_URI", default=None)' in production_settings
-    assert "DJANGO_CSP_REPORT_URI" in (result.project_path / ".envs" / ".production" / ".django").read_text()
+    assert ('"ws:"' in project.settings("local").source) is uses_channels
+    production = project.settings("production")
+    assert ('"wss:"' in production.source) is uses_channels
+    report_uri = env_read(production, "DJANGO_CSP_REPORT_URI")
+    assert (report_uri.method, report_uri.default) == (None, None)
+    # Documented in the env file as a commented-out line, so not a value ``env`` would read
+    assert "DJANGO_CSP_REPORT_URI" in project.text(".envs/.production/.django")
 
-    urls = (result.project_path / "config" / "urls.py").read_text()
+    urls = project.text("config/urls.py")
     assert ("csp_override({})" in urls) is (rest_api == "DRF")
 
-    base_html = (result.project_path / context["project_slug"] / "templates" / "base.html").read_text()
+    base_html = project.template("base.html")
     assert '<meta name="htmx-config"' in base_html
     assert '"allowEval": false' in base_html
     assert '"includeIndicatorStyles": false' in base_html
 
 
 @pytest.mark.parametrize("use_celery", ["n", "y"])
-def test_tasks_framework(cookies, context, use_celery):
+def test_tasks_framework(bake, context, use_celery):
     """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
     context.update({"use_celery": use_celery, "use_docker": "y"})
-    result = cookies.bake(extra_context=context)
-    assert result.exit_code == 0
+    project = bake(context)
 
     celery = use_celery == "y"
-    assert "django-tasks-db==" in (result.project_path / "pyproject.toml").read_text()
-    settings_dir = result.project_path / "config" / "settings"
-    assert '"django_tasks_db",' in (settings_dir / "base.py").read_text()
+    assert "django-tasks-db" in pinned(project)
+    assert "django_tasks_db" in project.settings("base").literal("INSTALLED_APPS")
     immediate = 'TASKS = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}'
-    assert immediate in (settings_dir / "local.py").read_text()
-    assert immediate in (settings_dir / "test.py").read_text()
+    assert immediate in project.settings("local").source
+    assert immediate in project.settings("test").source
     database = 'TASKS = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}'
-    assert database in (settings_dir / "production.py").read_text()
+    assert database in project.settings("production").source
 
-    users = result.project_path / context["project_slug"] / "users"
-    tasks = (users / "tasks.py").read_text()
+    users = Path(context["project_slug"]) / "users"
+    tasks = project.text(users / "tasks.py")
     assert "from django.tasks import task" in tasks
     assert ("shared_task" in tasks) is celery
-    tests = (users / "tests" / "test_tasks.py").read_text()
+    tests = project.text(users / "tests" / "test_tasks.py")
     assert "TaskResultStatus.SUCCESSFUL" in tests
     assert ("EagerResult" in tests) is celery
-    assert (result.project_path / "config" / "celery_app.py").exists() is celery
+    assert (project.root / "config" / "celery_app.py").exists() is celery
 
-    production_compose = yaml.safe_load((result.project_path / "docker-compose.production.yml").read_text())
+    production_compose = project.compose("production")
     assert production_compose["services"]["taskworker"]["command"] == "/start-taskworker"
     assert ("celeryworker" in production_compose["services"]) is celery
-    local_compose = yaml.safe_load((result.project_path / "docker-compose.local.yml").read_text())
-    assert "taskworker" not in local_compose["services"]
-    django_compose = result.project_path / "compose" / "production" / "django"
-    assert "db_worker" in (django_compose / "tasks" / "worker" / "start").read_text()
-    assert "/start-taskworker" in (django_compose / "Dockerfile").read_text()
+    assert "taskworker" not in project.compose("local")["services"]
+    django_compose = Path("compose") / "production" / "django"
+    assert "db_worker" in project.text(django_compose / "tasks" / "worker" / "start")
+    assert "/start-taskworker" in project.text(django_compose / "Dockerfile")
