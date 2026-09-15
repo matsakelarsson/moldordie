@@ -1,7 +1,11 @@
 {% raw %}{% load allauth %}
 
-<div class="overflow-auto">
-  <table class="striped">
+{% comment %}
+allauth's table element carries its own thead and tbody elements, so it gets the table component's
+markup rather than the component, whose content is the body rows (templates/cotton/ui/table.html).
+{% endcomment %}
+<div class="ui-table-scroll">
+  <table class="ui-table">
     {% slot %}
     {% endslot %}
   </table>

@@ -3,7 +3,8 @@
 ``ui_attrs`` writes the attributes a component did not declare onto its element,
 ``ui_attr`` one declared input in an attribute position, and ``ui_url`` a URL once the
 named policy accepts it: ``navigation`` for links, ``local`` for htmx destinations.
-The rules are in ``ui/attrs.py`` and ``ui/links.py`` (docs/frontend.rst).
+The rules are in ``ui/attrs.py`` and ``ui/links.py``. ``ui_label`` writes a bound
+field's label for the field component (docs/frontend.rst).
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from django import template
+from django.forms import BoundField
+from django.utils.html import format_html
 from django.utils.safestring import SafeString
 from django.utils.safestring import mark_safe
 
@@ -53,3 +56,21 @@ def ui_url(value: object, policy: str = "navigation") -> SafeString:
         msg = f"{policy!r} is not a URL policy: {' or '.join(POLICIES)}"
         raise ValueError(msg) from None
     return mark_safe(url_value(value, validate))  # noqa: S308
+
+
+@register.filter(name="ui_label")
+def ui_label(field: object, tag: str = "label") -> SafeString:
+    """A bound field's label as a ``<label>``, or a ``<legend>`` with ``tag="legend"``.
+
+    Django writes the ``for`` attribute and the field's own suffix rules; the form's
+    label suffix is left out, the library's class put on. Django writes no tag for a
+    field without an id, so the text is then wrapped in a span of the same class.
+    """
+    if not isinstance(field, BoundField):
+        msg = f"ui_label takes a bound field, not {type(field).__name__}"
+        raise TypeError(msg)
+    css_class = "ui-legend" if tag == "legend" else "ui-label"
+    label = field.label_tag(attrs={"class": css_class}, label_suffix="", tag=tag)
+    if field.field.widget.attrs.get("id") or field.auto_id:
+        return label
+    return format_html('<span class="{}">{}</span>', css_class, label)

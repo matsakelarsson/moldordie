@@ -102,8 +102,8 @@ jobs:
             args: "realtime=channels username_type=email rest_api='Django Ninja'"
           - name: Google & Django-Ninja
             args: "identity_provider=google rest_api='Django Ninja'"
-          - name: Python 3.12
-            args: ""
+          - name: Python 3.12 & WhiteNoise
+            args: "use_whitenoise=y"
             python: "3.12"
           - name: Python 3.13 & Channels
             args: "realtime=channels"

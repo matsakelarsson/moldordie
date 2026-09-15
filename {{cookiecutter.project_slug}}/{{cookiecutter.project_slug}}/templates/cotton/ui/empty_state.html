@@ -1,0 +1,15 @@
+{% raw %}{% comment %}
+What a card or a results area shows when there is nothing to list: a title, the content as the
+explanation, and an optional "actions" slot with what the reader can do about it. Every attribute the
+component does not declare is forwarded to the root (docs/frontend.rst).
+{% endcomment %}
+<c-vars title="" class />
+<div class="ui-empty-state{% if class %} {{ class|ui_attr }}{% endif %}"
+     {{ attrs|ui_attrs }}>
+  {% if title %}<p class="ui-empty-state-title">{{ title }}</p>{% endif %}
+  <div class="ui-empty-state-body">{{ slot }}</div>
+  {% if actions.strip %}
+    <div class="ui-actions">{{ actions }}</div>
+  {% endif %}
+</div>
+{%- endraw %}

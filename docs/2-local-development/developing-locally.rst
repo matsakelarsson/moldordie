@@ -77,7 +77,7 @@ Make sure to have the following on your host:
 
    Django's ``runserver`` still works for plain HTTP, but it does not serve websockets.
 
-   There is no frontend build step: htmx and Pico CSS are served as static files. See the :ref:`frontend guide <frontend-guide>` for details.
+   There is no frontend build step: htmx and the UI library's stylesheets are served as static files. See the :ref:`frontend guide <frontend-guide>` for details.
 
 .. _PostgreSQL: https://www.postgresql.org/download/
 .. _Redis: https://redis.io/download

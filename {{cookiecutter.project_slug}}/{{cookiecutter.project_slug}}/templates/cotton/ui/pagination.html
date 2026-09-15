@@ -1,0 +1,66 @@
+{% raw %}{% comment %}
+Navigation between the pages of a Django page object. The view supplies the URLs: previous_url and
+next_url, and optionally page_urls, pairs of a page number and its URL (a pair with an empty URL is an
+ellipsis) which replace the "Page n of m" line. The current page carries aria-current; a previous or
+next that does not exist is written as text, not a link. With a target, a CSS selector, every link also
+asks htmx to load the page into that element, replacing it (hx-swap="outerHTML") and pushing the URL,
+so the target must contain both the results and this component and the fragment must reproduce it with
+its id. The label names the navigation for assistive technology. Every attribute the component does
+not declare is forwarded to the nav (docs/frontend.rst).
+{% endcomment %}
+{% load i18n %}
+
+<c-vars page previous_url="" next_url="" page_urls target="" label="" class />
+<nav class="ui-pagination{% if class %} {{ class|ui_attr }}{% endif %}"
+     aria-label="{% if label %}{{ label|ui_attr }}{% else %}{% translate 'Pagination' %}{% endif %}"
+     {{ attrs|ui_attrs }}>
+  <ul class="ui-pagination-list">
+    <li>
+      {% if page.has_previous %}
+        <a class="ui-pagination-link"
+           rel="prev"
+           href="{{ previous_url|ui_url }}"
+           {% if target %}hx-get="{{ previous_url|ui_url:'local' }}" hx-target="{{ target|ui_attr }}" hx-swap="outerHTML" hx-push-url="true"{% endif %}>{% translate "Previous" %}</a>
+      {% else %}
+        <span class="ui-pagination-link ui-pagination-unavailable"
+              aria-disabled="true">{% translate "Previous" %}</span>
+      {% endif %}
+    </li>
+    {% if page_urls %}
+      {% for number, url in page_urls %}
+        <li>
+          {% if not url %}
+            <span class="ui-pagination-ellipsis" aria-hidden="true">…</span>
+          {% elif number == page.number %}
+            <a class="ui-pagination-link ui-pagination-current"
+               aria-current="page"
+               href="{{ url|ui_url }}"
+               {% if target %}hx-get="{{ url|ui_url:'local' }}" hx-target="{{ target|ui_attr }}" hx-swap="outerHTML" hx-push-url="true"{% endif %}>{{ number }}</a>
+          {% else %}
+            <a class="ui-pagination-link"
+               href="{{ url|ui_url }}"
+               {% if target %}hx-get="{{ url|ui_url:'local' }}" hx-target="{{ target|ui_attr }}" hx-swap="outerHTML" hx-push-url="true"{% endif %}>{{ number }}</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    {% else %}
+      <li class="ui-pagination-status" aria-current="page">
+        {% blocktranslate with number=page.number total=page.paginator.num_pages trimmed %}
+          Page {{ number }} of {{ total }}
+        {% endblocktranslate %}
+      </li>
+    {% endif %}
+    <li>
+      {% if page.has_next %}
+        <a class="ui-pagination-link"
+           rel="next"
+           href="{{ next_url|ui_url }}"
+           {% if target %}hx-get="{{ next_url|ui_url:'local' }}" hx-target="{{ target|ui_attr }}" hx-swap="outerHTML" hx-push-url="true"{% endif %}>{% translate "Next" %}</a>
+      {% else %}
+        <span class="ui-pagination-link ui-pagination-unavailable"
+              aria-disabled="true">{% translate "Next" %}</span>
+      {% endif %}
+    </li>
+  </ul>
+</nav>
+{%- endraw %}

@@ -1,18 +1,19 @@
 {% raw %}{% load allauth %}
 
-<article>
-  <header>
+{# allauth's panel element: a card whose title is a second-level heading #}
+<c-ui.card>
+  <c-slot name="header">
     <h2>
       {% slot title %}
       {% endslot %}
     </h2>
-  </header>
+  </c-slot>
   {% slot body %}
   {% endslot %}
   {% if slots.actions %}
-    <footer>
+    <c-slot name="actions">
       {% for action in slots.actions %}{{ action }}{% endfor %}
-    </footer>
+    </c-slot>
   {% endif %}
-</article>
+</c-ui.card>
 {%- endraw %}

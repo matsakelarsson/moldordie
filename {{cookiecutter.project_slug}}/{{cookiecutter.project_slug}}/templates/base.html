@@ -17,17 +17,17 @@
     <meta name="description" content="{% endraw %}{{ cookiecutter.description | e }}{% raw %}" />
     <meta name="author" content="{% endraw %}{{ cookiecutter.author_name | e }}{% raw %}" />
     {# htmx under the nonce-based Content Security Policy (SECURE_CSP in config/settings/base.py): no eval, #}
-    {# no script tags from swapped fragments and no injected indicator stylesheet (its rules are in css/project.css) #}
+    {# no script tags from swapped fragments and no injected indicator stylesheet (its rules are in css/ui/components.css) #}
     {# djlint:off H008 #}
     <meta name="htmx-config"
           content='{"allowEval": false, "allowScriptTags": false, "includeIndicatorStyles": false}' />
     {# djlint:on #}
     <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
     {% block css %}
-      {# Pico CSS is vendored in static/vendor/pico/ (version, licence and checksum in pico.json) #}
-      <link href="{% static 'vendor/pico/pico.min.css' %}" rel="stylesheet" />
-      {# The UI library's tokens, then its colours resolved for this request (docs/frontend.rst) #}
+      {# The UI library: its tokens, foundation and components, then its colours resolved for this request (docs/frontend.rst) #}
       <link href="{% static 'css/ui/tokens.css' %}" rel="stylesheet" />
+      <link href="{% static 'css/ui/base.css' %}" rel="stylesheet" />
+      <link href="{% static 'css/ui/components.css' %}" rel="stylesheet" />
       <link href="{% url 'ui:theme' %}" rel="stylesheet" />
       {# Your stuff: third-party CSS libraries go here #}
       {# This file stores project-specific CSS #}
@@ -39,7 +39,7 @@
       {% endraw %}{% if cookiecutter.realtime == 'channels' %}{% raw %}{# The hx-ws extension provides hx-ext="ws" for Django Channels, see the realtime guide #}
       {% htmx_script extensions="hx-ws" %}{% endraw %}{% else %}{% raw %}{% htmx_script %}{% endraw %}{% endif %}{% raw %}
       {# Your stuff: third-party javascript libraries go here #}
-      {# Place project specific Javascript in this file #}
+      {# Place project specific Javascript in this file; the policy allows no inline code #}
       <script defer src="{% static 'js/project.js' %}"></script>
     {% endblock javascript %}
   </head>
@@ -49,45 +49,34 @@
         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {# djlint:on #}
     {% block body %}
-      <header class="container">
-        {% include "partials/navigation.html" %}
+      <header class="ui-header">
+        <div class="ui-container">{% include "partials/navigation.html" %}</div>
       </header>
-      <main class="container">
+      <main class="ui-container ui-main">
         {# Rendered on every page. Fragments include "base.html#messages" so new messages #}
         {# are swapped out-of-band; htmx_fragment comes from HtmxTemplateMixin. #}
         {% partialdef messages inline %}
-          <div id="messages"{% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
+          <div class="ui-messages"
+               id="messages"
+               {% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
             {% for message in messages %}
-              <article role="alert" class="message message-{{ message.level_tag }}">
-                <span>{{ message }}</span>
-                <button type="button"
-                        class="secondary outline"
-                        data-dismiss
-                        aria-label="{% translate 'Dismiss' %}">×</button>
-              </article>
+              <c-ui.alert level="{{ message.level_tag }}" dismissible announce>
+                {{ message }}
+              </c-ui.alert>
             {% endfor %}
           </div>
         {% endpartialdef messages %}
         {% block main %}
-          {% block content %}
-            <p>Use this document as a way to quick start any new project.</p>
-          {% endblock content %}
+          <div class="ui-stack">
+            {% block content %}
+              <p>Use this document as a way to quick start any new project.</p>
+            {% endblock content %}
+          </div>
         {% endblock main %}
       </main>
     {% endblock body %}
     {% block modal %}
     {% endblock modal %}
-    {% block inline_javascript %}
-      {% comment %}
-    Script tags with only code, no src (defer by default). Inline scripts must carry
-    the Content Security Policy nonce. To run code once the page is ready:
-    <script nonce="{{ csp_nonce }}">
-      window.addEventListener('DOMContentLoaded', () => {
-        /* Run whatever you want */
-      });
-    </script>
-      {% endcomment %}
-    {% endblock inline_javascript %}
   </body>
 </html>
 {%- endraw %}
