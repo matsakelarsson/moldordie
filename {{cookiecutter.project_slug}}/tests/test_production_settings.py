@@ -15,9 +15,15 @@ import sys
 import pytest
 from django.apps import AppConfig
 from django.conf import Settings
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+from django.core.exceptions import ImproperlyConfigured
+{%- endif %}
 from django.utils.csp import CSP
 
 from merge_production_dotenvs_in_dotenv import PRODUCTION_DOTENV_FILES
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+from {{ cookiecutter.project_slug }}.identity.apps import validate_token_settings
+{%- endif %}
 
 # production.py extends lists and dicts it imports from base.py, so both are imported
 # afresh and the settings the tests run on keep their own objects
@@ -236,6 +242,36 @@ def test_google_login_reads_the_environment(production_settings, environment):
     (app,) = settings.SOCIALACCOUNT_PROVIDERS["google"]["APPS"]
     assert environment["GOOGLE_LOGIN_CLIENT_ID"] == app["client_id"]
     assert environment["GOOGLE_LOGIN_CLIENT_SECRET"] == app["secret"]
+{%- endif %}
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+
+
+def test_the_app_tokens_use_the_declared_key(production_settings, environment):
+    settings = production_settings()
+
+    key = environment["DJANGO_HEADLESS_JWT_PRIVATE_KEY"]
+    assert key == settings.HEADLESS_JWT_PRIVATE_KEY
+    assert settings.HEADLESS_JWT_PRIVATE_KEY != settings.SECRET_KEY
+    assert settings.HEADLESS_JWT_ALGORITHM == "HS256"
+    assert settings.HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED is True
+    assert [environment["DJANGO_FRONTEND_ORIGINS"]] == settings.CORS_ALLOWED_ORIGINS
+    validate_token_settings(settings)
+
+
+@pytest.mark.parametrize("key", ["", "   "])
+def test_identity_refuses_an_empty_signing_key(production_settings, key):
+    settings = production_settings(DJANGO_HEADLESS_JWT_PRIVATE_KEY=key)
+
+    with pytest.raises(ImproperlyConfigured, match="DJANGO_HEADLESS_JWT_PRIVATE_KEY"):
+        validate_token_settings(settings)
+
+
+def test_identity_refuses_a_non_positive_lifetime(production_settings):
+    lifetime = "HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN"
+    settings = production_settings(**{f"DJANGO_{lifetime}": "0"})
+
+    with pytest.raises(ImproperlyConfigured, match=lifetime):
+        validate_token_settings(settings)
 {%- endif %}
 {%- if cookiecutter.rest_api == 'DRF' %}
 

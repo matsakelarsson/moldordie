@@ -1,3 +1,4 @@
+{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' -%}
 """
 With these settings, tests run faster.
 """
@@ -13,6 +14,14 @@ SECRET_KEY = env(
     "DJANGO_SECRET_KEY",
     default="!!!SET DJANGO_SECRET_KEY!!!",
 )
+{%- if headless %}
+# https://docs.allauth.org/en/latest/headless/configuration.html
+# The key allauth signs the single-page application's tokens with
+HEADLESS_JWT_PRIVATE_KEY = env(
+    "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+    default="!!!SET DJANGO_HEADLESS_JWT_PRIVATE_KEY!!!",
+)
+{%- endif %}
 # https://docs.djangoproject.com/en/dev/ref/settings/#test-runner
 TEST_RUNNER = "django.test.runner.DiscoverRunner"
 

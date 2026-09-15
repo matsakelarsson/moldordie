@@ -1,3 +1,4 @@
+{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' -%}
 from .base import *  # noqa: F403
 from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
@@ -17,6 +18,14 @@ SECRET_KEY = env(
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]  # noqa: S104
+{%- if headless %}
+# https://docs.allauth.org/en/latest/headless/configuration.html
+# The key allauth signs the single-page application's tokens with
+HEADLESS_JWT_PRIVATE_KEY = env(
+    "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+    default="!!!SET DJANGO_HEADLESS_JWT_PRIVATE_KEY!!!",
+)
+{%- endif %}
 
 # CACHES
 # ------------------------------------------------------------------------------
