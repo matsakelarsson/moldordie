@@ -1,4 +1,18 @@
 # ruff: noqa: ERA001, E501
+{#- The identity provider, when one is chosen: its allauth provider app, and the origin
+    of its authorization endpoint, which the Content Security Policy lets the login form
+    submit to. #}
+{%- set provider = {
+    'entra': {
+        'app': 'allauth.socialaccount.providers.openid_connect',
+        'origin': 'https://login.microsoftonline.com',
+    },
+    'google': {
+        'app': 'allauth.socialaccount.providers.google',
+        'origin': 'https://accounts.google.com',
+    },
+}.get(cookiecutter.identity_provider) %}
+{%- set entra = cookiecutter.identity_provider == 'entra' %}
 """Base settings to build other settings files upon."""
 
 import os
@@ -99,6 +113,9 @@ THIRD_PARTY_APPS = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
+{%- if provider %}
+    "{{ provider.app }}",
+{%- endif %}
     # Database backend for Django's Tasks framework;
     # the backend itself is picked per environment
     "django_tasks_db",
@@ -278,7 +295,13 @@ SECURE_CSP: dict[str, list[str]] = {
     # htmx requests and websockets go to this origin
     # (local.py and production.py add ws:/wss: for Channels)
     "connect-src": [CSP.SELF],
+{%- if provider %}
+    # Chrome also applies form-action to the redirect that follows the login
+    # form's POST, which goes to the provider's authorization endpoint
+    "form-action": [CSP.SELF, "{{ provider.origin }}"],
+{%- else %}
     "form-action": [CSP.SELF],
+{%- endif %}
     "frame-ancestors": [CSP.NONE],
     "base-uri": [CSP.NONE],
     "object-src": [CSP.NONE],
@@ -394,6 +417,61 @@ ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_ADAPTER = "{{cookiecutter.project_slug}}.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_ADAPTER = "{{cookiecutter.project_slug}}.users.adapters.SocialAccountAdapter"
+{%- if entra %}
+# Sign-in through Microsoft Entra ID next to password login (docs/authentication.rst).
+# An empty credential is reported by the system checks in users/checks.py.
+ENTRA_TENANT_ID = env("ENTRA_TENANT_ID", default="")
+ENTRA_LOGIN_CLIENT_ID = env("ENTRA_LOGIN_CLIENT_ID", default="")
+ENTRA_LOGIN_CLIENT_SECRET = env("ENTRA_LOGIN_CLIENT_SECRET", default="")
+# https://docs.allauth.org/en/latest/socialaccount/providers/openid_connect.html
+# Entra goes through the generic OpenID Connect provider, which can verify an ID
+# token where allauth's microsoft provider cannot. The account is keyed by the
+# immutable object id, and UserInfo is not fetched: Entra's UserInfo lacks oid, and
+# allauth prefers UserInfo over the ID token when it is fetched.
+SOCIALACCOUNT_PROVIDERS = {
+    "openid_connect": {
+        "APPS": [
+            {
+                "provider_id": "entra",
+                "name": "Microsoft Entra ID",
+                "client_id": ENTRA_LOGIN_CLIENT_ID,
+                "secret": ENTRA_LOGIN_CLIENT_SECRET,
+                "settings": {
+                    "server_url": f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0",
+                    "uid_field": "oid",
+                    "fetch_userinfo": False,
+                    "scope": ["openid", "profile", "email"],
+                    "oauth_pkce_enabled": True,
+                    "token_auth_method": "client_secret_basic",
+                    # The tenant's asserted email address is trusted as verified: this
+                    # trusts the tenant's email administration, guest accounts included
+                    "verified_email": True,
+                },
+            },
+        ],
+    },
+}
+{%- elif provider %}
+# Sign-in through Google next to password login (docs/authentication.rst).
+# An empty credential is reported by the system checks in users/checks.py.
+GOOGLE_LOGIN_CLIENT_ID = env("GOOGLE_LOGIN_CLIENT_ID", default="")
+GOOGLE_LOGIN_CLIENT_SECRET = env("GOOGLE_LOGIN_CLIENT_SECRET", default="")
+# https://docs.allauth.org/en/latest/socialaccount/providers/google.html
+# Whether the address is verified follows Google's own email_verified claim
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APPS": [
+            {
+                "client_id": GOOGLE_LOGIN_CLIENT_ID,
+                "secret": GOOGLE_LOGIN_CLIENT_SECRET,
+            },
+        ],
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+        "OAUTH_PKCE_ENABLED": True,
+    },
+}
+{%- endif %}
 {% if cookiecutter.rest_api == 'DRF' -%}
 # django-rest-framework
 # -------------------------------------------------------------------------------

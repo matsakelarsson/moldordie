@@ -19,6 +19,17 @@ pytestmark = pytest.mark.django_db
 
 RE_NONCE = re.compile(r"'nonce-([A-Za-z0-9_-]+)'")
 RE_HTMX_CONFIG = re.compile(r'<meta name="htmx-config"\s+content=\'([^\']+)\'')
+{%- if cookiecutter.identity_provider == 'entra' %}
+PROVIDER_ORIGIN = "https://login.microsoftonline.com"
+{%- elif cookiecutter.identity_provider == 'google' %}
+PROVIDER_ORIGIN = "https://accounts.google.com"
+{%- endif %}
+
+
+def form_action(policy: str) -> list[str]:
+    """The sources of the policy's form-action directive."""
+    directives = dict(directive.split(maxsplit=1) for directive in policy.split("; "))
+    return directives["form-action"].split()
 
 
 def test_pages_send_a_nonce_based_policy(client: Client):
@@ -45,6 +56,23 @@ def test_htmx_is_configured_for_the_policy(client: Client):
         "allowScriptTags": False,
         "includeIndicatorStyles": False,
     }
+
+
+{% if cookiecutter.identity_provider != 'none' -%}
+def test_the_login_form_may_submit_to_the_provider(client: Client):
+    """Chrome applies form-action to the redirect that follows allauth's login POST."""
+    response = client.get(reverse("account_login"))
+
+    assert form_action(response["Content-Security-Policy"]) == [
+        "'self'",
+        PROVIDER_ORIGIN,
+    ]
+{%- else -%}
+def test_forms_submit_to_this_origin_only(client: Client):
+    response = client.get(reverse("account_login"))
+
+    assert form_action(response["Content-Security-Policy"]) == ["'self'"]
+{%- endif %}
 
 
 def test_htmx_fragments_send_the_policy(user: User, client: Client):

@@ -64,7 +64,14 @@ DJANGO_SENTRY_LOG_LEVEL        SENTRY_LOG_LEVEL                 n/a             
 MAILGUN_API_KEY                ANYMAIL["MAILGUN_API_KEY"]       n/a                 raises error
 MAILGUN_DOMAIN                 ANYMAIL["MAILGUN_SENDER_DOMAIN"] n/a                 raises error
 MAILGUN_API_URL                ANYMAIL["MAILGUN_API_URL"]       n/a                 "https://api.mailgun.net/v3"
+ENTRA_TENANT_ID                ENTRA_TENANT_ID                  "" (checks warn)    "" (checks warn)
+ENTRA_LOGIN_CLIENT_ID          SOCIALACCOUNT_PROVIDERS          "" (checks warn)    "" (checks warn)
+ENTRA_LOGIN_CLIENT_SECRET      SOCIALACCOUNT_PROVIDERS          "" (checks warn)    "" (checks warn)
+GOOGLE_LOGIN_CLIENT_ID         SOCIALACCOUNT_PROVIDERS          "" (checks warn)    "" (checks warn)
+GOOGLE_LOGIN_CLIENT_SECRET     SOCIALACCOUNT_PROVIDERS          "" (checks warn)    "" (checks warn)
 ============================== ================================ =================== ==================================
+
+The identity provider's credentials (``ENTRA_*`` with ``identity_provider=entra``, ``GOOGLE_*`` with ``google``) default to empty so that the project starts without them; ``python manage.py check`` and the development server report each empty one as a warning, since sign-in through the provider cannot work until it is set. The generated ``docs/authentication.rst`` describes the registration each variable comes from.
 
 The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.envs/.production`` declares.
 

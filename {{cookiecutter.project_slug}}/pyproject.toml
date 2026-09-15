@@ -27,7 +27,7 @@ dependencies = [
   "collectfasta==3.3.4",
 {%- endif %}
   "django==6.0.8",
-  "django-allauth[mfa]==65.19.2",
+  "django-allauth[mfa{% if cookiecutter.identity_provider != 'none' %},socialaccount{% endif %}]==65.19.3",
 {%- if cookiecutter.mail_service == 'Other SMTP' %}
   "django-anymail==15.2",
 {%- elif cookiecutter.mail_service == 'Amazon SES' %}

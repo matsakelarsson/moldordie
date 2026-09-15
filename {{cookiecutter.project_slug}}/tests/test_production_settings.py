@@ -215,6 +215,28 @@ def test_sentry_is_configured_from_the_environment(production_settings, environm
     assert tuned.SENTRY_TRACES_SAMPLE_RATE == TRACES_SAMPLE_RATE
     assert tuned.SENTRY_LOG_LEVEL == logging.WARNING
 {%- endif %}
+{%- if cookiecutter.identity_provider == 'entra' %}
+
+
+def test_entra_login_reads_the_environment(production_settings, environment):
+    settings = production_settings()
+
+    (app,) = settings.SOCIALACCOUNT_PROVIDERS["openid_connect"]["APPS"]
+    assert environment["ENTRA_LOGIN_CLIENT_ID"] == app["client_id"]
+    assert environment["ENTRA_LOGIN_CLIENT_SECRET"] == app["secret"]
+    tenant = environment["ENTRA_TENANT_ID"]
+    server_url = f"https://login.microsoftonline.com/{tenant}/v2.0"
+    assert server_url == app["settings"]["server_url"]
+{%- elif cookiecutter.identity_provider == 'google' %}
+
+
+def test_google_login_reads_the_environment(production_settings, environment):
+    settings = production_settings()
+
+    (app,) = settings.SOCIALACCOUNT_PROVIDERS["google"]["APPS"]
+    assert environment["GOOGLE_LOGIN_CLIENT_ID"] == app["client_id"]
+    assert environment["GOOGLE_LOGIN_CLIENT_SECRET"] == app["secret"]
+{%- endif %}
 {%- if cookiecutter.rest_api == 'DRF' %}
 
 

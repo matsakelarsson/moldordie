@@ -18,6 +18,7 @@ from local_extensions import OPTIONS
 from local_extensions import option_names
 from tests.generated_project import NO_DEFAULT
 from tests.generated_project import EnvRead
+from tests.generated_project import Expression
 from tests.generated_project import GeneratedProject
 from tests.generated_project import PythonModule
 
@@ -641,6 +642,7 @@ DEPENDENCY_CASES = [
     ({"cloud_provider": "AWS", "use_whitenoise": "n"}, {"django-storages", "collectfasta"}, {"whitenoise"}),
     ({"cloud_provider": "None", "use_whitenoise": "y"}, {"whitenoise"}, {"django-storages", "collectfasta"}),
     ({"mail_service": "Other SMTP"}, {"django-anymail"}, set()),
+    ({"identity_provider": "none"}, {"django-allauth"}, set()),
 ]
 
 
@@ -1066,6 +1068,105 @@ def test_local_mail_without_a_catcher(bake, context):
 
     assert "EMAIL_HOST" not in local.source
     assert env_read(local, "DJANGO_EMAIL_BACKEND").default == "django.core.mail.backends.console.EmailBackend"
+
+
+# (identity provider, its allauth provider app, the origin the Content Security Policy
+# lets the login form submit to, the credentials read from the environment)
+IDENTITY_PROVIDERS = [
+    (
+        "entra",
+        "allauth.socialaccount.providers.openid_connect",
+        "https://login.microsoftonline.com",
+        ("ENTRA_TENANT_ID", "ENTRA_LOGIN_CLIENT_ID", "ENTRA_LOGIN_CLIENT_SECRET"),
+    ),
+    (
+        "google",
+        "allauth.socialaccount.providers.google",
+        "https://accounts.google.com",
+        ("GOOGLE_LOGIN_CLIENT_ID", "GOOGLE_LOGIN_CLIENT_SECRET"),
+    ),
+]
+# The files that sign-in through a provider adds, relative to the project root
+IDENTITY_PROVIDER_FILES = [
+    "docs/authentication.rst",
+    "my_awesome_project/users/checks.py",
+    "my_awesome_project/users/tests/test_checks.py",
+    "my_awesome_project/users/tests/test_social_login.py",
+]
+
+
+@pytest.mark.parametrize(
+    ("identity_provider", "app", "origin", "credentials"),
+    IDENTITY_PROVIDERS,
+    ids=[row[0] for row in IDENTITY_PROVIDERS],
+)
+def test_identity_provider_login(bake, identity_provider, app, origin, credentials):
+    """A provider is configured from the environment, and the policy lets the login form reach it."""
+    project = bake({"identity_provider": identity_provider})
+
+    base = project.settings("base")
+    assert app in base.literal("INSTALLED_APPS")
+    assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF"), origin]
+    (provider_settings,) = base.value("SOCIALACCOUNT_PROVIDERS").values()
+    (provider_app,) = provider_settings["APPS"]
+    # The credentials are the names read from the environment
+    assert provider_app["client_id"] == base.value(credentials[-2])
+    assert provider_app["secret"] == base.value(credentials[-1])
+    reads = {read.name: read for read in base.env_reads()}
+    assert all(reads[name].default == "" for name in credentials)
+    assert set(credentials) <= set(project.env("production", "django"))
+    assert set(credentials) <= set(project.env("local", "django"))
+
+    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
+    assert allauth.extras == {"mfa", "socialaccount"}
+    for path in IDENTITY_PROVIDER_FILES:
+        assert (project.root / path).exists(), path
+    assert "authentication" in project.text("docs/index.rst")
+
+
+def test_entra_login_is_keyed_by_the_object_id(bake):
+    """Entra goes through the generic OpenID Connect provider with UserInfo off (docs/adr/0007)."""
+    base = bake({"identity_provider": "entra"}).settings("base")
+
+    (app,) = base.value("SOCIALACCOUNT_PROVIDERS")["openid_connect"]["APPS"]
+    assert app["provider_id"] == "entra"
+    assert app["name"] == "Microsoft Entra ID"
+    assert app["settings"]["uid_field"] == "oid"
+    assert app["settings"]["fetch_userinfo"] is False
+    assert app["settings"]["scope"] == ["openid", "profile", "email"]
+    assert app["settings"]["oauth_pkce_enabled"] is True
+    assert app["settings"]["token_auth_method"] == "client_secret_basic"  # noqa: S105 - a method, not a secret
+    assert app["settings"]["verified_email"] is True
+    assert app["settings"]["server_url"] == Expression(
+        "f'https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0'",
+    )
+
+
+def test_google_login_follows_its_own_verified_flag(bake):
+    base = bake({"identity_provider": "google"}).settings("base")
+
+    google = base.value("SOCIALACCOUNT_PROVIDERS")["google"]
+    (app,) = google["APPS"]
+    assert "verified_email" not in app.get("settings", {})
+    assert "VERIFIED_EMAIL" not in google
+    assert google["SCOPE"] == ["profile", "email"]
+    assert google["AUTH_PARAMS"] == {"access_type": "online"}
+    assert google["OAUTH_PKCE_ENABLED"] is True
+
+
+def test_no_identity_provider(bake):
+    """Without a provider the project has password login only, as before the option."""
+    project = bake({"identity_provider": "none"})
+
+    base = project.settings("base")
+    assert "SOCIALACCOUNT_PROVIDERS" not in base.source
+    assert not any("providers" in app for app in base.literal("INSTALLED_APPS"))
+    assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF")]
+    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
+    assert allauth.extras == {"mfa"}
+    for path in IDENTITY_PROVIDER_FILES:
+        assert not (project.root / path).exists(), path
+    assert "authentication" not in project.text("docs/index.rst")
 
 
 @pytest.mark.parametrize("use_sentry", ["n", "y"])

@@ -35,6 +35,7 @@ KINDS = {
     "cloud_provider": LIST,
     "mail_service": LIST,
     "rest_api": LIST,
+    "identity_provider": LIST,
     "realtime": LIST,
     "use_celery": FLAG,
     "mail_catcher": LIST,
