@@ -1,119 +1,39 @@
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
-"""Sign-in through {% if entra %}Microsoft Entra ID{% else %}Google{% endif %} through allauth's server-rendered callback.
+"""Sign-in through {% if entra %}Microsoft Entra ID{% else %}Google{% endif %} on the server-rendered pages.
 
-The provider is never contacted: the code exchange and the cryptographic verification of
-the ID token are patched, so that the claims below reach allauth as if decoded from a
-valid token, and the provider's claim extraction and the adapter hooks run as they do in
-production.
+The provider is never contacted: ``social.provider_login`` patches the code exchange
+and the token verification, so the claims below reach allauth as if decoded from a
+valid token.
 """
 
 from __future__ import annotations
 
+from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs
-from urllib.parse import urlsplit
 
 import pytest
 from allauth.account.models import EmailAddress
-from allauth.socialaccount.internal import jwtkit
 from allauth.socialaccount.models import SocialAccount
-from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-{%- if entra %}
-from allauth.socialaccount.providers.openid_connect.views import (
-    OpenIDConnectOAuth2Adapter,
-)
-{%- endif %}
 from django.core import mail
 from django.urls import reverse
 
 from {{ cookiecutter.project_slug }}.users.models import User
+from {{ cookiecutter.project_slug }}.users.tests import social
 from {{ cookiecutter.project_slug }}.users.tests.factories import UserFactory
+from {{ cookiecutter.project_slug }}.users.tests.social import CLAIMS
+from {{ cookiecutter.project_slug }}.users.tests.social import PROVIDER
+from {{ cookiecutter.project_slug }}.users.tests.social import SUBJECT_CLAIM
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from django.http import HttpResponseBase
     from django.test import Client
 
 pytestmark = pytest.mark.django_db
-{%- if entra %}
-
-PROVIDER = "entra"
-# The account is keyed by the object id, not the pairwise subject
-SUBJECT_CLAIM = "oid"
-CLAIMS = {
-    "oid": "5a5b0f5e-3b0b-4c7e-9a1f-2f3d4e5f6a7b",
-    "sub": "AAAAAAAAAAAAAAAAAAAAAG3yn4aQ7Yq2p8v1mX5UeHo",
-    "tid": "72f988bf-86f1-41af-91ab-2d7cd011db47",
-    "name": "Ada Lovelace",
-    "preferred_username": "ada@example.com",
-    "email": "ada@example.com",
-}
-OPENID_CONFIGURATION = {
-    "issuer": "https://login.microsoftonline.com/tenant/v2.0",
-    "authorization_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/authorize",
-    "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token",
-    "userinfo_endpoint": "https://graph.microsoft.com/oidc/userinfo",
-    "jwks_uri": "https://login.microsoftonline.com/tenant/discovery/v2.0/keys",
-}
-{%- else %}
-
-PROVIDER = "google"
-SUBJECT_CLAIM = "sub"
-CLAIMS = {
-    "sub": "110248495921238986420",
-    "name": "Ada Lovelace",
-    "given_name": "Ada",
-    "family_name": "Lovelace",
-    "email": "ada@example.com",
-    "email_verified": True,
-}
-{%- endif %}
-
-
-def refuse_userinfo(*args: object, **kwargs: object) -> dict[str, object]:
-    msg = "UserInfo must not be fetched: its answer would lack the account's id"
-    raise AssertionError(msg)
 
 
 @pytest.fixture
-def provider_login(
-    client: Client,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Callable[[dict[str, object]], HttpResponseBase]:
-    """Sign in through the provider as if it had answered with the given claims.
-
-    Starts the login as the login page's button does, then drives the callback with an
-    authorization code.
-    """
-    {%- if entra %}
-    login_url = reverse("openid_connect_login", kwargs={"provider_id": PROVIDER})
-    callback_url = reverse("openid_connect_callback", kwargs={"provider_id": PROVIDER})
-    monkeypatch.setattr(
-        OpenIDConnectOAuth2Adapter,
-        "openid_config",
-        OPENID_CONFIGURATION,
-    )
-    monkeypatch.setattr(OpenIDConnectOAuth2Adapter, "_fetch_user_info", refuse_userinfo)
-    {%- else %}
-    login_url = reverse("google_login")
-    callback_url = reverse("google_callback")
-    {%- endif %}
-    monkeypatch.setattr(
-        OAuth2Client,
-        "get_access_token",
-        lambda *args, **kwargs: {"access_token": "access", "id_token": "id"},
-    )
-
-    def login(claims: dict[str, object]) -> HttpResponseBase:
-        monkeypatch.setattr(jwtkit, "verify_and_decode", lambda **kwargs: claims)
-        started = client.post(login_url, {"process": "login"})
-        assert started.status_code == HTTPStatus.FOUND
-        state = parse_qs(urlsplit(started["Location"]).query)["state"][0]
-        return client.get(callback_url, {"code": "authorization-code", "state": state})
-
-    return login
+def provider_login(client: Client, monkeypatch: pytest.MonkeyPatch):
+    return partial(social.provider_login, client, monkeypatch)
 
 
 def test_the_login_page_offers_the_provider(client: Client):

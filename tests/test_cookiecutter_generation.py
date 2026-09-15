@@ -1090,9 +1090,12 @@ IDENTITY_PROVIDERS = [
 IDENTITY_PROVIDER_FILES = [
     "docs/authentication.rst",
     "my_awesome_project/users/checks.py",
+    "my_awesome_project/users/tests/social.py",
     "my_awesome_project/users/tests/test_checks.py",
     "my_awesome_project/users/tests/test_social_login.py",
 ]
+# The Entra provider subclass and its test
+ENTRA_FILES = ["my_awesome_project/users/providers.py", "my_awesome_project/users/tests/test_providers.py"]
 
 
 @pytest.mark.parametrize(
@@ -1122,11 +1125,16 @@ def test_identity_provider_login(bake, identity_provider, app, origin, credentia
     for path in IDENTITY_PROVIDER_FILES:
         assert (project.root / path).exists(), path
     assert "authentication" in project.text("docs/index.rst")
+    entra = identity_provider == "entra"
+    for path in ENTRA_FILES:
+        assert (project.root / path).exists() is entra, path
+    assert ("def get_provider(" in project.text("my_awesome_project/users/adapters.py")) is entra
 
 
 def test_entra_login_is_keyed_by_the_object_id(bake):
     """Entra goes through the generic OpenID Connect provider with UserInfo off (docs/adr/0007)."""
-    base = bake({"identity_provider": "entra"}).settings("base")
+    project = bake({"identity_provider": "entra"})
+    base = project.settings("base")
 
     (app,) = base.value("SOCIALACCOUNT_PROVIDERS")["openid_connect"]["APPS"]
     assert app["provider_id"] == "entra"
@@ -1140,6 +1148,10 @@ def test_entra_login_is_keyed_by_the_object_id(bake):
     assert app["settings"]["server_url"] == Expression(
         "f'https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0'",
     )
+    # The adapter hands out the subclass that refuses a token without a usable oid
+    providers = project.text("my_awesome_project/users/providers.py")
+    assert "class EntraProvider(OpenIDConnectProvider):" in providers
+    assert "raise ProviderException(msg)" in providers
 
 
 def test_google_login_follows_its_own_verified_flag(bake):
@@ -1164,7 +1176,7 @@ def test_no_identity_provider(bake):
     assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF")]
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"mfa"}
-    for path in IDENTITY_PROVIDER_FILES:
+    for path in [*IDENTITY_PROVIDER_FILES, *ENTRA_FILES]:
         assert not (project.root / path).exists(), path
     assert "authentication" not in project.text("docs/index.rst")
 
