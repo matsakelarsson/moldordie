@@ -922,6 +922,20 @@ def test_content_security_policy(bake, context, realtime, rest_api):
     assert '"includeIndicatorStyles": false' in base_html
 
 
+@pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
+def test_cors_settings_follow_the_rest_api(bake, rest_api):
+    """A project with a REST API answers cross-origin requests under its prefix; one without binds no CORS settings."""
+    base = bake({"rest_api": rest_api}).settings("base")
+
+    if rest_api == "None":
+        assert "CORS" not in base.source
+        assert "corsheaders" not in base.literal("INSTALLED_APPS")
+    else:
+        assert base.literal("CORS_URLS_REGEX") == r"^/api/.*$"
+        assert "corsheaders" in base.literal("INSTALLED_APPS")
+        assert "corsheaders.middleware.CorsMiddleware" in base.literal("MIDDLEWARE")
+
+
 @pytest.mark.parametrize("use_celery", ["n", "y"])
 def test_tasks_framework(bake, context, use_celery):
     """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
