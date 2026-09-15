@@ -182,6 +182,8 @@ token arrives, and refreshed when a token names a key id the cached set lacks.
 refused from the next request on, whatever the provider still issues. Removing the role
 assignment in the tenant stops the provider issuing tokens as well.
 {% else %}
+**Deactivating a service.** Untick *Enabled* on its registration: its tokens are
+refused from the next request on, whatever Google still issues.
 **Registering a service.** In Google Cloud IAM, each calling service runs as a service
 account of its own. In the project's admin under *Service registrations*, add the
 service with its name and, as the subject, the service account's *Unique ID* (the
@@ -194,6 +196,25 @@ default) and finally the registration for the token's ``sub``. Google's signing 
 are read from its discovery endpoint when the first token arrives, and refreshed when
 a token names a key id the cached set lacks.
 {% endif %}
+**Permissions.** A registration holds Django permissions, granted in the admin next
+to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with
+the full ``app_label.codename`` like a user does; a disabled registration holds none. A
+route both users and services may call, one under ``either_auth``, asks for a
+permission with ``require_permission`` from ``identity/permissions.py``, which answers
+``403`` for a caller that lacks it, a user or a service alike, where missing or invalid
+credentials are the policy's ``401``:
+
+.. code-block:: python
+
+    @router.get("/reports/", auth=either_auth)
+    def list_reports(request: PrincipalHttpRequest) -> list[ReportSchema]:
+        require_permission(request, "reports.view_report")
+        ...
+
+A permission says what a caller may do, not which rows it may see. The data-access
+boundary, which records a service or a user may read or change, is the project's to
+add to its own models and queries (the users API, for one, answers only the caller's
+own row); these permissions do not enforce it.
 {% endif -%}
 Content Security Policy
 ----------------------------------------------------------------------
