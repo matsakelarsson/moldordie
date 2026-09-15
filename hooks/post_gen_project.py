@@ -32,6 +32,11 @@ def with_celery(context):
     return context["use_celery"] == "y"
 
 
+def with_headless(context):
+    """Django Ninja with an identity provider: allauth's headless API signs the app's tokens."""
+    return context["rest_api"] == "Django Ninja" and context["identity_provider"] != "none"
+
+
 @dataclass(frozen=True)
 class Secret:
     """One row of ``SECRETS``: a value drawn once and written over ``placeholder`` in each of ``files``."""
@@ -69,6 +74,10 @@ SECRETS = (
     Secret("CELERY_FLOWER_USER", (LOCAL_DJANGO, PRODUCTION_DJANGO), length=32, alphabet=LETTERS, applies=with_celery),
     Secret("CELERY_FLOWER_PASSWORD", (LOCAL_DJANGO,), applies=with_celery),
     Secret("CELERY_FLOWER_PASSWORD", (PRODUCTION_DJANGO,), applies=with_celery),
+    # The key allauth signs the single-page application's tokens with, one per environment.
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (PRODUCTION_DJANGO,), debug=False, applies=with_headless),
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/local.py",), debug=False, applies=with_headless),
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/test.py",), debug=False, applies=with_headless),
 )
 
 
@@ -162,6 +171,24 @@ REMOVALS = (
     (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),
     # The app that initialises the Sentry SDK, installed by the production settings.
     (lambda c: c["use_sentry"] == "n", ("{project_slug}/sentry", "{project_slug}/tests/test_sentry.py")),
+    # Sign-in through the identity provider: its documentation, the check of its credentials and its tests.
+    (
+        lambda c: c["identity_provider"] == "none",
+        (
+            "docs/authentication.rst",
+            "{project_slug}/users/checks.py",
+            "{project_slug}/users/tests/social.py",
+            "{project_slug}/users/tests/test_checks.py",
+            "{project_slug}/users/tests/test_social_login.py",
+        ),
+    ),
+    # The Entra provider subclass, handed out by the social account adapter.
+    (
+        lambda c: c["identity_provider"] != "entra",
+        ("{project_slug}/users/providers.py", "{project_slug}/users/tests/test_providers.py"),
+    ),
+    # The app behind the single-page application's login: Django Ninja with a provider only.
+    (lambda c: not with_headless(c), ("{project_slug}/identity",)),
 )
 
 

@@ -93,6 +93,20 @@ rest_api:
     2. ``DRF``, `Django Rest Framework`_
     3. `Django Ninja`_
 
+identity_provider:
+    Select an identity provider for signing in through the browser, next to password login.
+    The choices are:
+
+    1. none
+    2. ``entra``, `Microsoft Entra ID`_ through allauth's OpenID Connect provider, with the
+       account keyed by the tenant's immutable object id
+    3. ``google``, `Google`_ sign-in
+
+    A provider adds its button to the login page of every project. With `Django Ninja`_ it also
+    configures allauth's headless API with app-issued JWTs for a single-page application, and the
+    ``identity`` app that verifies the provider's own tokens for calling services. The generated
+    ``docs/authentication.rst`` covers the registration, the settings and the flows.
+
 realtime:
     Select the realtime layer. Every project is served through ASGI with Uvicorn, so this only
     decides whether websocket support is included. The choices are:
@@ -149,6 +163,9 @@ debug:
 
 .. _Django Rest Framework: https://github.com/encode/django-rest-framework/
 .. _Django Ninja: https://github.com/vitalik/django-ninja
+
+.. _Microsoft Entra ID: https://learn.microsoft.com/entra/identity-platform/
+.. _Google: https://developers.google.com/identity
 
 .. _Celery: https://github.com/celery/celery
 

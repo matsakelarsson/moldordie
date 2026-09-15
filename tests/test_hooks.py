@@ -45,22 +45,26 @@ def test_append_to_gitignore_file(tmp_path):
 # The sites below are written from the template, not read from the secrets table, so the
 # table is checked against them: every site is filled by exactly one row.
 
-# The placeholder sites of the template by file, in file order, as rendered with Celery; the
-# Flower ones are not rendered without it.
+# The placeholder sites of the template by file, in file order, as rendered with Celery and
+# with Django Ninja and an identity provider; the Flower ones are not rendered without
+# Celery, the headless key without Ninja and a provider.
 PLACEHOLDER_SITES = {
     ".envs/.local/.django": ("CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"),
     ".envs/.local/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
     ".envs/.production/.django": (
         "DJANGO_SECRET_KEY",
         "DJANGO_ADMIN_URL",
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
         "CELERY_FLOWER_USER",
         "CELERY_FLOWER_PASSWORD",
     ),
     ".envs/.production/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
-    "config/settings/local.py": ("DJANGO_SECRET_KEY",),
-    "config/settings/test.py": ("DJANGO_SECRET_KEY",),
+    "config/settings/local.py": ("DJANGO_SECRET_KEY", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
+    "config/settings/test.py": ("DJANGO_SECRET_KEY", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
 }
 FLOWER_PLACEHOLDERS = {"CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"}
+HEADLESS_PLACEHOLDERS = {"DJANGO_HEADLESS_JWT_PRIVATE_KEY"}
+HEADLESS_ANSWERS = {"rest_api": "Django Ninja", "identity_provider": "entra"}
 # The sites that read one shared value: the database role, so that a backup restores across
 # the environments, and Flower's user.
 SHARED_SITES = (
@@ -71,18 +75,26 @@ SHARED_SITES = (
 RANDOM_IN_DEBUG = {
     (".envs/.production/.django", "DJANGO_SECRET_KEY"),
     (".envs/.production/.django", "DJANGO_ADMIN_URL"),
+    (".envs/.production/.django", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
     ("config/settings/local.py", "DJANGO_SECRET_KEY"),
+    ("config/settings/local.py", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
     ("config/settings/test.py", "DJANGO_SECRET_KEY"),
+    ("config/settings/test.py", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
 }
 PLACEHOLDER = re.compile(r"!!!SET (\w+)!!!")
 
 
-def unfilled_project(root, *, with_celery):
+def unfilled_project(root, *, with_celery, with_headless):
     """The placeholder sites as the template renders them, one ``NAME=!!!SET NAME!!!`` line each."""
     for file, names in PLACEHOLDER_SITES.items():
         path = root / file
         path.parent.mkdir(parents=True, exist_ok=True)
-        rendered = [name for name in names if with_celery or name not in FLOWER_PLACEHOLDERS]
+        rendered = [
+            name
+            for name in names
+            if (with_celery or name not in FLOWER_PLACEHOLDERS)
+            and (with_headless or name not in HEADLESS_PLACEHOLDERS)
+        ]
         path.write_text("".join(f"{name}=!!!SET {name}!!!\n" for name in rendered))
 
 
@@ -126,9 +138,9 @@ def test_secrets_fill_every_placeholder_site_once():
 
 def test_fill_secrets_draws_each_value_once(tmp_path):
     """The shared sites read one value and every other site its own: nothing is drawn twice or reused."""
-    unfilled_project(tmp_path, with_celery=True)
+    unfilled_project(tmp_path, with_celery=True, with_headless=True)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=draw)
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", **HEADLESS_ANSWERS}, draw=draw)
     values = site_values(tmp_path)
     for shared in SHARED_SITES:
         assert len({values[site] for site in shared}) == 1
@@ -139,9 +151,9 @@ def test_fill_secrets_draws_each_value_once(tmp_path):
 
 def test_fill_secrets_debug_fixes_the_credentials(tmp_path):
     """With debug, the credentials read ``debug``; the keys and the admin URL are still drawn."""
-    unfilled_project(tmp_path, with_celery=True)
+    unfilled_project(tmp_path, with_celery=True, with_headless=True)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", "debug": "y"}, draw=draw)
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", "debug": "y", **HEADLESS_ANSWERS}, draw=draw)
     values = site_values(tmp_path)
     assert {site for site, value in values.items() if value == "debug"} == set(values) - RANDOM_IN_DEBUG
     assert len({values[site] for site in RANDOM_IN_DEBUG}) == len(RANDOM_IN_DEBUG)
@@ -150,17 +162,37 @@ def test_fill_secrets_debug_fixes_the_credentials(tmp_path):
 
 def test_fill_secrets_skips_the_flower_rows_without_celery(tmp_path):
     """Without Celery the template renders no Flower placeholders, so their rows do not apply."""
-    unfilled_project(tmp_path, with_celery=False)
+    unfilled_project(tmp_path, with_celery=False, with_headless=True)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "n"}, draw=draw)
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "n", **HEADLESS_ANSWERS}, draw=draw)
     values = site_values(tmp_path)
     assert not any(name in FLOWER_PLACEHOLDERS for _, name in values)
     assert not any("!!!SET" in value for value in values.values())
     assert len(draw.calls) == len(set(values.values()))
 
 
+@pytest.mark.parametrize(
+    "answers",
+    [
+        {"rest_api": "Django Ninja", "identity_provider": "none"},
+        {"rest_api": "DRF", "identity_provider": "entra"},
+        {"rest_api": "None", "identity_provider": "google"},
+    ],
+    ids=lambda answers: "-".join(answers.values()),
+)
+def test_fill_secrets_skips_the_headless_key_without_ninja_and_a_provider(tmp_path, answers):
+    """Only Django Ninja with a provider renders the key allauth signs the app's tokens with."""
+    unfilled_project(tmp_path, with_celery=True, with_headless=False)
+    draw = CountingDraw()
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", **answers}, draw=draw)
+    values = site_values(tmp_path)
+    assert not any(name in HEADLESS_PLACEHOLDERS for _, name in values)
+    assert not any("!!!SET" in value for value in values.values())
+    assert len(draw.calls) == len(set(values.values()))
+
+
 def test_fill_secrets_fails_on_a_missing_file(tmp_path):
-    unfilled_project(tmp_path, with_celery=True)
+    unfilled_project(tmp_path, with_celery=True, with_headless=False)
     (tmp_path / "config" / "settings" / "test.py").unlink()
     with pytest.raises(FileNotFoundError):
         fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=CountingDraw())
@@ -168,7 +200,7 @@ def test_fill_secrets_fails_on_a_missing_file(tmp_path):
 
 def test_fill_secrets_fails_on_a_missing_placeholder(tmp_path):
     """A row for a placeholder the template did not render is an error, not a silent no-op."""
-    unfilled_project(tmp_path, with_celery=False)
+    unfilled_project(tmp_path, with_celery=False, with_headless=False)
     with pytest.raises(ValueError, match="CELERY_FLOWER_USER"):
         fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=CountingDraw())
 
@@ -277,10 +309,33 @@ NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
 NO_REST_API = {"config/api_router.py", "config/api.py", f"{PKG}/users/api", f"{PKG}/users/tests/api"}
 NO_CHANNELS = {"config/websocket.py", f"{PKG}/tests/test_websocket.py"}
 NO_SENTRY = {f"{PKG}/sentry", f"{PKG}/tests/test_sentry.py"}
+NO_IDENTITY_PROVIDER = {
+    "docs/authentication.rst",
+    f"{PKG}/users/checks.py",
+    f"{PKG}/users/tests/social.py",
+    f"{PKG}/users/tests/test_checks.py",
+    f"{PKG}/users/tests/test_social_login.py",
+}
+NOT_ENTRA = {f"{PKG}/users/providers.py", f"{PKG}/users/tests/test_providers.py"}
+# The app behind the single-page application's login and the calling services: Django
+# Ninja with a provider only
+NO_IDENTITY_APP = {f"{PKG}/identity"}
 
 # cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
-# envs kept, no CI, no REST API, no Channels, no Sentry.
-DEFAULTS = NOT_GPL | USERNAME_LOGIN | NO_DOCKER | NO_CELERY | NO_CI | NO_REST_API | NO_CHANNELS | NO_SENTRY
+# envs kept, no CI, no REST API, no identity provider, no Channels, no Sentry.
+DEFAULTS = (
+    NOT_GPL
+    | USERNAME_LOGIN
+    | NO_DOCKER
+    | NO_CELERY
+    | NO_CI
+    | NO_REST_API
+    | NO_IDENTITY_PROVIDER
+    | NOT_ENTRA
+    | NO_IDENTITY_APP
+    | NO_CHANNELS
+    | NO_SENTRY
+)
 # Docker on, everything else at its default: the helper scripts and the Celery images go instead of compose.
 WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES
 
@@ -401,6 +456,36 @@ def test_prune_sentry_app(unpruned_project, use_sentry, expected):
     assert_prunes(unpruned_project, expected, use_sentry=use_sentry)
 
 
+@pytest.mark.parametrize(
+    ("identity_provider", "expected"),
+    [
+        ("none", DEFAULTS),
+        # The provider subclass exists for Entra only
+        ("entra", DEFAULTS - NO_IDENTITY_PROVIDER - NOT_ENTRA),
+        ("google", DEFAULTS - NO_IDENTITY_PROVIDER),
+    ],
+)
+def test_prune_identity_provider_files(unpruned_project, identity_provider, expected):
+    assert_prunes(unpruned_project, expected, identity_provider=identity_provider)
+
+
+@pytest.mark.parametrize(
+    ("rest_api", "identity_provider", "expected"),
+    [
+        ("Django Ninja", "none", (DEFAULTS - NO_REST_API) | NO_DRF),
+        ("DRF", "entra", (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NOT_ENTRA) | NO_NINJA),
+        (
+            "Django Ninja",
+            "entra",
+            (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NOT_ENTRA - NO_IDENTITY_APP) | NO_DRF,
+        ),
+        ("Django Ninja", "google", (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NO_IDENTITY_APP) | NO_DRF),
+    ],
+)
+def test_prune_identity_app(unpruned_project, rest_api, identity_provider, expected):
+    assert_prunes(unpruned_project, expected, rest_api=rest_api, identity_provider=identity_provider)
+
+
 # The removal rules checked for self-consistency over every combination of the answers they
 # read. This shows the table can be applied in any order and that every listed path is in the
 # template, not that the rules are right: the behaviour tests above cover that for
@@ -417,6 +502,7 @@ REMOVAL_OPTIONS = (
     "use_celery",
     "ci_tool",
     "rest_api",
+    "identity_provider",
     "realtime",
     "use_sentry",
 )

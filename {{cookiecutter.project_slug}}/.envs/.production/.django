@@ -31,6 +31,31 @@ DJANGO_AWS_STORAGE_BUCKET_NAME=
 # django-allauth
 # ------------------------------------------------------------------------------
 DJANGO_ACCOUNT_ALLOW_REGISTRATION=True
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+# The single-page application: the key its tokens are signed with, the origins it is
+# served from (comma-separated) and where it is
+DJANGO_HEADLESS_JWT_PRIVATE_KEY=!!!SET DJANGO_HEADLESS_JWT_PRIVATE_KEY!!!
+DJANGO_FRONTEND_ORIGINS=
+DJANGO_FRONTEND_URL=
+{%- if cookiecutter.identity_provider == 'entra' %}
+# Calling services: the API's app registration, and the app role a service must hold
+ENTRA_API_CLIENT_ID=
+# ENTRA_SERVICE_ROLE=Service.Access
+{%- else %}
+# Calling services: the audience their identity tokens name
+# GOOGLE_SERVICE_AUDIENCE=https://{{ cookiecutter.domain_name }}
+{%- endif %}
+{%- endif %}
+{%- if cookiecutter.identity_provider == 'entra' %}
+# Sign-in through Microsoft Entra ID: the tenant and the login app registration
+ENTRA_TENANT_ID=
+ENTRA_LOGIN_CLIENT_ID=
+ENTRA_LOGIN_CLIENT_SECRET=
+{%- elif cookiecutter.identity_provider == 'google' %}
+# Sign-in through Google: the web client
+GOOGLE_LOGIN_CLIENT_ID=
+GOOGLE_LOGIN_CLIENT_SECRET=
+{%- endif %}
 
 # Gunicorn
 # ------------------------------------------------------------------------------

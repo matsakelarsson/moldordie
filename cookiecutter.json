@@ -20,6 +20,7 @@
   "cloud_provider": ["AWS", "None"],
   "mail_service": ["Mailgun", "Amazon SES", "Other SMTP"],
   "rest_api": ["None", "DRF", "Django Ninja"],
+  "identity_provider": ["none", "entra", "google"],
   "realtime": ["none", "channels"],
   "use_celery": "n",
   "mail_catcher": ["None", "Mailpit", "Mailtrap Local"],

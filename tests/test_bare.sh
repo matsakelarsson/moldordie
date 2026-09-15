@@ -33,7 +33,14 @@ uv run pytest
 # return non-zero status code if there are migrations that have not been created
 uv run python manage.py makemigrations --check
 
-# Make sure the check doesn't raise any warnings
+# Make sure the check doesn't raise any warnings; the placeholders stand in for the
+# identity provider's credentials, which the checks report when empty
+ENTRA_TENANT_ID=x \
+ENTRA_LOGIN_CLIENT_ID=x \
+ENTRA_LOGIN_CLIENT_SECRET=x \
+ENTRA_API_CLIENT_ID=x \
+GOOGLE_LOGIN_CLIENT_ID=x \
+GOOGLE_LOGIN_CLIENT_SECRET=x \
 uv run python manage.py check --settings=config.settings.local --fail-level WARNING
 
 # Check that message extraction completes and updates the catalogues
@@ -48,6 +55,15 @@ DJANGO_AWS_STORAGE_BUCKET_NAME=x \
 DJANGO_ADMIN_URL=x \
 MAILGUN_API_KEY=x \
 MAILGUN_DOMAIN=x \
+ENTRA_TENANT_ID=x \
+ENTRA_LOGIN_CLIENT_ID=x \
+ENTRA_LOGIN_CLIENT_SECRET=x \
+ENTRA_API_CLIENT_ID=x \
+GOOGLE_LOGIN_CLIENT_ID=x \
+GOOGLE_LOGIN_CLIENT_SECRET=x \
+DJANGO_HEADLESS_JWT_PRIVATE_KEY=x \
+DJANGO_FRONTEND_ORIGINS=https://app.example.com \
+DJANGO_FRONTEND_URL=https://app.example.com \
 uv run python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING
 
 # Generate the HTML for the documentation

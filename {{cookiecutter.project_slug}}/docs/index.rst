@@ -12,6 +12,9 @@ Welcome to {{ cookiecutter.project_name }}'s documentation!
 
    howto
    users
+{%- if cookiecutter.identity_provider != 'none' %}
+   authentication
+{%- endif %}
 
 
 

@@ -16,7 +16,9 @@ from rest_framework.request import Request
 
 if TYPE_CHECKING:
     from django_htmx.middleware import HtmxDetails
-
+{% if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+    from {{ cookiecutter.project_slug }}.identity.models import ServiceRegistration
+{%- endif %}
     from {{ cookiecutter.project_slug }}.users.models import User
 
 
@@ -39,6 +41,15 @@ class HtmxHttpRequest(HttpRequest):
 
 class AuthenticatedHtmxRequest(AuthenticatedHttpRequest, HtmxHttpRequest):
     """Request that is both authenticated and annotated by ``HtmxMiddleware``."""
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+
+
+class PrincipalHttpRequest(HttpRequest):
+    """Request on an API route under ``either_auth``: the caller is a user or a
+    registered service, whichever the policy resolved as ``request.auth``."""
+
+    auth: User | ServiceRegistration
+{%- endif %}
 {%- if cookiecutter.rest_api == 'DRF' %}
 
 

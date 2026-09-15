@@ -1,4 +1,21 @@
 # ruff: noqa: ERA001, E501
+{#- The identity provider, when one is chosen: its allauth provider app, and the origin
+    of its authorization endpoint, which the Content Security Policy lets the login form
+    submit to. #}
+{%- set provider = {
+    'entra': {
+        'app': 'allauth.socialaccount.providers.openid_connect',
+        'origin': 'https://login.microsoftonline.com',
+    },
+    'google': {
+        'app': 'allauth.socialaccount.providers.google',
+        'origin': 'https://accounts.google.com',
+    },
+}.get(cookiecutter.identity_provider) %}
+{%- set entra = cookiecutter.identity_provider == 'entra' %}
+{#- With Django Ninja, a provider also serves the single-page application through
+    allauth's headless API, guarded by the identity app. #}
+{%- set headless = provider and cookiecutter.rest_api == 'Django Ninja' %}
 """Base settings to build other settings files upon."""
 
 import os
@@ -12,6 +29,9 @@ from typing import Any
 
 import django_stubs_ext
 import environ
+{%- if headless %}
+from corsheaders.defaults import default_headers
+{%- endif %}
 from django.utils.csp import CSP
 
 # Let Django's generic classes be subscripted at runtime, e.g. ``DetailView[User]``.
@@ -99,6 +119,12 @@ THIRD_PARTY_APPS = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
+{%- if provider %}
+    "{{ provider.app }}",
+{%- endif %}
+{%- if headless %}
+    "allauth.headless",
+{%- endif %}
     # Database backend for Django's Tasks framework;
     # the backend itself is picked per environment
     "django_tasks_db",
@@ -124,6 +150,9 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "{{ cookiecutter.project_slug }}.users",
+{%- if headless %}
+    "{{ cookiecutter.project_slug }}.identity",
+{%- endif %}
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -278,7 +307,13 @@ SECURE_CSP: dict[str, list[str]] = {
     # htmx requests and websockets go to this origin
     # (local.py and production.py add ws:/wss: for Channels)
     "connect-src": [CSP.SELF],
+{%- if provider %}
+    # Chrome also applies form-action to the redirect that follows the login
+    # form's POST, which goes to the provider's authorization endpoint
+    "form-action": [CSP.SELF, "{{ provider.origin }}"],
+{%- else %}
     "form-action": [CSP.SELF],
+{%- endif %}
     "frame-ancestors": [CSP.NONE],
     "base-uri": [CSP.NONE],
     "object-src": [CSP.NONE],
@@ -394,6 +429,136 @@ ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_ADAPTER = "{{cookiecutter.project_slug}}.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_ADAPTER = "{{cookiecutter.project_slug}}.users.adapters.SocialAccountAdapter"
+{%- if entra %}
+# Sign-in through Microsoft Entra ID next to password login (docs/authentication.rst).
+# An empty credential is reported by the system checks in users/checks.py.
+ENTRA_TENANT_ID = env("ENTRA_TENANT_ID", default="")
+ENTRA_LOGIN_CLIENT_ID = env("ENTRA_LOGIN_CLIENT_ID", default="")
+ENTRA_LOGIN_CLIENT_SECRET = env("ENTRA_LOGIN_CLIENT_SECRET", default="")
+# https://docs.allauth.org/en/latest/socialaccount/providers/openid_connect.html
+# Entra goes through the generic OpenID Connect provider, which can verify an ID
+# token where allauth's microsoft provider cannot. The account is keyed by the
+# immutable object id, and UserInfo is not fetched: Entra's UserInfo lacks oid, and
+# allauth prefers UserInfo over the ID token when it is fetched.
+SOCIALACCOUNT_PROVIDERS = {
+    "openid_connect": {
+        "APPS": [
+            {
+                "provider_id": "entra",
+                "name": "Microsoft Entra ID",
+                "client_id": ENTRA_LOGIN_CLIENT_ID,
+                "secret": ENTRA_LOGIN_CLIENT_SECRET,
+                "settings": {
+                    "server_url": f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0",
+                    "uid_field": "oid",
+                    "fetch_userinfo": False,
+                    "scope": ["openid", "profile", "email"],
+                    "oauth_pkce_enabled": True,
+                    "token_auth_method": "client_secret_basic",
+                    # The tenant's asserted email address is trusted as verified: this
+                    # trusts the tenant's email administration, guest accounts included
+                    "verified_email": True,
+                },
+            },
+        ],
+    },
+}
+{%- elif provider %}
+# Sign-in through Google next to password login (docs/authentication.rst).
+# An empty credential is reported by the system checks in users/checks.py.
+GOOGLE_LOGIN_CLIENT_ID = env("GOOGLE_LOGIN_CLIENT_ID", default="")
+GOOGLE_LOGIN_CLIENT_SECRET = env("GOOGLE_LOGIN_CLIENT_SECRET", default="")
+# https://docs.allauth.org/en/latest/socialaccount/providers/google.html
+# Whether the address is verified follows Google's own email_verified claim
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APPS": [
+            {
+                "client_id": GOOGLE_LOGIN_CLIENT_ID,
+                "secret": GOOGLE_LOGIN_CLIENT_SECRET,
+            },
+        ],
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+        "OAUTH_PKCE_ENABLED": True,
+    },
+}
+{%- endif %}
+{%- if headless %}
+# django-allauth headless
+# ------------------------------------------------------------------------------
+# https://docs.allauth.org/en/latest/headless/configuration.html
+# The single-page application signs in through allauth's app client and gets JWTs
+# (docs/authentication.rst); the server-rendered pages keep their sessions, so the
+# headless-only mode stays off
+HEADLESS_CLIENTS = ("app",)
+HEADLESS_ONLY = False
+HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"  # noqa: S105 - a class, not a secret
+# One trust domain: HS256 with a key of the application's own, set per environment
+# and refused when empty by the identity app, so allauth never falls back to
+# SECRET_KEY. A token is valid only while the session behind it exists, and a refresh
+# token is replaced when used.
+HEADLESS_JWT_ALGORITHM = "HS256"
+HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED = True
+HEADLESS_JWT_ROTATE_REFRESH_TOKEN = True
+HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = env.int(
+    "DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN",
+    default=300,
+)
+HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = env.int(
+    "DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN",
+    default=86400,
+)
+# allauth's OpenAPI page loads its viewer from a CDN the Content Security Policy
+# blocks; the documentation links the hosted specification instead
+HEADLESS_SERVE_SPECIFICATION = False
+# The origins the single-page application is served from: they may call the API and
+# allauth's endpoints (django-cors-headers below), and a login may return to them
+FRONTEND_ORIGINS = env.list(
+    "DJANGO_FRONTEND_ORIGINS",
+    default=["http://localhost:5173"],
+)
+# Where the application is: the five pages allauth's mails and flows send the user to,
+# its contract with the frontend (docs/authentication.rst)
+FRONTEND_URL = env("DJANGO_FRONTEND_URL", default="http://localhost:5173")
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": FRONTEND_URL + "/account/verify-email/{key}",
+    "account_reset_password": FRONTEND_URL + "/account/password/reset",
+    "account_reset_password_from_key": FRONTEND_URL
+    + "/account/password/reset/key/{key}",
+    "account_signup": FRONTEND_URL + "/account/signup",
+    "socialaccount_login_error": FRONTEND_URL + "/account/provider/callback",
+}
+# The identity app: the provider-issued tokens of calling services
+# ------------------------------------------------------------------------------
+{%- if entra %}
+# The API's own app registration, which a service's token must name as its audience,
+# and the app role the token must carry; the tenant is the login's (ENTRA_TENANT_ID)
+ENTRA_API_CLIENT_ID = env("ENTRA_API_CLIENT_ID", default="")
+ENTRA_SERVICE_ROLE = env("ENTRA_SERVICE_ROLE", default="Service.Access")
+# The verifier discovers the tenant's keys from this endpoint at first use, and
+# accepts the tenant's v2.0 issuer only
+IDENTITY_SERVICE_DISCOVERY_URL = (
+    f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0"
+    "/.well-known/openid-configuration"
+)
+IDENTITY_SERVICE_ISSUERS = [f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0"]
+IDENTITY_SERVICE_AUDIENCE = ENTRA_API_CLIENT_ID
+{%- else %}
+# The audience a service's identity token must name: Google issues one for whatever
+# audience the caller asks for, so it names this API
+GOOGLE_SERVICE_AUDIENCE = env(
+    "GOOGLE_SERVICE_AUDIENCE",
+    default="https://{{ cookiecutter.domain_name }}",
+)
+# The verifier discovers Google's keys from this endpoint at first use
+IDENTITY_SERVICE_DISCOVERY_URL = (
+    "https://accounts.google.com/.well-known/openid-configuration"
+)
+IDENTITY_SERVICE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"]
+IDENTITY_SERVICE_AUDIENCE = GOOGLE_SERVICE_AUDIENCE
+{%- endif %}
+{%- endif %}
 {% if cookiecutter.rest_api == 'DRF' -%}
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -419,11 +584,20 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
 
 {% endif -%}
 {% if cookiecutter.rest_api != 'None' -%}
+{%- if headless %}
 # django-cors-headers
 # ------------------------------------------------------------------------------
 # https://github.com/adamchainz/django-cors-headers#setup
-# Only the API answers requests from other origins
+# The API and allauth's headless endpoints answer the single-page application, which
+# sends the session token of a pending login (a second factor, an unverified
+# address) in the X-Session-Token header
+CORS_URLS_REGEX = r"^/(api|_allauth)/.*$"
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOW_HEADERS = [*default_headers, "x-session-token"]
+{%- else -%}
+# django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 CORS_URLS_REGEX = r"^/api/.*$"
+{%- endif %}
 {%- endif %}
 # Your stuff...
 # ------------------------------------------------------------------------------
