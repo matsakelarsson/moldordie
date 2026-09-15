@@ -162,15 +162,21 @@ REMOVALS = (
     (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),
     # The app that initialises the Sentry SDK, installed by the production settings.
     (lambda c: c["use_sentry"] == "n", ("{project_slug}/sentry", "{project_slug}/tests/test_sentry.py")),
-    # Sign-in through the identity provider: its documentation, the check of its credentials and its test.
+    # Sign-in through the identity provider: its documentation, the check of its credentials and its tests.
     (
         lambda c: c["identity_provider"] == "none",
         (
             "docs/authentication.rst",
             "{project_slug}/users/checks.py",
+            "{project_slug}/users/tests/social.py",
             "{project_slug}/users/tests/test_checks.py",
             "{project_slug}/users/tests/test_social_login.py",
         ),
+    ),
+    # The Entra provider subclass, handed out by the social account adapter.
+    (
+        lambda c: c["identity_provider"] != "entra",
+        ("{project_slug}/users/providers.py", "{project_slug}/users/tests/test_providers.py"),
     ),
 )
 

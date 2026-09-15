@@ -280,9 +280,11 @@ NO_SENTRY = {f"{PKG}/sentry", f"{PKG}/tests/test_sentry.py"}
 NO_IDENTITY_PROVIDER = {
     "docs/authentication.rst",
     f"{PKG}/users/checks.py",
+    f"{PKG}/users/tests/social.py",
     f"{PKG}/users/tests/test_checks.py",
     f"{PKG}/users/tests/test_social_login.py",
 }
+NOT_ENTRA = {f"{PKG}/users/providers.py", f"{PKG}/users/tests/test_providers.py"}
 
 # cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
 # envs kept, no CI, no REST API, no identity provider, no Channels, no Sentry.
@@ -294,6 +296,7 @@ DEFAULTS = (
     | NO_CI
     | NO_REST_API
     | NO_IDENTITY_PROVIDER
+    | NOT_ENTRA
     | NO_CHANNELS
     | NO_SENTRY
 )
@@ -421,7 +424,8 @@ def test_prune_sentry_app(unpruned_project, use_sentry, expected):
     ("identity_provider", "expected"),
     [
         ("none", DEFAULTS),
-        ("entra", DEFAULTS - NO_IDENTITY_PROVIDER),
+        # The provider subclass exists for Entra only
+        ("entra", DEFAULTS - NO_IDENTITY_PROVIDER - NOT_ENTRA),
         ("google", DEFAULTS - NO_IDENTITY_PROVIDER),
     ],
 )
