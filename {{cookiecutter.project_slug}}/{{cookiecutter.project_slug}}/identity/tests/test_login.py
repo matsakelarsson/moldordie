@@ -12,11 +12,12 @@ from allauth.mfa.totp.internal.auth import TOTP
 from allauth.mfa.totp.internal.auth import format_hotp_value
 from allauth.mfa.totp.internal.auth import hotp_value
 
+from {{ cookiecutter.project_slug }}.identity.tests.headless import JSON
 from {{ cookiecutter.project_slug }}.identity.tests.headless import LOGIN_URL
 from {{ cookiecutter.project_slug }}.identity.tests.headless import MFA_AUTHENTICATE_URL
 from {{ cookiecutter.project_slug }}.identity.tests.headless import REFRESH_URL
 from {{ cookiecutter.project_slug }}.identity.tests.headless import SESSION_URL
-from {{ cookiecutter.project_slug }}.identity.tests.headless import create_verified_user
+from {{ cookiecutter.project_slug }}.identity.tests.headless import bearer
 from {{ cookiecutter.project_slug }}.identity.tests.headless import credentials
 from {{ cookiecutter.project_slug }}.identity.tests.headless import password_login
 
@@ -28,22 +29,12 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.django_db
 
 TOTP_SECRET = "JBSWY3DPEHPK3PXP"  # noqa: S105 - a test authenticator's secret
-JSON = "application/json"
-
-
-@pytest.fixture
-def user() -> User:
-    return create_verified_user()
 
 
 def totp_code() -> str:
     counter = int(time.time()) // mfa_settings.TOTP_PERIOD
     code: str = format_hotp_value(hotp_value(TOTP_SECRET, counter))
     return code
-
-
-def bearer(access_token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {access_token}"}
 
 
 def test_a_password_login_returns_both_tokens(client: Client, user: User):

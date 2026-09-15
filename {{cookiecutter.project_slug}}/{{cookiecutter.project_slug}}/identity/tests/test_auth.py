@@ -9,7 +9,8 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from {{ cookiecutter.project_slug }}.identity.tests.headless import create_verified_user
+from {{ cookiecutter.project_slug }}.identity.tests.headless import JSON
+from {{ cookiecutter.project_slug }}.identity.tests.headless import bearer
 from {{ cookiecutter.project_slug }}.identity.tests.headless import password_login
 
 if TYPE_CHECKING:
@@ -17,17 +18,12 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.django_db
 
-JSON = "application/json"
-NEW_NAME = '{"name": "New Name"}'
-
-
-@pytest.fixture
-def user() -> User:
-    return create_verified_user()
-
-
-def bearer(access_token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {access_token}"}
+# The update the current-user route accepts
+{%- if cookiecutter.username_type == "email" %}
+UPDATE = '{"name": "New Name"}'
+{%- else %}
+UPDATE = '{"name": "New Name", "username": "renamed"}'
+{%- endif %}
 
 
 def test_an_app_token_calls_the_users_api(client: Client, user: User):
@@ -48,7 +44,7 @@ def test_an_app_token_needs_no_csrf_token(user: User):
 
     response = client.patch(
         reverse("api:update_current_user"),
-        {% if cookiecutter.username_type == "email" %}NEW_NAME{% else %}'{"name": "New Name", "username": "renamed"}'{% endif %},
+        UPDATE,
         content_type=JSON,
         headers=bearer(meta["access_token"]),
     )
@@ -117,12 +113,12 @@ def test_a_session_request_on_an_unsafe_method_keeps_the_csrf_check(user: User):
 
     refused = client.patch(
         reverse("api:update_current_user"),
-        {% if cookiecutter.username_type == "email" %}NEW_NAME{% else %}'{"name": "New Name", "username": "renamed"}'{% endif %},
+        UPDATE,
         content_type=JSON,
     )
     accepted = client.patch(
         reverse("api:update_current_user"),
-        {% if cookiecutter.username_type == "email" %}NEW_NAME{% else %}'{"name": "New Name", "username": "renamed"}'{% endif %},
+        UPDATE,
         content_type=JSON,
         headers={"X-CSRFToken": client.cookies["csrftoken"].value},
     )

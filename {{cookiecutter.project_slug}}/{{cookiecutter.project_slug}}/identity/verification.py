@@ -4,8 +4,8 @@
 A calling service presents a token its identity provider issued for this API. The
 verifier decodes it with PyJWT against the provider's published keys, applies the
 provider's rules and resolves the registered service (``models.ServiceRegistration``).
-Every refusal is a ``Rejected`` carrying one of the fixed reason codes, logged without
-token material (``docs/authentication.rst``).
+Every refusal is a ``Rejected`` carrying one of the fixed reason codes, logged with the
+branch that refused and without token material (``docs/authentication.rst``).
 
 The keys come from a key source. In production it is ``DiscoveredKeys``, which reads
 the provider's discovery document at first use and wraps PyJWT's JWKS client; the tests
@@ -68,6 +68,10 @@ DISABLED = "disabled"
 # per reason and LOG_COOLDOWN seconds, the repeats counted into the next record
 ROUTINE = frozenset({EXPIRED})
 LOG_COOLDOWN = 60.0
+# The branch codes of a refusal: the service verifier, or the router of either_auth,
+# which refuses a token no branch verifies
+SERVICE = "service"
+ROUTER = "router"
 # What PyJWT's errors mean, the specific ones before the general
 PYJWT_REASONS = (
     (jwt.ExpiredSignatureError, EXPIRED),
@@ -88,44 +92,64 @@ class Rejected(Exception):  # noqa: N818 - an adjective, as the policies read it
         self.reason = reason
 
 
-_rate_limits = threading.Lock()
-_last_warned: dict[str, float] = {}
-_suppressed: dict[str, int] = {}
+class WarningCooldown:
+    """Admits one warning per key and cooldown, counting the repeats it swallows."""
+
+    def __init__(self, seconds: float) -> None:
+        self.seconds = seconds
+        self._lock = threading.Lock()
+        self._last_admitted: dict[str, float] = {}
+        self._swallowed: dict[str, int] = {}
+
+    def admit(self, key: str) -> int | None:
+        """The repeats swallowed since the last admitted warning for ``key``; None
+        when this one is swallowed too."""
+        with self._lock:
+            now = monotonic()
+            last = self._last_admitted.get(key)
+            if last is not None and now - last < self.seconds:
+                self._swallowed[key] = self._swallowed.get(key, 0) + 1
+                return None
+            self._last_admitted[key] = now
+            return self._swallowed.pop(key, 0)
+
+    def reset(self) -> None:
+        with self._lock:
+            self._last_admitted.clear()
+            self._swallowed.clear()
 
 
-def log_rejection(reason: str) -> None:
-    """Record a refusal by its code: routine ones at info, the rest at warning.
+warnings = WarningCooldown(LOG_COOLDOWN)
 
-    A warning repeats for the same reason at most once per ``LOG_COOLDOWN`` seconds;
-    the next one says how many the cooldown swallowed, so a burst is one record.
+
+def log_rejection(branch: str, reason: str) -> None:
+    """Record a refusal by its codes: routine ones at info, the rest at warning.
+
+    A warning repeats for the same codes at most once per ``LOG_COOLDOWN`` seconds; the
+    next one says how many the cooldown swallowed, so a burst is one record.
     """
     if reason in ROUTINE:
-        logger.info("service token rejected: reason=%s", reason)
+        logger.info("token rejected: branch=%s reason=%s", branch, reason)
         return
-    with _rate_limits:
-        now = monotonic()
-        last = _last_warned.get(reason)
-        if last is not None and now - last < LOG_COOLDOWN:
-            _suppressed[reason] = _suppressed.get(reason, 0) + 1
-            return
-        _last_warned[reason] = now
-        repeats = _suppressed.pop(reason, 0)
+    repeats = warnings.admit(f"{branch}:{reason}")
+    if repeats is None:
+        return
     if repeats:
         logger.warning(
-            "service token rejected: reason=%s (and %d more in the last %.0f seconds)",
+            "token rejected: branch=%s reason=%s "
+            "(and %d more in the last %.0f seconds)",
+            branch,
             reason,
             repeats,
             LOG_COOLDOWN,
         )
     else:
-        logger.warning("service token rejected: reason=%s", reason)
+        logger.warning("token rejected: branch=%s reason=%s", branch, reason)
 
 
 def reset_rate_limits() -> None:
     """Forget the warnings' cooldowns, for the tests."""
-    with _rate_limits:
-        _last_warned.clear()
-        _suppressed.clear()
+    warnings.reset()
 
 
 class KeySource(Protocol):
@@ -216,7 +240,7 @@ class ServiceVerifier:
         try:
             return self.resolve(self.decode(token))
         except Rejected as rejected:
-            log_rejection(rejected.reason)
+            log_rejection(SERVICE, rejected.reason)
             raise
 
     def decode(self, token: str) -> dict[str, Any]:
@@ -279,25 +303,32 @@ def reason_of(error: jwt.InvalidTokenError) -> str:
 class EntraServiceVerifier(ServiceVerifier):
     """Entra's rules: the tenant's token for an application holding the service role."""
 
+    def __init__(
+        self,
+        keys: KeySource,
+        *,
+        issuers: Collection[str],
+        audience: str,
+        tenant: str,
+        role: str,
+    ) -> None:
+        super().__init__(keys, issuers=issuers, audience=audience)
+        self.tenant = tenant
+        self.role = role
+
     def subject(self, claims: dict[str, Any]) -> str:
-        if claims.get("tid") != settings.ENTRA_TENANT_ID:
+        if claims.get("tid") != self.tenant:
             raise Rejected(BAD_TENANT)
         if claims.get("idtyp") != "app":
             raise Rejected(NOT_AN_APP)
         roles = claims.get("roles")
-        if not isinstance(roles, list) or settings.ENTRA_SERVICE_ROLE not in roles:
+        if not isinstance(roles, list) or self.role not in roles:
             raise Rejected(MISSING_ROLE)
         # The service principal's object id, the subject the registration names
         oid = claims.get("oid")
         if not isinstance(oid, str) or not oid:
             raise Rejected(MISSING_CLAIM)
         return oid
-{%- else %}
-
-
-class GoogleServiceVerifier(ServiceVerifier):
-    """Google's rules: the issuer allowlist and the audience of the settings, then the
-    service account's unique id."""
 {%- endif %}
 
 
@@ -308,10 +339,18 @@ def service_verifier() -> ServiceVerifier:
     keys = DiscoveredKeys(settings.IDENTITY_SERVICE_DISCOVERY_URL)
     {%- if entra %}
     return EntraServiceVerifier(
+        keys,
+        issuers=settings.IDENTITY_SERVICE_ISSUERS,
+        audience=settings.IDENTITY_SERVICE_AUDIENCE,
+        tenant=settings.ENTRA_TENANT_ID,
+        role=settings.ENTRA_SERVICE_ROLE,
+    )
     {%- else %}
-    return GoogleServiceVerifier(
-    {%- endif %}
+    # Google's rules are the core's: the issuer allowlist and the audience of the
+    # settings, then the service account's unique id as the subject
+    return ServiceVerifier(
         keys,
         issuers=settings.IDENTITY_SERVICE_ISSUERS,
         audience=settings.IDENTITY_SERVICE_AUDIENCE,
     )
+    {%- endif %}

@@ -12,10 +12,11 @@ from django.contrib.sessions.models import Session
 from django.core.management import call_command
 from django.urls import reverse
 
+from {{ cookiecutter.project_slug }}.identity.tests.headless import JSON
 from {{ cookiecutter.project_slug }}.identity.tests.headless import LOGIN_URL
 from {{ cookiecutter.project_slug }}.identity.tests.headless import REFRESH_URL
 from {{ cookiecutter.project_slug }}.identity.tests.headless import SESSION_URL
-from {{ cookiecutter.project_slug }}.identity.tests.headless import create_verified_user
+from {{ cookiecutter.project_slug }}.identity.tests.headless import bearer
 from {{ cookiecutter.project_slug }}.identity.tests.headless import credentials
 from {{ cookiecutter.project_slug }}.identity.tests.headless import password_login
 
@@ -26,13 +27,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.django_db
 
-JSON = "application/json"
 NEW_KEY = "a-new-signing-key-for-every-process"
-
-
-@pytest.fixture
-def user() -> User:
-    return create_verified_user()
 
 
 def revoke() -> str:
@@ -47,17 +42,18 @@ def test_rotation_signs_every_app_client_out(settings, client: Client, user: Use
 
     revoke()
 
-    bearer = {"Authorization": f"Bearer {meta['access_token']}"}
-    session = client.get(SESSION_URL, headers=bearer)
+    headers = bearer(meta["access_token"])
+    session = client.get(SESSION_URL, headers=headers)
     assert session.status_code == HTTPStatus.UNAUTHORIZED
-    api = client.get(reverse("api:retrieve_current_user"), headers=bearer)
+    api = client.get(reverse("api:retrieve_current_user"), headers=headers)
     assert api.status_code == HTTPStatus.UNAUTHORIZED
     refresh = {"refresh_token": meta["refresh_token"]}
     refreshed = client.post(REFRESH_URL, refresh, content_type=JSON)
     assert refreshed.status_code == HTTPStatus.BAD_REQUEST
+    # allauth answers a session token it no longer knows with 410
     session_token = {"X-Session-Token": meta["session_token"]}
     retained = client.get(SESSION_URL, headers=session_token)
-    assert retained.status_code != HTTPStatus.OK
+    assert retained.status_code == HTTPStatus.GONE
 
 
 def test_a_new_key_alone_leaves_the_session_tokens_working(settings, client, user):

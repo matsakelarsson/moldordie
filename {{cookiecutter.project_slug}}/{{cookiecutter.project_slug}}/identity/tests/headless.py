@@ -22,6 +22,7 @@ SESSION_URL = f"{APP}/auth/session"
 REFRESH_URL = f"{APP}/tokens/refresh"
 MFA_AUTHENTICATE_URL = f"{APP}/auth/2fa/authenticate"
 PASSWORD = "correct horse battery staple"  # noqa: S105 - a test user's password
+JSON = "application/json"
 
 
 def create_verified_user(**fields: Any) -> User:
@@ -45,13 +46,14 @@ def credentials(user: User) -> dict[str, str]:
     {%- endif %}
 
 
+def bearer(access_token: str) -> dict[str, str]:
+    """The header that presents ``access_token``."""
+    return {"Authorization": f"Bearer {access_token}"}
+
+
 def password_login(client: Client, user: User) -> dict[str, Any]:
     """Sign in as ``user`` through the app client; the answer's tokens."""
-    response = client.post(
-        LOGIN_URL,
-        credentials(user),
-        content_type="application/json",
-    )
+    response = client.post(LOGIN_URL, credentials(user), content_type=JSON)
     assert response.status_code == HTTPStatus.OK, response.json()
     meta: dict[str, Any] = response.json()["meta"]
     return meta

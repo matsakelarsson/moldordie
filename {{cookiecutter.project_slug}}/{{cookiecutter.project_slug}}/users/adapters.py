@@ -10,6 +10,7 @@ from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 
+from {{cookiecutter.project_slug}}.identity.frontend import frontend_origins
 from {{cookiecutter.project_slug}}.identity.frontend import origin
 {%- endif %}
 {%- if cookiecutter.identity_provider == 'entra' %}
@@ -45,11 +46,7 @@ class AccountAdapter(DefaultAccountAdapter):
         if destination is None:
             return bool(super().is_safe_url(url))
         own = origin(context.request.build_absolute_uri("/"))
-        allowed = {
-            own,
-            *(origin(configured) for configured in settings.FRONTEND_ORIGINS),
-        }
-        return destination in allowed
+        return destination == own or destination in frontend_origins()
 {%- endif %}
 
 
