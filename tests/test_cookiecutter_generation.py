@@ -1178,12 +1178,18 @@ def test_google_login_follows_its_own_verified_flag(bake):
 JWT_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"
 IDENTITY_APP_FILES = [
     "my_awesome_project/identity/__init__.py",
+    "my_awesome_project/identity/admin.py",
+    "my_awesome_project/identity/api.py",
     "my_awesome_project/identity/apps.py",
     "my_awesome_project/identity/auth.py",
     "my_awesome_project/identity/checks.py",
     "my_awesome_project/identity/frontend.py",
     "my_awesome_project/identity/management/commands/revoke_jwt_sessions.py",
+    "my_awesome_project/identity/migrations/0001_initial.py",
+    "my_awesome_project/identity/models.py",
+    "my_awesome_project/identity/verification.py",
     "my_awesome_project/identity/tests/headless.py",
+    "my_awesome_project/identity/tests/services.py",
     "my_awesome_project/identity/tests/test_apps.py",
     "my_awesome_project/identity/tests/test_auth.py",
     "my_awesome_project/identity/tests/test_frontend.py",
@@ -1278,6 +1284,34 @@ def test_headless_login(bake, context_override):
     assert "from my_awesome_project.identity.auth import user_auth" in api
     assert "auth=user_auth," in api
     assert "SessionAuth" not in api
+
+
+@pytest.mark.parametrize("context_override", HEADLESS_COMBINATIONS, ids=_fixture_id)
+def test_calling_services(bake, context_override):
+    """The identity app verifies the provider's tokens for registered services, on settings alone."""
+    project = bake(context_override)
+    base = project.settings("base")
+    reads = {read.name: read for read in base.env_reads()}
+    production_env = project.env("production", "django")
+
+    api = project.text("config/api.py")
+    assert 'api.add_router("/principal/", "my_awesome_project.identity.api.router")' in api
+    assert "class PrincipalHttpRequest(HttpRequest):" in project.text("my_awesome_project/typedefs.py")
+    assert "pyjwt" in pinned(project)
+    assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "pyjwt"] == [{"crypto"}]
+    assert base.value("IDENTITY_SERVICE_ISSUERS")
+    assert "IDENTITY_SERVICE_AUDIENCE" in base.source
+    assert "IDENTITY_SERVICE_DISCOVERY_URL" in base.source
+    entra = context_override["identity_provider"] == "entra"
+    assert (project.root / "my_awesome_project" / "identity" / "tests" / "test_services.py").exists() is entra
+    if entra:
+        assert reads["ENTRA_API_CLIENT_ID"].default == ""
+        assert reads["ENTRA_SERVICE_ROLE"].default == "Service.Access"
+        assert base.value("IDENTITY_SERVICE_AUDIENCE") == base.value("ENTRA_API_CLIENT_ID")
+        assert "ENTRA_API_CLIENT_ID" in production_env
+    else:
+        assert reads["GOOGLE_SERVICE_AUDIENCE"].default == "https://example.com"
+        assert base.literal("IDENTITY_SERVICE_ISSUERS") == ["https://accounts.google.com", "accounts.google.com"]
 
 
 @pytest.mark.parametrize(

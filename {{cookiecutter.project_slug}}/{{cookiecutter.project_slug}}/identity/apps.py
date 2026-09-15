@@ -17,6 +17,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
 
 from .checks import check_frontend_url
+{%- if cookiecutter.identity_provider == 'entra' %}
+from .checks import check_service_settings
+{%- endif %}
 
 LIFETIMES = (
     "HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN",
@@ -54,3 +57,6 @@ class IdentityConfig(AppConfig):
     def ready(self) -> None:
         validate_token_settings(settings)
         checks.register(check_frontend_url)
+{%- if cookiecutter.identity_provider == 'entra' %}
+        checks.register(check_service_settings)
+{%- endif %}

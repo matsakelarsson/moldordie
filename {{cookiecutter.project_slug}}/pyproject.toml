@@ -62,6 +62,9 @@ dependencies = [
   "gunicorn==26.2.0",
   "hiredis==3.4.1",
   "psycopg[c]==3.3.5",
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+  "pyjwt[crypto]==2.14.0",
+{%- endif %}
   "redis==8.1.0",
 {%- if cookiecutter.use_sentry == 'y' %}
   "sentry-sdk==2.69.0",

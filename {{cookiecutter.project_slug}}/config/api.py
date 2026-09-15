@@ -20,3 +20,7 @@ api = NinjaAPI(
 )
 
 api.add_router("/users/", "{{ cookiecutter.project_slug }}.users.api.views.router")
+{%- if headless %}
+# Who is calling: a user or a registered service
+api.add_router("/principal/", "{{ cookiecutter.project_slug }}.identity.api.router")
+{%- endif %}

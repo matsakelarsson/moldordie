@@ -320,6 +320,8 @@ NOT_ENTRA = {f"{PKG}/users/providers.py", f"{PKG}/users/tests/test_providers.py"
 # The app behind the single-page application's login and the calling services: Django
 # Ninja with a provider only
 NO_IDENTITY_APP = {f"{PKG}/identity"}
+# The service verifier's tests, written for Entra's rules
+NOT_ENTRA_SERVICES = {f"{PKG}/identity/tests/test_services.py"}
 
 # cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
 # envs kept, no CI, no REST API, no identity provider, no Channels, no Sentry.
@@ -479,7 +481,11 @@ def test_prune_identity_provider_files(unpruned_project, identity_provider, expe
             "entra",
             (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NOT_ENTRA - NO_IDENTITY_APP) | NO_DRF,
         ),
-        ("Django Ninja", "google", (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NO_IDENTITY_APP) | NO_DRF),
+        (
+            "Django Ninja",
+            "google",
+            (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NO_IDENTITY_APP) | NO_DRF | NOT_ENTRA_SERVICES,
+        ),
     ],
 )
 def test_prune_identity_app(unpruned_project, rest_api, identity_provider, expected):

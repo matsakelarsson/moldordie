@@ -51,6 +51,7 @@ docker compose -f docker-compose.local.yml run --rm \
   -e ENTRA_TENANT_ID=x \
   -e ENTRA_LOGIN_CLIENT_ID=x \
   -e ENTRA_LOGIN_CLIENT_SECRET=x \
+  -e ENTRA_API_CLIENT_ID=x \
   -e GOOGLE_LOGIN_CLIENT_ID=x \
   -e GOOGLE_LOGIN_CLIENT_SECRET=x \
   django python manage.py check --settings=config.settings.local --fail-level WARNING
@@ -72,6 +73,7 @@ docker compose -f docker-compose.local.yml run --rm \
   -e ENTRA_TENANT_ID=x \
   -e ENTRA_LOGIN_CLIENT_ID=x \
   -e ENTRA_LOGIN_CLIENT_SECRET=x \
+  -e ENTRA_API_CLIENT_ID=x \
   -e GOOGLE_LOGIN_CLIENT_ID=x \
   -e GOOGLE_LOGIN_CLIENT_SECRET=x \
   -e DJANGO_HEADLESS_JWT_PRIVATE_KEY=x \
@@ -99,6 +101,7 @@ docker run --rm \
 -e ENTRA_TENANT_ID=x \
 -e ENTRA_LOGIN_CLIENT_ID=x \
 -e ENTRA_LOGIN_CLIENT_SECRET=x \
+-e ENTRA_API_CLIENT_ID=x \
 -e GOOGLE_LOGIN_CLIENT_ID=x \
 -e GOOGLE_LOGIN_CLIENT_SECRET=x \
 -e DJANGO_HEADLESS_JWT_PRIVATE_KEY=x \

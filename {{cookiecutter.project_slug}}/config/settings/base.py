@@ -529,6 +529,35 @@ HEADLESS_FRONTEND_URLS = {
     "account_signup": FRONTEND_URL + "/account/signup",
     "socialaccount_login_error": FRONTEND_URL + "/account/provider/callback",
 }
+# The identity app: the provider-issued tokens of calling services
+# ------------------------------------------------------------------------------
+{%- if entra %}
+# The API's own app registration, which a service's token must name as its audience,
+# and the app role the token must carry; the tenant is the login's (ENTRA_TENANT_ID)
+ENTRA_API_CLIENT_ID = env("ENTRA_API_CLIENT_ID", default="")
+ENTRA_SERVICE_ROLE = env("ENTRA_SERVICE_ROLE", default="Service.Access")
+# The verifier discovers the tenant's keys from this endpoint at first use, and
+# accepts the tenant's v2.0 issuer only
+IDENTITY_SERVICE_DISCOVERY_URL = (
+    f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0"
+    "/.well-known/openid-configuration"
+)
+IDENTITY_SERVICE_ISSUERS = [f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0"]
+IDENTITY_SERVICE_AUDIENCE = ENTRA_API_CLIENT_ID
+{%- else %}
+# The audience a service's identity token must name: Google issues one for whatever
+# audience the caller asks for, so it names this API
+GOOGLE_SERVICE_AUDIENCE = env(
+    "GOOGLE_SERVICE_AUDIENCE",
+    default="https://{{ cookiecutter.domain_name }}",
+)
+# The verifier discovers Google's keys from this endpoint at first use
+IDENTITY_SERVICE_DISCOVERY_URL = (
+    "https://accounts.google.com/.well-known/openid-configuration"
+)
+IDENTITY_SERVICE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"]
+IDENTITY_SERVICE_AUDIENCE = GOOGLE_SERVICE_AUDIENCE
+{%- endif %}
 {%- endif %}
 {% if cookiecutter.rest_api == 'DRF' -%}
 # django-rest-framework

@@ -83,6 +83,9 @@ DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN
 DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN 86400                        86400
 DJANGO_FRONTEND_ORIGINS                     FRONTEND_ORIGINS, CORS_ALLOWED_ORIGINS ["http://localhost:5173"]    raises error
 DJANGO_FRONTEND_URL                         FRONTEND_URL, HEADLESS_FRONTEND_URLS "http://localhost:5173"      raises error
+ENTRA_API_CLIENT_ID                         IDENTITY_SERVICE_AUDIENCE            "" (checks warn)              "" (checks warn)
+ENTRA_SERVICE_ROLE                          ENTRA_SERVICE_ROLE                   "Service.Access"              "Service.Access"
+GOOGLE_SERVICE_AUDIENCE                     IDENTITY_SERVICE_AUDIENCE            "https://your_domain_name"    "https://your_domain_name"
 =========================================== ==================================== ============================= ==================
 
 The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.envs/.production`` declares.

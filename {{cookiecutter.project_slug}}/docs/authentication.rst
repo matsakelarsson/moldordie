@@ -128,6 +128,73 @@ password reset, leaving {{ provider }} as the only way in. allauth requires
 installed, so an SSO-only deployment drops the second factors from
 ``INSTALLED_APPS`` and leaves them to the provider.
 
+{% if headless -%}
+Calling services
+----------------------------------------------------------------------
+
+A service that calls the API, a batch job or another application, presents a token
+{% if entra %}the tenant{% else %}Google{% endif %} issued for it, as ``Authorization: Bearer``. The project verifies
+the token against the provider's published keys, applies the provider's rules and
+looks the caller up among the *service registrations* of the admin: a valid signature
+alone authorises nothing, an unregistered or disabled service is refused with ``401``,
+and a service is never a user. Each calling service has one identity of its own;
+services do not share one. The example endpoint ``GET /api/principal/`` answers who is
+calling, ``{"kind": "service", "name": ...}`` for a service and
+``{"kind": "user", "name": ...}`` for a user; the users routes stay user-only.
+{% if entra %}
+**Registering the API.** In the Microsoft Entra admin center, create a second app
+registration for the API itself (the login registration stays what it is):
+
+#. Under *Expose an API*, set the application ID URI (``api://<client id>``), and in
+   the manifest set ``api.requestedAccessTokenVersion`` to ``2``, so that the tokens
+   issued for the API carry the v2.0 issuer the project accepts.
+#. Under *App roles*, add a role for applications, value ``Service.Access`` (or set
+   ``ENTRA_SERVICE_ROLE`` to the value you choose), allowed member type *Applications*.
+#. Under *Token configuration*, add the optional claim ``idtyp`` to the access token:
+   the project refuses a token that does not say it was issued to an application.
+#. In *Enterprise applications*, open the API's service principal and set *Assignment
+   required* to *Yes*, so that only assigned services obtain a token for it.
+#. Set ``ENTRA_API_CLIENT_ID`` to the registration's application (client) id: the
+   audience a service's token must name. An empty one is reported by the checks.
+
+**Registering a service.** Each calling service gets its own app registration with a
+client secret or certificate; under its *API permissions*, add the API's
+``Service.Access`` application permission and grant admin consent, which assigns the
+role. Then, in the project's admin under *Service registrations*, add the service with
+its name and, as the subject, the *Object ID* of its service principal (the enterprise
+application's object id, not the registration's). The subject cannot be changed
+afterwards: a new identity is a new registration.
+
+**Obtaining a token.** As the service, with the Azure CLI::
+
+    az login --service-principal --tenant <tenant id> \
+        --username <the service's client id> --password <its secret>
+    TOKEN="$(az account get-access-token --scope api://<the API's client id>/.default \
+        --query accessToken --output tsv)"
+    curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
+
+The project checks the token's issuer (the tenant's v2.0 endpoint), audience (the API),
+tenant, ``idtyp`` (``app``), the role, and finally the registration for the token's
+``oid``. Signing keys are read from the tenant's discovery endpoint when the first
+token arrives, and refreshed when a token names a key id the cached set lacks.
+
+**Deactivating a service.** Untick *Enabled* on its registration: its tokens are
+refused from the next request on, whatever the provider still issues. Removing the role
+assignment in the tenant stops the provider issuing tokens as well.
+{% else %}
+**Registering a service.** In Google Cloud IAM, each calling service runs as a service
+account of its own. In the project's admin under *Service registrations*, add the
+service with its name and, as the subject, the service account's *Unique ID* (the
+``sub`` claim of its tokens, a number, not the email address). The subject cannot be
+changed afterwards: a new identity is a new registration.
+
+The project checks the token's issuer (``https://accounts.google.com``, with or without
+the scheme), its audience (``GOOGLE_SERVICE_AUDIENCE``, the site's ``https://`` URL by
+default) and finally the registration for the token's ``sub``. Google's signing keys
+are read from its discovery endpoint when the first token arrives, and refreshed when
+a token names a key id the cached set lacks.
+{% endif %}
+{% endif -%}
 Content Security Policy
 ----------------------------------------------------------------------
 
