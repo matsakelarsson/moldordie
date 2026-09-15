@@ -1,5 +1,6 @@
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 {%- set provider = 'Microsoft Entra ID' if entra else 'Google' -%}
+{%- set headless = cookiecutter.rest_api == 'Django Ninja' -%}
 .. _authentication:
 
 Authentication
@@ -138,6 +139,51 @@ the provider redirects the browser on to another identity provider, needs that p
 origin listed too: add it to ``SECURE_CSP["form-action"]`` in ``config/settings/base.py``
 as an exact origin, never a wildcard.
 
+{% if headless -%}
+The single-page application
+----------------------------------------------------------------------
+
+A single-page application served from another origin signs in through allauth's
+headless API, under ``/_allauth/app/v1/``, as its *app* client: the answers carry
+tokens, never cookies. The origins the application is served from go in
+``DJANGO_FRONTEND_ORIGINS`` (comma-separated; ``http://localhost:5173`` in development),
+which lets them call the API and the headless endpoints across origins. The API of the
+endpoints is allauth's `headless specification`_; the project does not serve allauth's
+own specification page, whose viewer loads from a CDN the Content Security Policy blocks.
+
+.. _headless specification: https://docs.allauth.org/en/latest/headless/openapi-specification/
+
+**Login.** ``POST /_allauth/app/v1/auth/login`` with ``{"{% if cookiecutter.username_type == 'email' %}email{% else %}username{% endif %}": ..., "password": ...}``
+answers ``200`` with ``meta.access_token`` and ``meta.refresh_token``. The access token is a
+JWT signed by the project with a key of its own (``DJANGO_HEADLESS_JWT_PRIVATE_KEY``),
+valid for ``DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN`` seconds (five minutes); the
+refresh token for ``DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN`` seconds (a day). A
+token is valid only while the session behind it exists on the server, so a logout, a key
+rotation or an administrator ending the session invalidates it at once.
+
+**Pending flows.** When the login is not complete, the answer is ``401`` with the
+pending flow in ``data.flows`` (``"is_pending": true``) and a ``meta.session_token``:
+a second factor (``mfa_authenticate``, completed with a code at
+``POST /_allauth/app/v1/auth/2fa/authenticate``), or an address still to verify
+(``verify_email``). The session token identifies the pending login: send it in the
+``X-Session-Token`` header of the calls that complete the flow, and drop it once the
+answer carries the tokens.
+
+**Refresh.** ``POST /_allauth/app/v1/tokens/refresh`` with ``{"refresh_token": ...}``
+answers a new access token and a new refresh token. The old refresh token is invalid as
+soon as it is used; an expired one means signing in again.
+
+**Logout.** ``DELETE /_allauth/app/v1/auth/session`` with the access token as
+``Authorization: Bearer`` ends the session behind the tokens, and both stop working.
+
+**Storing the credentials.** Keep the access token in memory and send it as a bearer
+token. Persist the refresh token only if the application must survive a page reload,
+in a store its own origin controls (session storage, or a service worker), never in a
+cookie the browser would attach on its own; treat it like a password, and prefer signing
+in again over keeping it for long. The session token of a pending flow is short-lived and
+belongs in memory.
+
+{% endif -%}
 Smoke test
 ----------------------------------------------------------------------
 

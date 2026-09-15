@@ -13,6 +13,9 @@
     },
 }.get(cookiecutter.identity_provider) %}
 {%- set entra = cookiecutter.identity_provider == 'entra' %}
+{#- With Django Ninja, a provider also serves the single-page application through
+    allauth's headless API, guarded by the identity app. #}
+{%- set headless = provider and cookiecutter.rest_api == 'Django Ninja' %}
 """Base settings to build other settings files upon."""
 
 import os
@@ -26,6 +29,9 @@ from typing import Any
 
 import django_stubs_ext
 import environ
+{%- if headless %}
+from corsheaders.defaults import default_headers
+{%- endif %}
 from django.utils.csp import CSP
 
 # Let Django's generic classes be subscripted at runtime, e.g. ``DetailView[User]``.
@@ -116,6 +122,9 @@ THIRD_PARTY_APPS = [
 {%- if provider %}
     "{{ provider.app }}",
 {%- endif %}
+{%- if headless %}
+    "allauth.headless",
+{%- endif %}
     # Database backend for Django's Tasks framework;
     # the backend itself is picked per environment
     "django_tasks_db",
@@ -141,6 +150,9 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "{{ cookiecutter.project_slug }}.users",
+{%- if headless %}
+    "{{ cookiecutter.project_slug }}.identity",
+{%- endif %}
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -472,6 +484,41 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 {%- endif %}
+{%- if headless %}
+# django-allauth headless
+# ------------------------------------------------------------------------------
+# https://docs.allauth.org/en/latest/headless/configuration.html
+# The single-page application signs in through allauth's app client and gets JWTs
+# (docs/authentication.rst); the server-rendered pages keep their sessions, so the
+# headless-only mode stays off
+HEADLESS_CLIENTS = ("app",)
+HEADLESS_ONLY = False
+HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"  # noqa: S105 - a class, not a secret
+# One trust domain: HS256 with a key of the application's own, set per environment
+# and refused when empty by the identity app, so allauth never falls back to
+# SECRET_KEY. A token is valid only while the session behind it exists, and a refresh
+# token is replaced when used.
+HEADLESS_JWT_ALGORITHM = "HS256"
+HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED = True
+HEADLESS_JWT_ROTATE_REFRESH_TOKEN = True
+HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = env.int(
+    "DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN",
+    default=300,
+)
+HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = env.int(
+    "DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN",
+    default=86400,
+)
+# allauth's OpenAPI page loads its viewer from a CDN the Content Security Policy
+# blocks; the documentation links the hosted specification instead
+HEADLESS_SERVE_SPECIFICATION = False
+# The origins the single-page application is served from: they may call the API and
+# allauth's endpoints (django-cors-headers below)
+FRONTEND_ORIGINS = env.list(
+    "DJANGO_FRONTEND_ORIGINS",
+    default=["http://localhost:5173"],
+)
+{%- endif %}
 {% if cookiecutter.rest_api == 'DRF' -%}
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -500,8 +547,17 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
 # django-cors-headers
 # ------------------------------------------------------------------------------
 # https://github.com/adamchainz/django-cors-headers#setup
+{%- if headless %}
+# The API and allauth's headless endpoints answer the single-page application, which
+# sends the session token of a pending login (a second factor, an unverified
+# address) in the X-Session-Token header
+CORS_URLS_REGEX = r"^/(api|_allauth)/.*$"
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOW_HEADERS = [*default_headers, "x-session-token"]
+{%- else %}
 # Only the API answers requests from other origins
 CORS_URLS_REGEX = r"^/api/.*$"
+{%- endif %}
 {%- endif %}
 # Your stuff...
 # ------------------------------------------------------------------------------

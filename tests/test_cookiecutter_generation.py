@@ -132,13 +132,21 @@ UNSUPPORTED_COMBINATIONS = [
     {"cloud_provider": "None", "mail_service": "Amazon SES"},
 ]
 
+# Django Ninja with an identity provider: allauth's headless API signs the single-page
+# application's tokens, and the identity app guards them and verifies calling services.
+HEADLESS_COMBINATIONS = [
+    {"identity_provider": "entra", "rest_api": "Django Ninja"},
+    {"identity_provider": "google", "rest_api": "Django Ninja"},
+]
+
 # Answers that only show their effect together, baked on top of the derived rows below:
 # cloud_provider and use_whitenoise decide the storage backends between them (and None
 # with WhiteNoise off is rejected, so no single-answer row can reach cloud_provider=None),
-# Channels has its own wiring in the Docker and Celery files, and a mail catcher's host
-# is the Compose service with Docker. mail_service shares no conditional with
-# cloud_provider anywhere in the template, so the two need no cross product: Amazon SES
-# bakes on the default cloud_provider=AWS, the only one it supports.
+# Channels has its own wiring in the Docker and Celery files, a mail catcher's host
+# is the Compose service with Docker, and an identity provider's headless login exists
+# with Django Ninja only. mail_service shares no conditional with cloud_provider anywhere
+# in the template, so the two need no cross product: Amazon SES bakes on the default
+# cloud_provider=AWS, the only one it supports.
 PAIRED_COMBINATIONS = [
     {"cloud_provider": "AWS", "use_whitenoise": "y"},
     {"cloud_provider": "None", "use_whitenoise": "y"},
@@ -146,6 +154,7 @@ PAIRED_COMBINATIONS = [
     {"realtime": "channels", "use_celery": "y", "use_docker": "y"},
     {"mail_catcher": "Mailpit", "use_docker": "y"},
     {"mail_catcher": "Mailtrap Local", "use_docker": "y"},
+    *HEADLESS_COMBINATIONS,
 ]
 
 DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
@@ -1164,6 +1173,97 @@ def test_google_login_follows_its_own_verified_flag(bake):
     assert google["SCOPE"] == ["profile", "email"]
     assert google["AUTH_PARAMS"] == {"access_type": "online"}
     assert google["OAUTH_PKCE_ENABLED"] is True
+
+
+JWT_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"
+IDENTITY_APP_FILES = [
+    "my_awesome_project/identity/__init__.py",
+    "my_awesome_project/identity/apps.py",
+    "my_awesome_project/identity/tests/headless.py",
+    "my_awesome_project/identity/tests/test_apps.py",
+    "my_awesome_project/identity/tests/test_login.py",
+]
+
+
+@pytest.mark.parametrize("context_override", HEADLESS_COMBINATIONS, ids=_fixture_id)
+def test_headless_login(bake, context_override):
+    """Django Ninja with a provider serves allauth's app client with JWTs signed by a key of their own."""
+    project = bake(context_override)
+
+    base = project.settings("base")
+    apps = base.literal("INSTALLED_APPS")
+    assert "allauth.headless" in apps
+    assert "my_awesome_project.identity" in apps
+    assert base.literal("HEADLESS_CLIENTS") == ("app",)
+    assert base.literal("HEADLESS_ONLY") is False
+    assert base.literal("HEADLESS_TOKEN_STRATEGY") == JWT_STRATEGY
+    assert base.literal("HEADLESS_JWT_ALGORITHM") == "HS256"
+    assert base.literal("HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED") is True
+    assert base.literal("HEADLESS_JWT_ROTATE_REFRESH_TOKEN") is True
+    assert base.literal("HEADLESS_SERVE_SPECIFICATION") is False
+    reads = {read.name: read for read in base.env_reads()}
+    assert (
+        reads["DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN"].method,
+        reads["DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN"].default,
+    ) == ("int", 300)
+    assert (
+        reads["DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN"].method,
+        reads["DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN"].default,
+    ) == ("int", 86400)
+    assert (reads["DJANGO_FRONTEND_ORIGINS"].method, reads["DJANGO_FRONTEND_ORIGINS"].default) == (
+        "list",
+        ["http://localhost:5173"],
+    )
+    assert "DJANGO_HEADLESS_JWT_PRIVATE_KEY" not in reads
+    # The API and allauth's endpoints answer the frontend, which sends the session token of pending flows
+    assert base.literal("CORS_URLS_REGEX") == r"^/(api|_allauth)/.*$"
+    assert base.value("CORS_ALLOWED_ORIGINS") == base.value("FRONTEND_ORIGINS")
+    assert base.value("CORS_ALLOW_HEADERS") == Expression("[*default_headers, 'x-session-token']")
+
+    # The signing key: drawn per environment, required in production, never SECRET_KEY
+    production = project.settings("production")
+    assert env_read(production, "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default is NO_DEFAULT
+    assert env_read(production, "DJANGO_FRONTEND_ORIGINS").default is NO_DEFAULT
+    assert "CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS" in production.source
+    production_env = project.env("production", "django")
+    keys = [
+        production_env["DJANGO_HEADLESS_JWT_PRIVATE_KEY"],
+        env_read(project.settings("local"), "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default,
+        env_read(project.settings("test"), "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default,
+    ]
+    secret_keys = [
+        production_env["DJANGO_SECRET_KEY"],
+        env_read(project.settings("local"), "DJANGO_SECRET_KEY").default,
+        env_read(project.settings("test"), "DJANGO_SECRET_KEY").default,
+    ]
+    assert all(TOKEN.fullmatch(key) for key in keys)
+    assert len(set(keys + secret_keys)) == len(keys + secret_keys)
+    assert "DJANGO_FRONTEND_ORIGINS" in production_env
+
+    assert 'path("_allauth/", include("allauth.headless.urls"))' in project.text("config/urls.py")
+    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
+    assert allauth.extras == {"headless", "mfa", "socialaccount"}
+    for path in IDENTITY_APP_FILES:
+        assert (project.root / path).exists(), path
+
+
+@pytest.mark.parametrize(
+    "context_override",
+    [{"identity_provider": "entra"}, {"identity_provider": "google", "rest_api": "DRF"}, {"rest_api": "Django Ninja"}],
+    ids=_fixture_id,
+)
+def test_no_headless_login_without_ninja_and_a_provider(bake, context_override):
+    project = bake(context_override)
+
+    base = project.settings("base")
+    assert "allauth.headless" not in base.literal("INSTALLED_APPS")
+    assert "HEADLESS" not in base.source
+    assert "FRONTEND" not in base.source
+    assert "_allauth" not in project.text("config/urls.py")
+    assert not (project.root / "my_awesome_project" / "identity").exists()
+    assert "DJANGO_HEADLESS_JWT_PRIVATE_KEY" not in project.env("production", "django")
+    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
+    assert "headless" not in allauth.extras
 
 
 def test_no_identity_provider(bake):

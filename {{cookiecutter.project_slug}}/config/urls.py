@@ -30,6 +30,10 @@ urlpatterns = [
     # User management
     path("users/", include("{{ cookiecutter.project_slug }}.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
+{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+    # The single-page application's login: allauth's headless API, app client only
+    path("_allauth/", include("allauth.headless.urls")),
+{%- endif %}
     # Your stuff: custom urls includes go here
     # ...
     # Media files

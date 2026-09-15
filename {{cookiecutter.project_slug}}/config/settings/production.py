@@ -6,6 +6,7 @@
 {%- set whitenoise = cookiecutter.use_whitenoise == 'y' %}
 {%- set channels = cookiecutter.realtime == 'channels' %}
 {%- set sentry = cookiecutter.use_sentry == 'y' %}
+{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 {%- set mail = {
     'Mailgun': {
         'docs': 'https://anymail.readthedocs.io/en/stable/esps/mailgun/',
@@ -220,6 +221,16 @@ ACCOUNT_EMAIL_SUBJECT_PREFIX = EMAIL_SUBJECT_PREFIX
 # ------------------------------------------------------------------------------
 # Django Admin URL regex.
 ADMIN_URL = env("DJANGO_ADMIN_URL")
+{%- if headless %}
+
+# django-allauth headless
+# ------------------------------------------------------------------------------
+# The key allauth signs the single-page application's tokens with, and the origins
+# the application is served from: required here, defaulted in development
+HEADLESS_JWT_PRIVATE_KEY = env("DJANGO_HEADLESS_JWT_PRIVATE_KEY")
+FRONTEND_ORIGINS = env.list("DJANGO_FRONTEND_ORIGINS")
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+{%- endif %}
 
 # Anymail
 # ------------------------------------------------------------------------------

@@ -67,6 +67,8 @@ jobs:
             args: "use_celery=y rest_api=DRF"
           - name: Channels
             args: "realtime=channels"
+          - name: Entra & Django-Ninja
+            args: "identity_provider=entra rest_api='Django Ninja'"
 
     name: "Docker ${{ matrix.script.name }}"
     runs-on: ubuntu-latest
@@ -98,6 +100,8 @@ jobs:
             args: "realtime=channels rest_api='Django Ninja'"
           - name: Channels, email username & Django-Ninja
             args: "realtime=channels username_type=email rest_api='Django Ninja'"
+          - name: Google & Django-Ninja
+            args: "identity_provider=google rest_api='Django Ninja'"
           - name: Python 3.12
             args: ""
             python: "3.12"
