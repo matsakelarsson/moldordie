@@ -91,3 +91,84 @@ The view of a generated project that the tests use to locate files and inspect t
 `GeneratedProject` in `tests/generated_project.py`, with `PythonModule` for what a Python file
 binds at module scope, read from its source alone (`docs/adr/0001`). Expected behaviour belongs
 to the tests: the reader asserts nothing, makes no existence check and validates no tree.
+
+---
+
+The vocabulary of the generated project's frontend: the UI library, its components and its
+theme. The terms of the generation flow above still apply; in particular "context" alone is
+the answers the hooks receive, and Django's is the **template context**.
+
+## Component
+
+A reusable piece of the generated UI library: a Cotton template under `templates/cotton/ui/`,
+invoked as `<c-ui.name>`. It declares the inputs it consumes, renders in an isolated template
+context, fills its slots with the caller's markup and forwards the attributes it does not
+declare to its documented element.
+
+_Avoid_: element (allauth's unit), widget (Django's form control), partial.
+
+## Slot
+
+Markup a caller hands a component: its content as the default slot, or a named `<c-slot>`.
+Rendered in the caller's template context before the component sees it.
+
+_Avoid_: block (template inheritance), child.
+
+## Forwarded attribute
+
+An attribute a component was given but did not declare, written onto its element by the
+`ui_attrs` filter under the attribute contract in `ui/attrs.py`.
+
+_Avoid_: passthrough, rest attributes.
+
+## Token
+
+A named design value of the UI library, a CSS custom property with the `--ui-` prefix. The
+colour tokens are owned by the palettes in Python and served by the theme stylesheet; the
+others live in `static/css/ui/tokens.css`.
+
+_Avoid_: variable, Pico variable.
+
+## Palette
+
+A named, complete set of colour token values in both the light and the dark set: `blue`,
+`teal` or `violet` in `ui/palettes.py`. Every palette meets the adjacency table, the pairs
+of tokens that meet on the page with the contrast ratio AA asks of each.
+
+_Avoid_: theme, scheme, skin.
+
+## Mode
+
+Which colour set applies: `system`, the browser's preference, or `light` or `dark` forced.
+
+_Avoid_: theme, dark mode as a palette.
+
+## Theme
+
+Both resolved colour sets of one request, light and dark, plus the mode it asked for;
+computed by `resolve_theme` in `ui/themes.py` and served as `/ui/theme.css`. Python does not
+decide which set the browser shows when the mode is `system`.
+
+_Avoid_: palette, style.
+
+## Partial
+
+A named `partialdef` block of a Django template, addressed as `template.html#name`. It
+need not belong to a page template.
+
+_Avoid_: snippet, include.
+
+## Fragment
+
+The HTML a view returns when it selects partial rendering for an eligible request. A
+non-boosted htmx request does not guarantee one; `htmx_fragment` in the template context
+marks the choice.
+
+_Avoid_: partial response.
+
+## Template context
+
+Django's rendering context, always so qualified. Unqualified, "context" is the answers the
+hooks receive.
+
+_Avoid_: context (unqualified) for Django's.

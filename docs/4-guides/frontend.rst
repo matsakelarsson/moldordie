@@ -7,12 +7,14 @@ Generated projects ship a server-rendered frontend with no Node.js toolchain:
 
 - `htmx`_ adds partial page updates on top of regular links and forms. It is provided by `django-htmx`_, which bundles the htmx script and its extensions.
 - `Pico CSS`_ styles semantic HTML (``<nav>``, ``<article>``, ``<form>``, ``<table>``...) without utility classes. A pinned release is vendored in the project.
+- `django-cotton`_ compiles ``<c-...>`` components, and the project's UI library, the ``ui`` app, supplies the filters that write a component's attributes and URLs, the colour palettes and the theme stylesheet. Its contract for downstream developers is the generated project's ``docs/frontend.rst``; the decisions are in ``docs/adr/0009`` and ``docs/adr/0010``.
 
 Every page works without JavaScript: links keep their ``href`` and forms keep their ``action``, htmx only enhances them. All assets are served from the project's own origin, and in production the manifest static files storage gives them hashed, cacheable file names.
 
 .. _htmx: https://htmx.org
 .. _django-htmx: https://django-htmx.readthedocs.io
 .. _Pico CSS: https://picocss.com
+.. _django-cotton: https://django-cotton.com
 
 Pico CSS
 --------
@@ -34,6 +36,15 @@ To upgrade Pico:
 .. _Pico repository: https://github.com/picocss/pico/releases
 
 Project-specific styles go in ``static/css/project.css``, which is loaded after Pico and uses Pico's CSS variables (``--pico-primary``, ``--pico-del-color``...).
+
+Cotton and the UI library
+-------------------------
+
+django-cotton is pinned in the generated ``pyproject.toml`` and configured in ``config/settings/base.py`` rather than by its default app config, so the template can read and test the configuration: ``django_cotton.apps.SimpleAppConfig`` is installed, ``APP_DIRS`` is off, the loaders are listed with Cotton's first behind Django's cached loader, Cotton's tag library and the ``ui`` filters are builtins, and ``COTTON_ENABLE_CONTEXT_ISOLATION`` is on so a component sees its inputs, the request and the context processors but not the calling template's variables. The generated ``ui/tests/test_isolation.py`` renders a page variable that a component must not see; when Cotton renames the setting, that test is what fails. ``test_ui_library`` in ``tests/test_cookiecutter_generation.py`` checks the wiring on the generated settings.
+
+The ``ui`` app is the library's Python side. ``ui/attrs.py`` and ``ui/links.py`` are the contracts behind the three filters a component writes attributes with: ``ui_attrs`` for the attributes it did not declare, ``ui_attr`` for a declared value and ``ui_url`` for a URL under the ``navigation`` or ``local`` policy. ``ui/palettes.py`` owns the 26 colour tokens, the adjacency table of token pairs with the WCAG AA ratio each must meet, and the blue, teal and violet palettes; ``ui/contrast.py`` is the arithmetic, with its reference ratios pinned by tests. ``ui/themes.py`` resolves a request's theme with pure functions and ``ui/views.py`` serves it as ``/ui/theme.css``, private and uncached, with ``static/css/ui/tokens.css`` holding the tokens that are not colours. ``base.html`` loads both after Pico and puts ``data-ui-mode`` on the root element when ``UI_MODE`` forces a scheme.
+
+Template Python and templates in this repository avoid ``{{``, ``{%`` and ``{#`` outside cookiecutter's own syntax and ``{% raw %}`` blocks, because Cookiecutter renders every file: the stylesheet is built by concatenation in ``ui/themes.py``, and the test fixtures under ``ui/tests/templates/`` are wrapped in ``{% raw %}`` like every template.
 
 htmx
 ----
