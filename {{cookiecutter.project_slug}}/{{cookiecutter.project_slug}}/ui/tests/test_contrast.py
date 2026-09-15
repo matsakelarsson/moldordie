@@ -28,7 +28,11 @@ def test_luminance_extremes():
     assert relative_luminance("#FFFFFF") == pytest.approx(1)
 
 
-@pytest.mark.parametrize("colour", ["#fff", "ffffff", "#ggg000", "#1234567", "", "red"])
+# A trailing newline is not a colour: the whole value must be one
+@pytest.mark.parametrize(
+    "colour",
+    ["#fff", "ffffff", "#ggg000", "#1234567", "", "red", "#ffffff\n"],
+)
 def test_only_six_digit_hex_colours(colour):
     with pytest.raises(ValueError, match="not a #RRGGBB colour"):
         parse_hex(colour)

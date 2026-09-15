@@ -1,4 +1,4 @@
-"""System checks of the UI library: the theme the settings configure exists."""
+"""System checks of the UI library: the theme the settings configure can be served."""
 
 from __future__ import annotations
 
@@ -10,6 +10,9 @@ from django.core import checks
 
 from .palettes import PALETTES
 from .themes import MODES
+from .themes import override_problems
+from .themes import resolve
+from .themes import validate
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -21,7 +24,8 @@ def check_theme_settings(
     app_configs: Sequence[AppConfig] | None,
     **kwargs: Any,
 ) -> list[checks.CheckMessage]:
-    """``UI_PALETTE`` names a built-in palette and ``UI_MODE`` a supported mode."""
+    """``UI_PALETTE`` names a built-in palette, ``UI_MODE`` a supported mode, and
+    ``UI_BRAND`` gives the brand's tokens colours that every pair still meets."""
     messages: list[checks.CheckMessage] = []
     if settings.UI_PALETTE not in PALETTES:
         messages.append(
@@ -41,4 +45,27 @@ def check_theme_settings(
                 id="ui.E002",
             ),
         )
-    return messages
+    for problem in override_problems(settings.UI_BRAND):
+        where = "UI_BRAND"
+        if problem.set_name is not None:
+            where += f"[{problem.set_name!r}]"
+        messages.append(
+            checks.Error(
+                f"{where}: {problem.message}.",
+                hint="UI_BRAND maps light and dark to the tokens a brand may "
+                "override, each to a #RRGGBB colour; see docs/frontend.rst.",
+                id="ui.E003",
+            ),
+        )
+    if messages:
+        return messages
+    theme = resolve(settings.UI_PALETTE, settings.UI_MODE, settings.UI_BRAND)
+    return [
+        checks.Error(
+            f"UI_BRAND breaks a pair of the {problem.set_name} set: {problem.message}.",
+            hint="Choose colours that meet the ratio against every token they meet; "
+            "the pairs are PAIRS in ui/palettes.py.",
+            id="ui.E004",
+        )
+        for problem in validate(theme)
+    ]

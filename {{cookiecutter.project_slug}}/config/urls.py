@@ -89,6 +89,11 @@ if settings.DEBUG:
             kwargs={"exception": Exception("Page not Found")},
         ),
         path("500/", default_views.server_error),
+        # The UI library's showcase and its theme preview (docs/frontend.rst)
+        path(
+            "ui/components/",
+            include("{{ cookiecutter.project_slug }}.ui.showcase_urls", namespace="showcase"),
+        ),
     ]
     if "debug_toolbar" in settings.INSTALLED_APPS:
         import debug_toolbar

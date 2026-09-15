@@ -143,13 +143,38 @@ Which colour set applies: `system`, the browser's preference, or `light` or `dar
 
 _Avoid_: theme, dark mode as a palette.
 
+## Brand
+
+The overrides a deployment or a company gives the tokens a brand may change, per colour
+set, never the status tokens; `UI_BRAND` in the settings is the deployment's. A brand is
+valid only together with the palette beneath it, since the adjacency table checks the
+result.
+
+_Avoid_: custom theme, skin.
+
 ## Theme
 
-Both resolved colour sets of one request, light and dark, plus the mode it asked for;
-computed by `resolve_theme` in `ui/themes.py` and served as `/ui/theme.css`. Python does not
-decide which set the browser shows when the mode is `system`.
+Both resolved colour sets of one request, light and dark, plus the mode it asked for: the
+palette with the brand over it and, in development, the preview; computed by
+`resolve_theme` in `ui/themes.py` and served as `/ui/theme.css`. Python does not decide
+which set the browser shows when the mode is `system`.
 
 _Avoid_: palette, style.
+
+## Preview
+
+A palette, a mode and partial colour overrides chosen in the showcase, validated and kept
+in the development session. Resolved against the current palettes and brand on each
+request, never stored as a finished theme; one that no longer resolves is dropped.
+
+_Avoid_: draft, snapshot.
+
+## Showcase
+
+The development-only page at `/ui/components/` that renders every component and its states
+from example templates it also shows as written, with the sample form and the preview form.
+
+_Avoid_: style guide, storybook, demo.
 
 ## Partial
 

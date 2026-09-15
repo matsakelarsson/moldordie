@@ -1,0 +1,45 @@
+{% raw %}{# The target holds the results and their pagination, and the fragment reproduces it with its id #}
+<div class="ui-stack" id="showcase-results">
+  {% if page.object_list %}
+    <c-ui.table caption="Tasks">
+      <c-slot name="head">
+        <tr>
+          <th scope="col">Task</th>
+          <th scope="col">Status</th>
+        </tr>
+      </c-slot>
+      {% for task in page.object_list %}
+        <tr>
+          <td>{{ task.title }}</td>
+          <td>
+            <c-ui.badge level="{{ task.level }}">
+              {{ task.status }}
+            </c-ui.badge>
+          </td>
+        </tr>
+      {% endfor %}
+    </c-ui.table>
+    <c-ui.pagination :page="page"
+                     :previous_url="previous_url"
+                     :next_url="next_url"
+                     :page_urls="page_urls"
+                     target="#showcase-results"
+                     label="Tasks" />
+  {% else %}
+    <c-ui.empty-state title="No tasks match">
+      Nothing matches “{{ query }}”.
+      <c-slot name="actions">
+        <c-ui.link href="{% url 'showcase:index' %}#showcase-pagination"
+                   appearance="button"
+                   variant="secondary"
+                   hx-get="{% url 'showcase:index' %}"
+                   hx-target="#showcase-results"
+                   hx-swap="outerHTML"
+                   hx-push-url="true">
+          Show every task
+        </c-ui.link>
+      </c-slot>
+    </c-ui.empty-state>
+  {% endif %}
+</div>
+{%- endraw %}

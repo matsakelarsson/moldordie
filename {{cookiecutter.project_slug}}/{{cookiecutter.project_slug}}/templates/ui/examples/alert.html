@@ -1,0 +1,13 @@
+{% raw %}<c-ui.alert>
+  A notice at the default level, info.
+</c-ui.alert>
+<c-ui.alert level="success" title="Saved">
+  Your changes are saved.
+</c-ui.alert>
+<c-ui.alert level="warning" dismissible>
+  This notice can be dismissed.
+</c-ui.alert>
+<c-ui.alert level="error" title="Payment failed" dismissible>
+  The card was declined. <a href="{% url 'about' %}">Read what to do next</a>.
+</c-ui.alert>
+{%- endraw %}
