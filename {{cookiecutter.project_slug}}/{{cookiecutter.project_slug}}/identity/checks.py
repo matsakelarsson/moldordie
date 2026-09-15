@@ -14,7 +14,24 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from django.apps import AppConfig
+{% if cookiecutter.identity_provider == 'entra' %}
 
+def check_service_settings(
+    app_configs: Sequence[AppConfig] | None,
+    **kwargs: Any,
+) -> list[checks.CheckMessage]:
+    """Calling services need the API's registration; an empty one is reported."""
+    if settings.ENTRA_API_CLIENT_ID.strip():
+        return []
+    return [
+        checks.Warning(
+            "ENTRA_API_CLIENT_ID is empty, so no calling service's token can name "
+            "this API as its audience.",
+            hint="Set it in the environment; see docs/authentication.rst.",
+            id="identity.W001",
+        ),
+    ]
+{% endif %}
 
 def check_frontend_url(
     app_configs: Sequence[AppConfig] | None,
