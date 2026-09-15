@@ -76,6 +76,7 @@ docker compose -f docker-compose.local.yml run --rm \
   -e GOOGLE_LOGIN_CLIENT_SECRET=x \
   -e DJANGO_HEADLESS_JWT_PRIVATE_KEY=x \
   -e DJANGO_FRONTEND_ORIGINS=https://app.example.com \
+  -e DJANGO_FRONTEND_URL=https://app.example.com \
   django python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING
 
 # Generate the HTML for the documentation
@@ -102,4 +103,5 @@ docker run --rm \
 -e GOOGLE_LOGIN_CLIENT_SECRET=x \
 -e DJANGO_HEADLESS_JWT_PRIVATE_KEY=x \
 -e DJANGO_FRONTEND_ORIGINS=https://app.example.com \
+-e DJANGO_FRONTEND_URL=https://app.example.com \
 django-prod python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING

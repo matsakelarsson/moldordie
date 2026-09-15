@@ -61,6 +61,7 @@ GOOGLE_LOGIN_CLIENT_ID=x \
 GOOGLE_LOGIN_CLIENT_SECRET=x \
 DJANGO_HEADLESS_JWT_PRIVATE_KEY=x \
 DJANGO_FRONTEND_ORIGINS=https://app.example.com \
+DJANGO_FRONTEND_URL=https://app.example.com \
 uv run python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING
 
 # Generate the HTML for the documentation

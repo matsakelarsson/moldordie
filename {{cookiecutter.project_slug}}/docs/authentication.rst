@@ -176,6 +176,29 @@ soon as it is used; an expired one means signing in again.
 **Logout.** ``DELETE /_allauth/app/v1/auth/session`` with the access token as
 ``Authorization: Bearer`` ends the session behind the tokens, and both stop working.
 
+**The frontend contract.** allauth's mails and flows send the user to pages the
+application serves at ``DJANGO_FRONTEND_URL`` (``http://localhost:5173`` in development;
+its origin must be one of ``DJANGO_FRONTEND_ORIGINS``, which ``python manage.py check``
+enforces), so the application implements these five paths:
+
+==========================================  ===========================================
+Path                                        The page
+==========================================  ===========================================
+``/account/verify-email/{key}``             confirms the address by posting ``key`` to
+                                            ``/_allauth/app/v1/auth/email/verify``
+``/account/password/reset``                 asks for the address and requests a reset
+``/account/password/reset/key/{key}``       sets the new password with ``key``
+``/account/signup``                         the signup form
+``/account/provider/callback``              where a provider redirect returns, with
+                                            ``error`` and ``error_process`` on failure
+==========================================  ===========================================
+
+The mails link to these pages for every flow, the server-rendered signup included:
+once the application exists, it is where addresses are verified and passwords reset. A
+login may name a return destination (``callback_url``, ``next``); the project accepts
+one on a configured frontend origin, matched by scheme, host and port, and, for the
+server-rendered pages, a relative URL or its own origin. Nothing else.
+
 **Calling the API.** Send the access token as ``Authorization: Bearer <token>`` on
 every request to ``/api/``. The API treats any ``Authorization`` header, even an empty
 or malformed one, as a token attempt and answers ``401`` when it does not validate; it

@@ -258,6 +258,24 @@ def test_the_app_tokens_use_the_declared_key(production_settings, environment):
     validate_token_settings(settings)
 
 
+def test_the_frontend_pages_are_at_the_declared_url(production_settings, environment):
+    settings = production_settings()
+
+    frontend_url = environment["DJANGO_FRONTEND_URL"]
+    assert frontend_url == settings.FRONTEND_URL
+    assert set(settings.HEADLESS_FRONTEND_URLS) == {
+        "account_confirm_email",
+        "account_reset_password",
+        "account_reset_password_from_key",
+        "account_signup",
+        "socialaccount_login_error",
+    }
+    assert all(
+        url.startswith(f"{frontend_url}/")
+        for url in settings.HEADLESS_FRONTEND_URLS.values()
+    )
+
+
 @pytest.mark.parametrize("key", ["", "   "])
 def test_identity_refuses_an_empty_signing_key(production_settings, key):
     settings = production_settings(DJANGO_HEADLESS_JWT_PRIVATE_KEY=key)
