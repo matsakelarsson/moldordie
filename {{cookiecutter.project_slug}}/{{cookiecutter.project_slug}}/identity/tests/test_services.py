@@ -1,4 +1,5 @@
-"""Calling services: Microsoft Entra ID tokens on the principal endpoint."""
+{%- set entra = cookiecutter.identity_provider == 'entra' -%}
+"""Calling services: {% if entra %}Microsoft Entra ID{% else %}Google{% endif %} tokens on the principal endpoint."""
 
 from __future__ import annotations
 
@@ -18,7 +19,9 @@ from {{ cookiecutter.project_slug }}.identity.tests.headless import password_log
 from {{ cookiecutter.project_slug }}.identity.tests.services import KID
 from {{ cookiecutter.project_slug }}.identity.tests.services import LIFETIME
 from {{ cookiecutter.project_slug }}.identity.tests.services import SUBJECT
+{%- if entra %}
 from {{ cookiecutter.project_slug }}.identity.tests.services import TENANT
+{%- endif %}
 from {{ cookiecutter.project_slug }}.identity.tests.services import service_claims
 from {{ cookiecutter.project_slug }}.identity.tests.services import sign
 
@@ -28,8 +31,14 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.django_db
 
 REMOVE = object()
-ANOTHER_TENANTS_ISSUER = "https://login.microsoftonline.com/another/v2.0"
+{%- if entra %}
+ANOTHER_ISSUER = "https://login.microsoftonline.com/another/v2.0"
 V1_ISSUER = f"https://sts.windows.net/{TENANT}/"
+ANOTHER_AUDIENCE = "another-registration"
+{%- else %}
+ANOTHER_ISSUER = "https://accounts.example.com"
+ANOTHER_AUDIENCE = "https://another.example.com"
+{%- endif %}
 
 
 @pytest.fixture(autouse=True)
@@ -74,15 +83,21 @@ def test_a_registered_service_reaches_the_principal_endpoint(client, registratio
 
 
 REJECTED = [
+    {%- if entra %}
     ("unregistered subject", {"oid": "someone", "sub": "someone"}, "unregistered"),
-    ("wrong issuer", {"iss": ANOTHER_TENANTS_ISSUER}, "bad_issuer"),
+    ("wrong issuer", {"iss": ANOTHER_ISSUER}, "bad_issuer"),
     ("v1 issuer", {"iss": V1_ISSUER}, "bad_issuer"),
     ("wrong tenant", {"tid": "another-tenant"}, "bad_tenant"),
-    ("wrong audience", {"aud": "another-registration"}, "bad_audience"),
+    ("wrong audience", {"aud": ANOTHER_AUDIENCE}, "bad_audience"),
     ("missing idtyp", {"idtyp": REMOVE}, "not_an_app"),
     ("user token", {"idtyp": "user"}, "not_an_app"),
     ("missing role", {"roles": ["Other.Role"]}, "missing_role"),
     ("no roles claim", {"roles": REMOVE}, "missing_role"),
+    {%- else %}
+    ("unregistered subject", {"sub": "someone"}, "unregistered"),
+    ("wrong issuer", {"iss": ANOTHER_ISSUER}, "bad_issuer"),
+    ("wrong audience", {"aud": ANOTHER_AUDIENCE}, "bad_audience"),
+    {%- endif %}
     ("expired", {"exp": service_claims()["iat"] - 2 * LIFETIME}, "expired"),
     ("no exp", {"exp": REMOVE}, "missing_claim"),
 ]
@@ -114,8 +129,13 @@ def test_a_token_breaking_a_rule_is_refused(
 
 @pytest.mark.parametrize(
     "issuer",
-    [ANOTHER_TENANTS_ISSUER, V1_ISSUER],
+    {%- if entra %}
+    [ANOTHER_ISSUER, V1_ISSUER],
     ids=["another tenant", "v1"],
+    {%- else %}
+    [ANOTHER_ISSUER, "accounts.example.com"],
+    ids=["with scheme", "without scheme"],
+    {%- endif %}
 )
 def test_the_verifier_itself_refuses_another_issuer(registration, issuer):
     """The policy routes by the issuer first; the verifier holds the rule on its own."""
@@ -123,6 +143,34 @@ def test_the_verifier_itself_refuses_another_issuer(registration, issuer):
         verification.service_verifier().verify(token_with(iss=issuer))
 
     assert refused.value.reason == "bad_issuer"
+{%- if not entra %}
+
+
+def test_the_issuer_without_a_scheme_is_accepted(client, registration):
+    """Google names itself with or without the scheme, depending on the token's age."""
+    response = principal(client, token_with(iss="accounts.google.com"))
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_a_token_without_an_email_claim_is_accepted(client, registration):
+    """A token from the metadata server in the standard format carries no email."""
+    response = principal(client, token_with(email=REMOVE, email_verified=REMOVE))
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_a_user_login_token_is_refused(client, registration):
+    """A user's ID token names the login client and an unregistered subject."""
+    login_client = "login-client.apps.googleusercontent.com"
+    user = "110248495921238986420"
+
+    user_token = token_with(aud=login_client, sub=user)
+    assert principal(client, user_token).status_code == HTTPStatus.UNAUTHORIZED
+
+    right_audience = token_with(sub=user)
+    assert principal(client, right_audience).status_code == HTTPStatus.UNAUTHORIZED
+{%- endif %}
 
 
 def test_a_disabled_registration_is_refused(client, registration):
@@ -204,7 +252,7 @@ def test_a_service_token_beside_a_session_is_the_service(client, registration):
 
 def test_no_token_material_reaches_the_logs(client, registration, caplog):
     caplog.set_level(logging.DEBUG, logger=verification.__name__)
-    token = sign(service_claims(oid="unknown-service", sub="unknown-service"))
+    token = sign(service_claims(sub="unknown-service"{% if entra %}, oid="unknown-service"{% endif %}))
 
     principal(client, token)
 

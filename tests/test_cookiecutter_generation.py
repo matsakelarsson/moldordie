@@ -1198,6 +1198,7 @@ IDENTITY_APP_FILES = [
     "my_awesome_project/identity/tests/test_permissions.py",
     "my_awesome_project/identity/tests/test_provider_login.py",
     "my_awesome_project/identity/tests/test_revoke_jwt_sessions.py",
+    "my_awesome_project/identity/tests/test_services.py",
 ]
 # The pages of the frontend contract, as HEADLESS_FRONTEND_URLS names them
 FRONTEND_PAGES = {
@@ -1304,9 +1305,7 @@ def test_calling_services(bake, context_override):
     assert base.value("IDENTITY_SERVICE_ISSUERS")
     assert "IDENTITY_SERVICE_AUDIENCE" in base.source
     assert "IDENTITY_SERVICE_DISCOVERY_URL" in base.source
-    entra = context_override["identity_provider"] == "entra"
-    assert (project.root / "my_awesome_project" / "identity" / "tests" / "test_services.py").exists() is entra
-    if entra:
+    if context_override["identity_provider"] == "entra":
         assert reads["ENTRA_API_CLIENT_ID"].default == ""
         assert reads["ENTRA_SERVICE_ROLE"].default == "Service.Access"
         assert base.value("IDENTITY_SERVICE_AUDIENCE") == base.value("ENTRA_API_CLIENT_ID")
