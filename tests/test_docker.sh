@@ -45,8 +45,15 @@ docker compose -f docker-compose.local.yml run --rm django pytest
 # return non-zero status code if there are migrations that have not been created
 docker compose -f docker-compose.local.yml run --rm django python manage.py makemigrations --check || { echo "ERROR: there were changes in the models, but migration listed above have not been created and are not saved in version control"; exit 1; }
 
-# Make sure the check doesn't raise any warnings
-docker compose -f docker-compose.local.yml run --rm django python manage.py check --settings=config.settings.local --fail-level WARNING
+# Make sure the check doesn't raise any warnings; the placeholders stand in for the
+# identity provider's credentials, which the checks report when empty
+docker compose -f docker-compose.local.yml run --rm \
+  -e ENTRA_TENANT_ID=x \
+  -e ENTRA_LOGIN_CLIENT_ID=x \
+  -e ENTRA_LOGIN_CLIENT_SECRET=x \
+  -e GOOGLE_LOGIN_CLIENT_ID=x \
+  -e GOOGLE_LOGIN_CLIENT_SECRET=x \
+  django python manage.py check --settings=config.settings.local --fail-level WARNING
 
 # Check that message extraction completes and updates the catalogues
 docker compose -f docker-compose.local.yml run --rm django python manage.py makemessages --all
@@ -62,6 +69,11 @@ docker compose -f docker-compose.local.yml run --rm \
   -e DJANGO_ADMIN_URL=x \
   -e MAILGUN_API_KEY=x \
   -e MAILGUN_DOMAIN=x \
+  -e ENTRA_TENANT_ID=x \
+  -e ENTRA_LOGIN_CLIENT_ID=x \
+  -e ENTRA_LOGIN_CLIENT_SECRET=x \
+  -e GOOGLE_LOGIN_CLIENT_ID=x \
+  -e GOOGLE_LOGIN_CLIENT_SECRET=x \
   django python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING
 
 # Generate the HTML for the documentation
@@ -81,4 +93,9 @@ docker run --rm \
 -e DJANGO_ADMIN_URL=x \
 -e MAILGUN_API_KEY=x \
 -e MAILGUN_DOMAIN=x \
+-e ENTRA_TENANT_ID=x \
+-e ENTRA_LOGIN_CLIENT_ID=x \
+-e ENTRA_LOGIN_CLIENT_SECRET=x \
+-e GOOGLE_LOGIN_CLIENT_ID=x \
+-e GOOGLE_LOGIN_CLIENT_SECRET=x \
 django-prod python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING

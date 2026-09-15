@@ -2,6 +2,22 @@
 # ------------------------------------------------------------------------------
 USE_DOCKER=yes
 IPYTHONDIR=/app/.ipython
+{%- if cookiecutter.identity_provider == 'entra' %}
+
+# django-allauth
+# ------------------------------------------------------------------------------
+# Sign-in through Microsoft Entra ID: the tenant and the login app registration
+ENTRA_TENANT_ID=
+ENTRA_LOGIN_CLIENT_ID=
+ENTRA_LOGIN_CLIENT_SECRET=
+{%- elif cookiecutter.identity_provider == 'google' %}
+
+# django-allauth
+# ------------------------------------------------------------------------------
+# Sign-in through Google: the web client
+GOOGLE_LOGIN_CLIENT_ID=
+GOOGLE_LOGIN_CLIENT_SECRET=
+{%- endif %}
 
 {%- if cookiecutter.use_celery == 'y' %}
 # Redis
