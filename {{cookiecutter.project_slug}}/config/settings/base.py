@@ -146,10 +146,14 @@ THIRD_PARTY_APPS = [
     "corsheaders",
 {%- endif %}
     "django_htmx",
+    # Cotton components; this config leaves TEMPLATES as written below
+    "django_cotton.apps.SimpleAppConfig",
 ]
 
 LOCAL_APPS = [
     "{{ cookiecutter.project_slug }}.users",
+    # The UI library: attribute helpers, palettes and the theme stylesheet
+    "{{ cookiecutter.project_slug }}.ui",
 {%- if headless %}
     "{{ cookiecutter.project_slug }}.identity",
 {%- endif %}
@@ -255,8 +259,28 @@ TEMPLATES = [
         # https://docs.djangoproject.com/en/dev/ref/settings/#dirs
         "DIRS": [str(APPS_DIR / "templates")],
         # https://docs.djangoproject.com/en/dev/ref/settings/#app-dirs
-        "APP_DIRS": True,
+        # Off because the loaders are listed; the app directories loader is one
+        "APP_DIRS": False,
         "OPTIONS": {
+            # https://docs.djangoproject.com/en/dev/ref/settings/#template-loaders
+            # Cotton compiles <c-...> components before Django parses a template,
+            # so its loader comes first; the cache wraps all three
+            "loaders": [
+                (
+                    "django.template.loaders.cached.Loader",
+                    [
+                        "django_cotton.cotton_loader.Loader",
+                        "django.template.loaders.filesystem.Loader",
+                        "django.template.loaders.app_directories.Loader",
+                    ],
+                ),
+            ],
+            # https://docs.djangoproject.com/en/dev/ref/settings/#template-builtins
+            # Cotton's tags and the UI library's filters need no {% raw %}{% load %}{% endraw %}
+            "builtins": [
+                "django_cotton.templatetags.cotton",
+                "{{ cookiecutter.project_slug }}.ui.templatetags.ui",
+            ],
             # https://docs.djangoproject.com/en/dev/ref/settings/#template-context-processors
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -271,10 +295,24 @@ TEMPLATES = [
                 "django.template.context_processors.csp",
                 "django.contrib.messages.context_processors.messages",
                 "{{cookiecutter.project_slug}}.users.context_processors.allauth_settings",
+                # Exposes ui_theme, the request's palette and mode (docs/frontend.rst)
+                "{{cookiecutter.project_slug}}.ui.context_processors.theme",
             ],
         },
     },
 ]
+
+# UI
+# ------------------------------------------------------------------------------
+# https://django-cotton.com/docs/components
+# A component sees its own inputs, the request and the context processors, never
+# the calling template's variables. The next Cotton release renames this setting
+# COTTON_ISOLATE_BY_DEFAULT; ui/tests/test_isolation.py says which one applies.
+COTTON_ENABLE_CONTEXT_ISOLATION = True
+# The colour palette and mode of the UI library: the palettes are in ui/palettes.py,
+# the modes are system, light and dark (docs/frontend.rst)
+UI_PALETTE = "blue"
+UI_MODE = "system"
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
 # Form fields are rendered with the Pico CSS markup in templates/django/forms/field.html

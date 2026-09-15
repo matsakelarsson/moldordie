@@ -41,6 +41,7 @@ dependencies = [
 {%- if cookiecutter.rest_api in ('DRF', 'Django Ninja') %}
   "django-cors-headers==4.9.0",
 {%- endif %}
+  "django-cotton==2.7.2",
   "django-environ==0.14.0",
   "django-htmx==1.29.0",
 {%- if cookiecutter.rest_api == 'Django Ninja' %}

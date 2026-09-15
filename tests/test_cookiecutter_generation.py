@@ -898,6 +898,48 @@ def test_template_partials(bake, context):
     assert offenders == []
 
 
+def test_ui_library(bake, context):
+    """django-cotton is wired explicitly and isolated; the UI library's filters, palettes and theme are in place."""
+    project = bake(context)
+    slug = context["project_slug"]
+
+    assert "django-cotton" in pinned(project)
+    base = project.settings("base")
+    apps = base.literal("INSTALLED_APPS")
+    assert "django_cotton.apps.SimpleAppConfig" in apps
+    assert "django_cotton" not in apps
+    assert f"{slug}.ui" in apps
+    templates = base.value("TEMPLATES")[0]
+    assert templates["APP_DIRS"] is False
+    assert templates["OPTIONS"]["loaders"] == [
+        (
+            "django.template.loaders.cached.Loader",
+            [
+                "django_cotton.cotton_loader.Loader",
+                "django.template.loaders.filesystem.Loader",
+                "django.template.loaders.app_directories.Loader",
+            ],
+        ),
+    ]
+    assert templates["OPTIONS"]["builtins"] == ["django_cotton.templatetags.cotton", f"{slug}.ui.templatetags.ui"]
+    assert templates["OPTIONS"]["context_processors"][-1] == f"{slug}.ui.context_processors.theme"
+    assert base.literal("COTTON_ENABLE_CONTEXT_ISOLATION") is True
+    assert base.literal("UI_PALETTE") == "blue"
+    assert base.literal("UI_MODE") == "system"
+
+    assert f'include("{slug}.ui.urls", namespace="ui")' in project.text("config/urls.py")
+    for module in ("apps", "attrs", "checks", "context_processors", "contrast", "links", "palettes", "themes"):
+        assert (project.root / slug / "ui" / f"{module}.py").is_file()
+    assert (project.root / slug / "ui" / "templatetags" / "ui.py").is_file()
+    assert (project.root / slug / "static" / "css" / "ui" / "tokens.css").is_file()
+
+    base_html = project.template("base.html")
+    assert "{% static 'css/ui/tokens.css' %}" in base_html
+    assert "{% url 'ui:theme' %}" in base_html
+    assert 'data-ui-mode="{{ ui_theme.forced_mode }}"' in base_html
+    assert "   frontend\n" in project.text("docs/index.rst")
+
+
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])
 @pytest.mark.parametrize("realtime", ["none", "channels"])
 def test_content_security_policy(bake, context, realtime, rest_api):

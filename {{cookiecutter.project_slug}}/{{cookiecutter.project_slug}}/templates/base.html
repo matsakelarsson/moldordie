@@ -2,7 +2,9 @@
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
-<html lang="{{ LANGUAGE_CODE }}">
+{# data-ui-mode forces a colour scheme; without it the browser's preference decides (docs/frontend.rst) #}
+<html lang="{{ LANGUAGE_CODE }}"
+      {% if ui_theme.forced_mode %}data-ui-mode="{{ ui_theme.forced_mode }}"{% endif %}>
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
@@ -24,6 +26,9 @@
     {% block css %}
       {# Pico CSS is vendored in static/vendor/pico/ (version, licence and checksum in pico.json) #}
       <link href="{% static 'vendor/pico/pico.min.css' %}" rel="stylesheet" />
+      {# The UI library's tokens, then its colours resolved for this request (docs/frontend.rst) #}
+      <link href="{% static 'css/ui/tokens.css' %}" rel="stylesheet" />
+      <link href="{% url 'ui:theme' %}" rel="stylesheet" />
       {# Your stuff: third-party CSS libraries go here #}
       {# This file stores project-specific CSS #}
       <link href="{% static 'css/project.css' %}" rel="stylesheet" />
