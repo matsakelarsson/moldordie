@@ -906,7 +906,7 @@ def test_template_partials(bake, context):
 
 
 def test_ui_library(bake, context):
-    """django-cotton is wired explicitly and isolated; the UI library's filters, palettes and theme are in place."""
+    """django-cotton is wired and isolated; the UI library's filters, palettes, theme and showcase are in place."""
     project = bake(context)
     slug = context["project_slug"]
 
@@ -933,11 +933,14 @@ def test_ui_library(bake, context):
     assert base.literal("COTTON_ENABLE_CONTEXT_ISOLATION") is True
     assert base.literal("UI_PALETTE") == "blue"
     assert base.literal("UI_MODE") == "system"
+    assert base.literal("UI_BRAND") == {"light": {}, "dark": {}}
 
     assert f'include("{slug}.ui.urls", namespace="ui")' in project.text("config/urls.py")
-    for module in ("apps", "attrs", "checks", "context_processors", "contrast", "links", "palettes", "themes"):
+    modules = ["apps", "attrs", "checks", "context_processors", "contrast", "forms", "links", "palettes", "showcase"]
+    for module in [*modules, "showcase_urls", "themes", "urls", "views"]:
         assert (project.root / slug / "ui" / f"{module}.py").is_file()
-    assert (project.root / slug / "ui" / "templatetags" / "ui.py").is_file()
+    for library in ("ui", "showcase"):
+        assert (project.root / slug / "ui" / "templatetags" / f"{library}.py").is_file()
     assert (project.root / slug / "static" / "css" / "ui" / "tokens.css").is_file()
 
     components = project.root / slug / "templates" / "cotton" / "ui"
@@ -958,6 +961,25 @@ def test_ui_library(bake, context):
     assert not (project.root / slug / "static" / "vendor").exists()
     assert (project.root / slug / "tests" / "test_staticfiles.py").is_file()
     assert (project.root / slug / "tests" / "test_error_pages.py").is_file()
+
+    # The showcase renders an example per component, and only the development routes reach it
+    showcase = project.root / slug / "templates" / "ui"
+    assert (showcase / "showcase.html").is_file()
+    assert sorted(path.name for path in (showcase / "examples").iterdir()) == [
+        "alert.html",
+        "badge.html",
+        "button.html",
+        "card.html",
+        "empty_state.html",
+        "field.html",
+        "form.html",
+        "link.html",
+        "pagination.html",
+        "table.html",
+    ]
+    debug_routes = project.text("config/urls.py").rsplit("if settings.DEBUG:", 1)[1]
+    assert f'include("{slug}.ui.showcase_urls", namespace="showcase")' in debug_routes
+    assert "{% url 'showcase:index' as showcase_url %}" in project.template("partials/navigation.html")
 
     base_html = project.template("base.html")
     # The library's stylesheets in their order, the theme after them, the project's last

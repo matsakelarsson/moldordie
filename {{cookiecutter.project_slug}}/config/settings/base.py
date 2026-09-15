@@ -313,6 +313,11 @@ COTTON_ENABLE_CONTEXT_ISOLATION = True
 # the modes are system, light and dark (docs/frontend.rst)
 UI_PALETTE = "blue"
 UI_MODE = "system"
+# The brand's colours over the palette, per set: each maps a token BRAND_TOKENS in
+# ui/palettes.py names, without its --ui- prefix, to a #RRGGBB colour. A token left out
+# keeps the palette's colour. The system checks refuse any other token or value and a
+# colour that breaks a contrast pair (docs/frontend.rst).
+UI_BRAND: dict[str, dict[str, str]] = {"light": {}, "dark": {}}
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
 # Every field of a form rendered by Django goes through templates/django/forms/field.html,

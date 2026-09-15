@@ -1,14 +1,22 @@
+import logging
+
 import pytest
+from django.contrib.sessions.backends.db import SessionStore
 from django.core.exceptions import ImproperlyConfigured
 
 from {{ cookiecutter.project_slug }}.ui.palettes import PALETTES
 from {{ cookiecutter.project_slug }}.ui.palettes import TOKENS
 from {{ cookiecutter.project_slug }}.ui.themes import MODES
+from {{ cookiecutter.project_slug }}.ui.themes import PREVIEW_SESSION_KEY
+from {{ cookiecutter.project_slug }}.ui.themes import InvalidThemeError
 from {{ cookiecutter.project_slug }}.ui.themes import Theme
 from {{ cookiecutter.project_slug }}.ui.themes import configured_theme
+from {{ cookiecutter.project_slug }}.ui.themes import override_problems
+from {{ cookiecutter.project_slug }}.ui.themes import preview_theme
 from {{ cookiecutter.project_slug }}.ui.themes import render_stylesheet
 from {{ cookiecutter.project_slug }}.ui.themes import resolve
 from {{ cookiecutter.project_slug }}.ui.themes import resolve_theme
+from {{ cookiecutter.project_slug }}.ui.themes import servable_theme
 from {{ cookiecutter.project_slug }}.ui.themes import validate
 
 
@@ -117,3 +125,111 @@ def test_resolve_theme_resolves_once_per_request(rf):
     assert theme == configured_theme()
     assert resolve_theme(request) is theme
     assert resolve_theme(rf.get("/")) is not theme
+
+
+def test_override_problems_say_what_a_brand_may_not_do():
+    assert override_problems({"light": {"accent": "#123456"}, "dark": {}}) == []
+    assert override_problems({}) == []
+    problems = override_problems(
+        {
+            "light": {"info": "#123456", "shade": "#123456", "accent": "blue"},
+            "dusk": {},
+            "dark": ["accent"],
+        },
+    )
+    assert [str(problem) for problem in problems] == [
+        "light: info belongs to the palette, not the brand",
+        "light: unknown token shade",
+        "light: accent is 'blue', not a #RRGGBB colour",
+        "unknown set 'dusk'",
+        "dark: expected a mapping of tokens to colours, not list",
+    ]
+    (problem,) = override_problems(["light"])
+    assert str(problem) == "expected a mapping of light and dark, not list"
+
+
+def test_servable_theme_raises_with_every_problem():
+    theme = servable_theme("teal", "dark", {"dark": {"accent": "#5eead4"}})
+    assert theme.dark["accent"] == "#5eead4"
+    with pytest.raises(InvalidThemeError) as caught:
+        servable_theme("pink", "auto", {"light": {"info": "#000000"}})
+    assert [str(problem) for problem in caught.value.problems] == [
+        "'pink' is not a palette: blue, teal, violet",
+        "'auto' is not a mode: system, light, dark",
+        "light: info belongs to the palette, not the brand",
+    ]
+    with pytest.raises(InvalidThemeError, match=r"light: fg on bg is 1\.00:1"):
+        servable_theme("blue", "system", {"light": {"fg": "#ffffff"}})
+
+
+def test_configured_theme_applies_the_brand(settings):
+    settings.UI_BRAND = {"light": {"border": "#cccccc"}}
+    theme = configured_theme()
+    assert theme.light["border"] == "#cccccc"
+    assert theme.dark == PALETTES["blue"]["dark"]
+
+
+def test_a_brand_that_breaks_a_pair_is_a_configuration_error(settings):
+    settings.UI_BRAND = {"dark": {"fg": "#1a1f2a"}}
+    with pytest.raises(ImproperlyConfigured, match=r"dark: fg on surface is 1\.00:1"):
+        configured_theme()
+
+
+def test_a_preview_resolves_over_the_brand():
+    brand = {"light": {"border": "#cccccc"}, "dark": {"border": "#3a4150"}}
+    preview = {"palette": "violet", "mode": "light", "dark": {"accent": "#c4b5fd"}}
+    theme = preview_theme(preview, brand)
+    assert (theme.palette, theme.mode) == ("violet", "light")
+    assert theme.light["border"] == "#cccccc"
+    assert theme.dark["border"] == "#3a4150"
+    assert theme.dark["accent"] == "#c4b5fd"
+    # The preview's colours apply over the brand's
+    theme = preview_theme({**preview, "light": {"border": "#bbbbbb"}}, brand)
+    assert theme.light["border"] == "#bbbbbb"
+
+
+def test_a_preview_that_cannot_be_served():
+    with pytest.raises(InvalidThemeError, match="expected a preview mapping, not str"):
+        preview_theme("teal", {})
+    with pytest.raises(InvalidThemeError, match="unknown preview key 'accent'"):
+        preview_theme({"palette": "teal", "mode": "dark", "accent": "#000000"}, {})
+    with pytest.raises(InvalidThemeError, match="None is not a mode"):
+        preview_theme({"palette": "teal"}, {})
+
+
+def with_preview(rf, preview):
+    request = rf.get("/")
+    request.session = SessionStore()
+    request.session[PREVIEW_SESSION_KEY] = preview
+    return request
+
+
+def test_a_preview_applies_under_debug_only(rf, settings):
+    preview = {"palette": "violet", "mode": "dark"}
+    assert resolve_theme(with_preview(rf, preview)) == configured_theme()
+    settings.DEBUG = True
+    assert resolve_theme(with_preview(rf, preview)) == resolve("violet", "dark")
+    # A request that has no session has no preview
+    assert resolve_theme(rf.get("/")) == configured_theme()
+
+
+def test_a_stale_preview_is_logged_removed_and_replaced(rf, settings, caplog):
+    settings.DEBUG = True
+    request = with_preview(rf, {"palette": "pink", "mode": "dark"})
+
+    with caplog.at_level(logging.WARNING, logger=resolve_theme.__module__):
+        theme = resolve_theme(request)
+
+    assert theme == configured_theme()
+    assert PREVIEW_SESSION_KEY not in request.session
+    (record,) = [r for r in caplog.records if r.name == resolve_theme.__module__]
+    assert record.levelno == logging.WARNING
+    assert "'pink' is not a palette" in record.getMessage()
+
+
+def test_a_stale_preview_over_an_invalid_configuration_raises(rf, settings):
+    settings.DEBUG = True
+    settings.UI_PALETTE = "pink"
+    preview = {"palette": "blue", "mode": "system", "light": {"fg": "#ffffff"}}
+    with pytest.raises(ImproperlyConfigured, match="not a palette"):
+        resolve_theme(with_preview(rf, preview))

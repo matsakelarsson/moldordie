@@ -1,0 +1,25 @@
+{% raw %}<div class="ui-stack" id="showcase-sample">
+  {% if result %}
+    <c-ui.alert level="success" title="Accepted">
+      {{ result }}
+    </c-ui.alert>
+  {% endif %}
+  {# novalidate leaves the validation to the server, which is what this form shows #}
+  <form method="post"
+        action="{% url 'showcase:index' %}#showcase-field"
+        hx-post="{% url 'showcase:index' %}"
+        hx-target="#showcase-sample"
+        hx-swap="outerHTML"
+        hx-disabled-elt="find button"
+        novalidate>
+    {% csrf_token %}
+    {{ sample_form }}
+    <div class="ui-actions">
+      <c-ui.button type="submit">
+        Send
+      </c-ui.button>
+      <span class="htmx-indicator ui-muted">Sending…</span>
+    </div>
+  </form>
+</div>
+{%- endraw %}

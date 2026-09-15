@@ -137,36 +137,59 @@ The theme
 ---------
 
 A theme is both resolved colour sets, light and dark, plus the mode the page asked for.
-Two settings choose it:
+Three settings configure it:
 
 .. code-block:: python
 
     UI_PALETTE = "blue"  # blue, teal or violet
     UI_MODE = "system"  # system, light or dark
+    UI_BRAND: dict[str, dict[str, str]] = {"light": {}, "dark": {}}
 
 ``system`` leaves the choice between the sets to the browser's preference; ``light`` or
 ``dark`` forces one, through the ``data-ui-mode`` attribute that ``base.html`` puts on the
 root element and a matching ``color-scheme``, so native controls agree with the page. An
 unknown palette or mode is reported by the system checks (``ui.E001``, ``ui.E002``).
 
+``UI_BRAND`` is the deployment's brand: for each set, colours for the ten tokens a brand
+may override, named without the ``--ui-`` prefix, each a ``#RRGGBB`` colour. A set or a
+token left out keeps the palette's colour:
+
+.. code-block:: python
+
+    UI_BRAND = {
+        "light": {"accent": "#0b57d0", "accent-hover": "#0842a0", "focus": "#0842a0"},
+        "dark": {"accent": "#a8c7fa", "accent-hover": "#d3e3fd", "focus": "#d3e3fd"},
+    }
+
+The status tokens belong to the palette, so a brand never changes what an error looks
+like; it can still change the surfaces a status colour sits on, so the palette with the
+brand over it is checked against the whole adjacency table. The system checks report a
+``UI_BRAND`` that is not such a mapping, a token a brand may not override and a value that
+is not a ``#RRGGBB`` colour (``ui.E003``), and every pair the result no longer meets
+(``ui.E004``).
+
 The theme is served as a stylesheet, ``/ui/theme.css``, that ``base.html`` loads after
 ``tokens.css``: the light set on ``:root``, the dark set under
 ``prefers-color-scheme: dark`` unless light is forced, and again under
 ``[data-ui-mode="dark"]``. Its selectors and property names are fixed and its values are
 validated colours; nothing else is interpolated. The response is ``Cache-Control:
-private, no-store`` because it can depend on the request, and it opens no database
-transaction, so an error page keeps its colours. It is a route, not a static file: it is
-not collected and not hashed.
+private, no-store`` because it can depend on the request. It opens no database transaction
+and, without ``DEBUG``, when no session preview is read, needs no database at all, so an
+error page keeps its colours. It is a route, not a static file: it is not collected and not
+hashed.
 
-``ui/themes.py`` holds the pure functions, ``resolve``, ``validate`` and
-``render_stylesheet``, and ``resolve_theme(request)``, the one place that reads the
-settings and the request. The result is resolved once per request and shared by the
-``ui_theme`` context processor and the stylesheet view. ``resolve_theme`` is the extension
-point for an application's own source of colours, a company record for one: resolve the
-record as an override of the configured theme with ``resolve(palette, mode, override)``,
-``validate`` the result, and fall back to ``configured_theme()`` when it cannot be served,
-logging which source failed. The configured theme is validated too; one that fails is a
-configuration error, raised rather than served.
+``ui/themes.py`` holds the pure functions: ``resolve`` applies overrides to a palette,
+``validate`` says what keeps a theme from being served, ``override_problems`` what keeps an
+override from applying, ``servable_theme`` runs them and raises ``InvalidThemeError`` with
+every problem found, ``preview_theme`` resolves a preview, and ``render_stylesheet`` writes
+the CSS. ``configured_theme()`` resolves the settings; a configured theme that cannot be
+served is a configuration error, raised rather than served. ``resolve_theme(request)``
+resolves a request's theme once, for the ``ui_theme`` context processor and the stylesheet
+view alike: the configured theme or, under ``DEBUG``, the preview the showcase keeps in the
+session (see `The showcase`_). A preview that can no longer be served, because a palette or
+``UI_BRAND`` changed beneath it, is logged as a warning, removed from the session and
+replaced by the configured theme. ``resolve_theme`` is also where an application resolves
+its own source of colours; see `From a preview to a company's colours`_.
 
 Stylesheets
 -----------
@@ -283,7 +306,8 @@ A page uses them like this:
 
 The tests in ``ui/tests/test_components.py`` render every component from a page under
 ``ui/tests/templates/tests/``, so Cotton's compiler and loader run on them, and read the
-result with the parser in ``ui/tests/markup.py``.
+result with the parser in ``ui/tests/markup.py``. In development, every component is also
+on `The showcase`_, rendered from an example shown beside it as written.
 
 Forms
 -----
@@ -365,4 +389,99 @@ directory under a manifest storage, Django's, or WhiteNoise's when the project w
 checks that the library's files were hashed: a reference that does not resolve fails
 there. The deployment's storage, S3 for one, is not exercised. The theme stylesheet is a
 route, not a static file, and is not collected.
+
+The showcase
+------------
+
+Under ``DEBUG``, ``config/urls.py`` registers the showcase at ``/ui/components/``, next to
+the error page previews, and the navigation links to it; without ``DEBUG`` the routes do not
+exist. For every component it shows the contract its template opens with, its example
+rendered live in the page's theme, and the example as written. An example is a template
+under ``templates/ui/examples/``, so what the page shows and what it renders cannot drift
+apart. The ``showcase`` tag library, which ``templates/ui/showcase.html`` loads, reads them:
+``example_source`` writes an example's source, escaped, and ``component_contract`` a
+component's opening comment as one paragraph. Both read only the examples and components
+``ui/showcase.py`` names, from the template files as written rather than as Cotton compiles
+them. To show a new component, add its example template, name the example in ``EXAMPLES``
+and the component in ``COMPONENTS``, and give it a section in ``templates/ui/showcase.html``.
+
+Three parts of the page are working examples of the patterns above:
+
+- The sample form, ``SampleForm`` in ``ui/forms.py``, validates on the server and has
+  nothing behind it. With htmx it posts into its own container, ``#showcase-sample``, which
+  the ``sample`` partial reproduces. An invalid submission answers ``200`` with the errors,
+  because htmx's default configuration swaps no error response; a valid one shows the
+  result, with a message swapped in out of band. While the request runs, htmx disables the
+  submit button (``hx-disabled-elt``) and shows the ``htmx-indicator``. Without JavaScript
+  the same form posts to the same view and gets the whole page. A copy of the form bound to
+  wrong answers shows the field component's error, choice, checkbox and disabled states.
+- The results page through sample tasks: the ``results`` partial holds the table and the
+  pagination inside ``#showcase-results``, the target of every page link and of the filter,
+  and a filter that matches nothing shows an empty state in the same place. The page links
+  keep the filter's query.
+- The theme preview takes a palette, a mode and, for each set, colours for the brand's
+  tokens, a blank one keeping the colour beneath it, which its placeholder shows. A valid
+  submission is kept in the session and the view redirects to the showcase, whose next load
+  fetches ``/ui/theme.css`` again; an invalid one, a colour that is not ``#RRGGBB`` or a
+  result that breaks a pair over the palette and ``UI_BRAND``, shows the form's errors and
+  leaves the theme as it was. The reset button removes the preview. A preview applies to the
+  session that made it, and only under ``DEBUG``.
+
+``ui/tests/test_showcase.py`` renders the page through ``ui/tests/urls.py``, the project's
+URLs with the showcase added as ``config/urls.py`` adds it under ``DEBUG``, since the tests
+run without it, and checks that the project's own URLs have no showcase.
+
+From a preview to a company's colours
+-------------------------------------
+
+A preview already has the shape a company's colours take: a palette, a mode and the colours
+given for each set, never a resolved theme, so it follows later changes to the palettes and
+to ``UI_BRAND``. An application that lets each company choose its colours keeps the same data
+on its own model and resolves it where the preview is resolved:
+
+#. Store the palette, the mode and the ``light`` and ``dark`` colours on the company, the
+   colours in a ``JSONField`` for one, and validate them when they are saved:
+   ``servable_theme(palette, mode, settings.UI_BRAND, colours)`` raises
+   ``InvalidThemeError`` with every problem, which a form turns into its errors the way
+   ``PreviewForm`` does.
+#. Resolve the request's company in ``resolve_theme``, before the configured theme. Saved
+   colours can still stop being servable when a palette or ``UI_BRAND`` changes: catch
+   ``InvalidThemeError`` only, log which company failed, and fall back to the configured
+   theme, leaving the record for its owner to correct.
+#. Nothing else changes: components and templates read colours only through the theme
+   stylesheet, which is private and uncached. Keep it that way, since its content now depends
+   on the user, and note that finding the company reads the database, which the stylesheet
+   otherwise does not.
+
+With a ``company`` relation on the user, for example:
+
+.. code-block:: python
+
+    def resolve_theme(request: HttpRequest) -> Theme:
+        theme = _resolved.get(request)
+        if theme is None:
+            theme = (
+                _previewed_theme(request)
+                or _company_theme(request)
+                or configured_theme()
+            )
+            _resolved[request] = theme
+        return theme
+
+
+    def _company_theme(request: HttpRequest) -> Theme | None:
+        company = getattr(request.user, "company", None)
+        if company is None:
+            return None
+        try:
+            theme = servable_theme(
+                company.palette,
+                company.mode,
+                settings.UI_BRAND,
+                company.colours,
+            )
+        except InvalidThemeError as error:
+            logger.warning("The colours of company %s cannot be served: %s", company.pk, error)
+            return None
+        return theme
 {%- endraw %}

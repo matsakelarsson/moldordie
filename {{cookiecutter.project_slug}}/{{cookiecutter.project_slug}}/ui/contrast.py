@@ -13,7 +13,7 @@ import re
 TEXT_RATIO = 4.5
 NON_TEXT_RATIO = 3.0
 
-HEX_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
+HEX_COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
 _CHANNELS = 255
 _LINEAR_LIMIT = 0.04045
 _LINEAR_DIVISOR = 12.92
@@ -26,7 +26,7 @@ _WEIGHTS = (0.2126, 0.7152, 0.0722)
 
 def parse_hex(colour: object) -> tuple[int, int, int]:
     """The red, green and blue channels of a ``#RRGGBB`` colour."""
-    if not isinstance(colour, str) or not HEX_COLOUR.match(colour):
+    if not isinstance(colour, str) or not HEX_COLOUR.fullmatch(colour):
         msg = f"{colour!r} is not a #RRGGBB colour"
         raise ValueError(msg)
     return int(colour[1:3], 16), int(colour[3:5], 16), int(colour[5:7], 16)

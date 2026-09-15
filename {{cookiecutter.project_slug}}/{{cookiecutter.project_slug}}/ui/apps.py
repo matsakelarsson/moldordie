@@ -1,8 +1,8 @@
 """The UI library's Python side.
 
 The template filters that write a component's attributes and URLs, the palettes with
-their contrast arithmetic, and the theme resolved for each request and served as a
-stylesheet (docs/frontend.rst).
+their contrast arithmetic, the theme resolved for each request and served as a
+stylesheet, and the showcase, registered under DEBUG (docs/frontend.rst).
 """
 
 from __future__ import annotations

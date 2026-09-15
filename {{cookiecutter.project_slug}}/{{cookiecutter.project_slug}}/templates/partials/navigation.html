@@ -13,6 +13,15 @@
          href="{% url 'about' %}"
          {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>{% translate "About" %}</a>
     </li>
+    {# The showcase, whose routes config/urls.py registers only under DEBUG #}
+    {% url 'showcase:index' as showcase_url %}
+    {% if showcase_url %}
+      <li>
+        <a class="ui-nav-link"
+           href="{{ showcase_url }}"
+           {% if request.resolver_match.namespace == 'showcase' %}aria-current="page"{% endif %}>{% translate "Components" %}</a>
+      </li>
+    {% endif %}
     {% if request.user.is_authenticated %}
       <li>
         <a class="ui-nav-link" href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
