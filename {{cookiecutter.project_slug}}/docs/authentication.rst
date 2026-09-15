@@ -246,6 +246,25 @@ application's ``/account/provider/callback`` page without handing it tokens, whi
 a browser client with cookies, not this application; the token endpoint above is the
 supported path.
 
+**Rotating the signing key.** Rotation is forced re-authentication: every access and
+refresh token fails as soon as every process uses the new key, and the sessions behind
+them are deleted so that a retained session token stops working as well. The operation
+is brief, and its order matters, because a login served between the purge and the new
+key would create a session the purge misses:
+
+#. Drain requests: stop routing traffic to the application.
+#. Replace ``DJANGO_HEADLESS_JWT_PRIVATE_KEY`` and restart every process that serves
+   requests, so that no process signs or accepts tokens with the old key.
+#. Run ``python manage.py revoke_jwt_sessions``, which reports how many sessions it
+   removed.
+#. Resume traffic. Every user of the application signs in again; the server-rendered
+   pages' sessions are untouched.
+
+The command identifies a session by the refresh-token state allauth keeps in it, so a
+login still pending when the key is rotated, a second factor not yet entered, is not
+identified; it holds no tokens, and completing it after the rotation issues tokens with
+the new key.
+
 **Storing the credentials.** Keep the access token in memory and send it as a bearer
 token. Persist the refresh token only if the application must survive a page reload,
 in a store its own origin controls (session storage, or a service worker), never in a
