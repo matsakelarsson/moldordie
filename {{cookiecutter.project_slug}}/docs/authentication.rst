@@ -184,17 +184,40 @@ assignment in the tenant stops the provider issuing tokens as well.
 {% else %}
 **Deactivating a service.** Untick *Enabled* on its registration: its tokens are
 refused from the next request on, whatever Google still issues.
-**Registering a service.** In Google Cloud IAM, each calling service runs as a service
-account of its own. In the project's admin under *Service registrations*, add the
-service with its name and, as the subject, the service account's *Unique ID* (the
-``sub`` claim of its tokens, a number, not the email address). The subject cannot be
-changed afterwards: a new identity is a new registration.
+**Setting up a service.** In Google Cloud IAM, each calling service runs as a
+service account of its own; create one per service, and prefer a keyless setup, an
+attached service account or impersonation, over a downloaded key. In the project's
+admin under *Service registrations*, add the service with its name and, as the
+subject, the service account's *Unique ID* (the ``sub`` claim of its tokens, a
+number, not the email address). The subject cannot be changed afterwards: a new
+identity is a new registration.
+
+**Obtaining a token.** The service asks Google for an ID token whose audience is
+``GOOGLE_SERVICE_AUDIENCE`` (the site's ``https://`` URL by default):
+
+- On Compute Engine, Cloud Run, GKE or Cloud Functions with the service account
+  attached, from the metadata server::
+
+      curl --header "Metadata-Flavor: Google" \
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://{{ cookiecutter.domain_name }}"
+
+  The token in this standard format carries no email claim, which is why the project
+  never checks one.
+- From a workstation or a pipeline whose identity may impersonate the service account
+  (the *Service Account OpenID Connect Identity Token Creator* role on it), with an
+  explicit audience::
+
+      TOKEN="$(gcloud auth print-identity-token \
+          --impersonate-service-account=billing@project.iam.gserviceaccount.com \
+          --audiences=https://{{ cookiecutter.domain_name }})"
+      curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
 
 The project checks the token's issuer (``https://accounts.google.com``, with or without
-the scheme), its audience (``GOOGLE_SERVICE_AUDIENCE``, the site's ``https://`` URL by
-default) and finally the registration for the token's ``sub``. Google's signing keys
-are read from its discovery endpoint when the first token arrives, and refreshed when
-a token names a key id the cached set lacks.
+the scheme), its audience and finally the registration for the token's ``sub``. An
+ordinary user's ID token names the login client as its audience and its subject is
+registered nowhere, so it fails twice over; no email domain is checked. Google's
+signing keys are read from its discovery endpoint when the first token arrives, and
+refreshed when a token names a key id the cached set lacks.
 {% endif %}
 **Permissions.** A registration holds Django permissions, granted in the admin next
 to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with

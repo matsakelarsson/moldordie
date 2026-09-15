@@ -189,11 +189,6 @@ REMOVALS = (
     ),
     # The app behind the single-page application's login: Django Ninja with a provider only.
     (lambda c: not with_headless(c), ("{project_slug}/identity",)),
-    # The service verifier's tests cover Entra's rules; the Google verifier's are to come.
-    (
-        lambda c: with_headless(c) and c["identity_provider"] != "entra",
-        ("{project_slug}/identity/tests/test_services.py",),
-    ),
 )
 
 

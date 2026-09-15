@@ -98,6 +98,10 @@ def service_claims(**overrides: Any) -> dict[str, Any]:
         "roles": ["Service.Access"],
         "azp": "caller-registration",
         "ver": "2.0",
+        {%- else %}
+        "azp": SUBJECT,
+        "email": "billing@project.iam.gserviceaccount.com",
+        "email_verified": True,
         {%- endif %}
     }
     claims.update(overrides)
