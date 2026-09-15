@@ -1199,6 +1199,7 @@ IDENTITY_APP_FILES = [
     "my_awesome_project/identity/tests/test_provider_login.py",
     "my_awesome_project/identity/tests/test_revoke_jwt_sessions.py",
     "my_awesome_project/identity/tests/test_services.py",
+    "my_awesome_project/identity/tests/test_verification.py",
 ]
 # The pages of the frontend contract, as HEADLESS_FRONTEND_URLS names them
 FRONTEND_PAGES = {

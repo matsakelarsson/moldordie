@@ -18,7 +18,9 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import threading
 import urllib.request
+from time import monotonic
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Protocol
@@ -62,8 +64,10 @@ NOT_AN_APP = "not_an_app"
 MISSING_ROLE = "missing_role"
 UNREGISTERED = "unregistered"
 DISABLED = "disabled"
-# The routine ones, logged at info; the rest is suspicious and logged at warning
+# The routine ones, logged at info; the rest is suspicious and logged at warning, once
+# per reason and LOG_COOLDOWN seconds, the repeats counted into the next record
 ROUTINE = frozenset({EXPIRED})
+LOG_COOLDOWN = 60.0
 # What PyJWT's errors mean, the specific ones before the general
 PYJWT_REASONS = (
     (jwt.ExpiredSignatureError, EXPIRED),
@@ -84,10 +88,44 @@ class Rejected(Exception):  # noqa: N818 - an adjective, as the policies read it
         self.reason = reason
 
 
+_rate_limits = threading.Lock()
+_last_warned: dict[str, float] = {}
+_suppressed: dict[str, int] = {}
+
+
 def log_rejection(reason: str) -> None:
-    """Record a refusal by its code: routine ones at info, the rest at warning."""
-    level = logging.INFO if reason in ROUTINE else logging.WARNING
-    logger.log(level, "service token rejected: reason=%s", reason)
+    """Record a refusal by its code: routine ones at info, the rest at warning.
+
+    A warning repeats for the same reason at most once per ``LOG_COOLDOWN`` seconds;
+    the next one says how many the cooldown swallowed, so a burst is one record.
+    """
+    if reason in ROUTINE:
+        logger.info("service token rejected: reason=%s", reason)
+        return
+    with _rate_limits:
+        now = monotonic()
+        last = _last_warned.get(reason)
+        if last is not None and now - last < LOG_COOLDOWN:
+            _suppressed[reason] = _suppressed.get(reason, 0) + 1
+            return
+        _last_warned[reason] = now
+        repeats = _suppressed.pop(reason, 0)
+    if repeats:
+        logger.warning(
+            "service token rejected: reason=%s (and %d more in the last %.0f seconds)",
+            reason,
+            repeats,
+            LOG_COOLDOWN,
+        )
+    else:
+        logger.warning("service token rejected: reason=%s", reason)
+
+
+def reset_rate_limits() -> None:
+    """Forget the warnings' cooldowns, for the tests."""
+    with _rate_limits:
+        _last_warned.clear()
+        _suppressed.clear()
 
 
 class KeySource(Protocol):
