@@ -1,10 +1,21 @@
+{%- set headless = cookiecutter.identity_provider != 'none' -%}
 from django.contrib.admin.views.decorators import staff_member_required
 from ninja import NinjaAPI
+{%- if headless %}
+
+from {{ cookiecutter.project_slug }}.identity.auth import user_auth
+{%- else %}
 from ninja.security import SessionAuth
+{%- endif %}
 
 api = NinjaAPI(
     urls_namespace="api",
+{%- if headless %}
+    # An app-issued JWT, or the session cookie with its CSRF check
+    auth=user_auth,
+{%- else %}
     auth=SessionAuth(),
+{%- endif %}
     docs_decorator=staff_member_required,
 )
 

@@ -176,6 +176,14 @@ soon as it is used; an expired one means signing in again.
 **Logout.** ``DELETE /_allauth/app/v1/auth/session`` with the access token as
 ``Authorization: Bearer`` ends the session behind the tokens, and both stop working.
 
+**Calling the API.** Send the access token as ``Authorization: Bearer <token>`` on
+every request to ``/api/``. The API treats any ``Authorization`` header, even an empty
+or malformed one, as a token attempt and answers ``401`` when it does not validate; it
+never falls back to the session for such a request. Without the header, the session
+cookie of the server-rendered pages authenticates as before, with Django's CSRF check on
+unsafe methods (htmx sends the token from ``hx-headers``). The OpenAPI schema at
+``/api/openapi.json`` declares the bearer scheme.
+
 **Storing the credentials.** Keep the access token in memory and send it as a bearer
 token. Persist the refresh token only if the application must survive a page reload,
 in a store its own origin controls (session storage, or a service worker), never in a
