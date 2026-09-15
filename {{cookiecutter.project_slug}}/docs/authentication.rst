@@ -207,6 +207,45 @@ cookie of the server-rendered pages authenticates as before, with Django's CSRF 
 unsafe methods (htmx sends the token from ``hx-headers``). The OpenAPI schema at
 ``/api/openapi.json`` declares the bearer scheme.
 
+**Signing in through {{ provider }} from the application.** The application runs
+the provider's own browser flow and posts the ID token it obtains to
+``POST /_allauth/app/v1/auth/provider/token``:
+
+.. code-block:: json
+
+    {"provider": "{% if entra %}entra{% else %}google{% endif %}", "process": "login",
+     "token": {"client_id": "<the login registration's client id>", "id_token": "<the ID token>"}}
+
+The answer is the same as a password login's: the app tokens, or a pending flow. The
+project verifies the token against the provider's published keys and the login
+registration's client id, and resolves the account exactly as the server-rendered
+login does, so a user has one account whichever way they sign in.
+{% if entra %}
+With `MSAL Browser`_, use the authorization code flow with PKCE (``loginPopup`` or
+``loginRedirect`` with the scopes ``openid``, ``profile`` and ``email``) and post the
+``idToken`` of the authentication result. The SPA and the server-rendered login share
+the login registration: add a *Single-page application* platform to it, under
+*Authentication*, with the application's redirect URI (the origin the SPA is served
+from). The *Web* platform of the server-rendered login stays. The API's registration
+and the identities of calling services are separate registrations, as described below.
+
+.. _MSAL Browser: https://learn.microsoft.com/entra/identity-platform/msal-overview
+{% else %}
+With `Google Identity Services`_, use ``google.accounts.id`` (the *Sign in with Google*
+button or One Tap), which hands the application an ID token as the ``credential`` of
+the response; there is no code to exchange. Post that credential as the ``id_token``.
+The SPA and the server-rendered login share the web client: add the application's
+origin to the client's *Authorised JavaScript origins* in the Google Cloud console.
+Calling services use their own identities, as described below.
+
+.. _Google Identity Services: https://developers.google.com/identity/gsi/web
+{% endif %}
+allauth also serves ``POST /_allauth/app/v1/auth/provider/redirect`` for the app
+client. It drives the login through the project's own redirects and ends on the
+application's ``/account/provider/callback`` page without handing it tokens, which suits
+a browser client with cookies, not this application; the token endpoint above is the
+supported path.
+
 **Storing the credentials.** Keep the access token in memory and send it as a bearer
 token. Persist the refresh token only if the application must survive a page reload,
 in a store its own origin controls (session storage, or a service worker), never in a
