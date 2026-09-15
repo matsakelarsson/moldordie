@@ -29,6 +29,7 @@ from ninja.security import SessionAuth
 from ninja.security.base import AuthBase
 
 from .verification import BAD_ISSUER
+from .verification import ROUTER
 from .verification import Rejected
 from .verification import log_rejection
 from .verification import service_verifier
@@ -133,7 +134,7 @@ class EitherAuth(AuthBase):
         if isinstance(issuer, str) and issuer in settings.IDENTITY_SERVICE_ISSUERS:
             return service_auth(request)
         # Null, empty or another issuer: no branch verifies it
-        log_rejection(BAD_ISSUER)
+        log_rejection(ROUTER, BAD_ISSUER)
         return None
 
 

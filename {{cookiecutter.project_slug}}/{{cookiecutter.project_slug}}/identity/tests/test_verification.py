@@ -14,6 +14,7 @@ from jwt import PyJWKClientError
 from {{ cookiecutter.project_slug }}.identity import verification
 from {{ cookiecutter.project_slug }}.identity.models import ServiceRegistration
 from {{ cookiecutter.project_slug }}.identity.tests import services
+from {{ cookiecutter.project_slug }}.identity.tests.headless import bearer
 from {{ cookiecutter.project_slug }}.identity.tests.services import KID
 from {{ cookiecutter.project_slug }}.identity.tests.services import LIFETIME
 from {{ cookiecutter.project_slug }}.identity.tests.services import SUBJECT
@@ -40,9 +41,8 @@ def registration() -> ServiceRegistration:
     return ServiceRegistration.objects.create(name="Billing", subject=SUBJECT)
 
 
-def principal(client, token: str) -> Any:
-    bearer = {"Authorization": f"Bearer {token}"}
-    return client.get(reverse("api:principal"), headers=bearer)
+def get_principal(client, token: str) -> Any:
+    return client.get(reverse("api:principal"), headers=bearer(token))
 
 
 def rejections(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
@@ -55,13 +55,13 @@ class TestKeySource:
         keys.keys[NEW_KID] = NEW_PRIVATE_KEY.public_key()
         token = sign(service_claims(), kid=NEW_KID, key=NEW_PRIVATE_KEY)
 
-        assert principal(client, token).status_code == HTTPStatus.OK
+        assert get_principal(client, token).status_code == HTTPStatus.OK
 
     def test_a_retired_key_is_unknown(self, client, registration, keys, caplog):
         caplog.set_level(logging.WARNING, logger=verification.__name__)
         del keys.keys[KID]
 
-        response = principal(client, sign(service_claims()))
+        response = get_principal(client, sign(service_claims()))
 
         assert response.status_code == HTTPStatus.UNAUTHORIZED
         (record,) = rejections(caplog)
@@ -77,7 +77,7 @@ class TestKeySource:
         caplog.set_level(logging.WARNING, logger=verification.__name__)
         services.use_keys(monkeypatch, services.FailingKeys())
 
-        response = principal(client, sign(service_claims()))
+        response = get_principal(client, sign(service_claims()))
 
         assert response.status_code == HTTPStatus.UNAUTHORIZED
         (record,) = rejections(caplog)
@@ -158,7 +158,7 @@ class TestLogging:
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
         expired = service_claims(exp=service_claims()["iat"] - 2 * LIFETIME)
 
-        principal(client, sign(expired))
+        get_principal(client, sign(expired))
 
         (record,) = rejections(caplog)
         assert record.levelno == logging.INFO
@@ -167,7 +167,7 @@ class TestLogging:
     def test_a_wrong_issuer_is_suspicious(self, client, registration, caplog):
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
 
-        principal(client, sign(service_claims(iss="https://issuer.example.com")))
+        get_principal(client, sign(service_claims(iss="https://issuer.example.com")))
 
         (record,) = rejections(caplog)
         assert record.levelno == logging.WARNING
@@ -186,18 +186,18 @@ class TestLogging:
         token = sign(service_claims(iss="https://issuer.example.com"))
 
         for _ in range(5):
-            principal(client, token)
+            get_principal(client, token)
 
         assert [record.getMessage() for record in rejections(caplog)] == [
-            "service token rejected: reason=bad_issuer",
+            "token rejected: branch=router reason=bad_issuer",
         ]
 
         clock[0] += verification.LOG_COOLDOWN
-        principal(client, token)
+        get_principal(client, token)
 
         cooldown = f"{verification.LOG_COOLDOWN:.0f}"
         assert rejections(caplog)[-1].getMessage() == (
-            "service token rejected: reason=bad_issuer "
+            "token rejected: branch=router reason=bad_issuer "
             f"(and 4 more in the last {cooldown} seconds)"
         )
 
@@ -209,10 +209,10 @@ class TestLogging:
     ):
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
 
-        principal(client, sign(service_claims(iss="https://issuer.example.com")))
-        principal(client, sign(service_claims(aud="https://another.example.com")))
+        get_principal(client, sign(service_claims(iss="https://issuer.example.com")))
+        get_principal(client, sign(service_claims(aud="https://another.example.com")))
 
         assert [record.getMessage() for record in rejections(caplog)] == [
-            "service token rejected: reason=bad_issuer",
-            "service token rejected: reason=bad_audience",
+            "token rejected: branch=router reason=bad_issuer",
+            "token rejected: branch=service reason=bad_audience",
         ]

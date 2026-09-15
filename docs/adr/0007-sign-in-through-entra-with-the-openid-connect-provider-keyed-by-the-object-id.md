@@ -37,3 +37,9 @@ carries a provider subclass that refuses a token without a usable `oid` with all
 provider exception, so the callback and the token endpoint answer with allauth's own
 error rather than a server error. The trust decisions around the login are recorded in
 `docs/adr/0008`.
+
+The users app's `ready()` forks on the option to register the check that reports empty
+provider credentials, the kind of fork `docs/adr/0006` avoided for Sentry. Sign-in is the
+users app's own concern, its adapters hand out the provider, and the check's module is
+generated only with a provider, so the fork registers what the app itself owns rather than
+wiring a service that is not its business.

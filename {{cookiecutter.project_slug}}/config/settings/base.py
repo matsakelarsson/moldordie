@@ -584,18 +584,18 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
 
 {% endif -%}
 {% if cookiecutter.rest_api != 'None' -%}
+{%- if headless %}
 # django-cors-headers
 # ------------------------------------------------------------------------------
 # https://github.com/adamchainz/django-cors-headers#setup
-{%- if headless %}
 # The API and allauth's headless endpoints answer the single-page application, which
 # sends the session token of a pending login (a second factor, an unverified
 # address) in the X-Session-Token header
 CORS_URLS_REGEX = r"^/(api|_allauth)/.*$"
 CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
 CORS_ALLOW_HEADERS = [*default_headers, "x-session-token"]
-{%- else %}
-# Only the API answers requests from other origins
+{%- else -%}
+# django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 CORS_URLS_REGEX = r"^/api/.*$"
 {%- endif %}
 {%- endif %}

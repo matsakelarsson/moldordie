@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# Trust decisions of the identity provider option
+# Side with the boundary in the identity provider's trust decisions
 
 Sign-in through an identity provider, app-issued tokens for a single-page application and
 provider-issued tokens for calling services each rest on a decision about what the

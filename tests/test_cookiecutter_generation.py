@@ -1095,16 +1095,22 @@ IDENTITY_PROVIDERS = [
         ("GOOGLE_LOGIN_CLIENT_ID", "GOOGLE_LOGIN_CLIENT_SECRET"),
     ),
 ]
-# The files that sign-in through a provider adds, relative to the project root
+# The files that sign-in through a provider adds, relative to the project root; ``{package}``
+# stands for the project package
 IDENTITY_PROVIDER_FILES = [
     "docs/authentication.rst",
-    "my_awesome_project/users/checks.py",
-    "my_awesome_project/users/tests/social.py",
-    "my_awesome_project/users/tests/test_checks.py",
-    "my_awesome_project/users/tests/test_social_login.py",
+    "{package}/users/checks.py",
+    "{package}/users/tests/social.py",
+    "{package}/users/tests/test_checks.py",
+    "{package}/users/tests/test_social_login.py",
 ]
 # The Entra provider subclass and its test
-ENTRA_FILES = ["my_awesome_project/users/providers.py", "my_awesome_project/users/tests/test_providers.py"]
+ENTRA_FILES = ["{package}/users/providers.py", "{package}/users/tests/test_providers.py"]
+
+
+def generated(project: GeneratedProject, path: str) -> Path:
+    """The path of a listed file in ``project``, with the package name filled in."""
+    return project.root / path.format(package=project.package)
 
 
 @pytest.mark.parametrize(
@@ -1132,12 +1138,12 @@ def test_identity_provider_login(bake, identity_provider, app, origin, credentia
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"mfa", "socialaccount"}
     for path in IDENTITY_PROVIDER_FILES:
-        assert (project.root / path).exists(), path
+        assert generated(project, path).exists(), path
     assert "authentication" in project.text("docs/index.rst")
     entra = identity_provider == "entra"
     for path in ENTRA_FILES:
-        assert (project.root / path).exists() is entra, path
-    assert ("def get_provider(" in project.text("my_awesome_project/users/adapters.py")) is entra
+        assert generated(project, path).exists() is entra, path
+    assert ("def get_provider(" in project.text(f"{project.package}/users/adapters.py")) is entra
 
 
 def test_entra_login_is_keyed_by_the_object_id(bake):
@@ -1158,7 +1164,7 @@ def test_entra_login_is_keyed_by_the_object_id(bake):
         "f'https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0'",
     )
     # The adapter hands out the subclass that refuses a token without a usable oid
-    providers = project.text("my_awesome_project/users/providers.py")
+    providers = project.text(f"{project.package}/users/providers.py")
     assert "class EntraProvider(OpenIDConnectProvider):" in providers
     assert "raise ProviderException(msg)" in providers
 
@@ -1177,29 +1183,29 @@ def test_google_login_follows_its_own_verified_flag(bake):
 
 JWT_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"
 IDENTITY_APP_FILES = [
-    "my_awesome_project/identity/__init__.py",
-    "my_awesome_project/identity/admin.py",
-    "my_awesome_project/identity/api.py",
-    "my_awesome_project/identity/apps.py",
-    "my_awesome_project/identity/auth.py",
-    "my_awesome_project/identity/checks.py",
-    "my_awesome_project/identity/frontend.py",
-    "my_awesome_project/identity/management/commands/revoke_jwt_sessions.py",
-    "my_awesome_project/identity/migrations/0001_initial.py",
-    "my_awesome_project/identity/models.py",
-    "my_awesome_project/identity/permissions.py",
-    "my_awesome_project/identity/verification.py",
-    "my_awesome_project/identity/tests/headless.py",
-    "my_awesome_project/identity/tests/services.py",
-    "my_awesome_project/identity/tests/test_apps.py",
-    "my_awesome_project/identity/tests/test_auth.py",
-    "my_awesome_project/identity/tests/test_frontend.py",
-    "my_awesome_project/identity/tests/test_login.py",
-    "my_awesome_project/identity/tests/test_permissions.py",
-    "my_awesome_project/identity/tests/test_provider_login.py",
-    "my_awesome_project/identity/tests/test_revoke_jwt_sessions.py",
-    "my_awesome_project/identity/tests/test_services.py",
-    "my_awesome_project/identity/tests/test_verification.py",
+    "{package}/identity/__init__.py",
+    "{package}/identity/admin.py",
+    "{package}/identity/api.py",
+    "{package}/identity/apps.py",
+    "{package}/identity/auth.py",
+    "{package}/identity/checks.py",
+    "{package}/identity/frontend.py",
+    "{package}/identity/management/commands/revoke_jwt_sessions.py",
+    "{package}/identity/migrations/0001_initial.py",
+    "{package}/identity/models.py",
+    "{package}/identity/permissions.py",
+    "{package}/identity/verification.py",
+    "{package}/identity/tests/headless.py",
+    "{package}/identity/tests/services.py",
+    "{package}/identity/tests/test_apps.py",
+    "{package}/identity/tests/test_auth.py",
+    "{package}/identity/tests/test_frontend.py",
+    "{package}/identity/tests/test_login.py",
+    "{package}/identity/tests/test_permissions.py",
+    "{package}/identity/tests/test_provider_login.py",
+    "{package}/identity/tests/test_revoke_jwt_sessions.py",
+    "{package}/identity/tests/test_services.py",
+    "{package}/identity/tests/test_verification.py",
 ]
 # The pages of the frontend contract, as HEADLESS_FRONTEND_URLS names them
 FRONTEND_PAGES = {
@@ -1219,7 +1225,7 @@ def test_headless_login(bake, context_override):
     base = project.settings("base")
     apps = base.literal("INSTALLED_APPS")
     assert "allauth.headless" in apps
-    assert "my_awesome_project.identity" in apps
+    assert f"{project.package}.identity" in apps
     assert base.literal("HEADLESS_CLIENTS") == ("app",)
     assert base.literal("HEADLESS_ONLY") is False
     assert base.literal("HEADLESS_TOKEN_STRATEGY") == JWT_STRATEGY
@@ -1250,7 +1256,7 @@ def test_headless_login(bake, context_override):
     assert set(frontend_urls) == set(FRONTEND_PAGES)
     for name, path in FRONTEND_PAGES.items():
         assert frontend_urls[name] == Expression(f"FRONTEND_URL + '{path}'")
-    adapters = project.text("my_awesome_project/users/adapters.py")
+    adapters = project.text(f"{project.package}/users/adapters.py")
     assert "def is_safe_url(self, url: str) -> bool:" in adapters
     # The API and allauth's endpoints answer the frontend, which sends the session token of pending flows
     assert base.literal("CORS_URLS_REGEX") == r"^/(api|_allauth)/.*$"
@@ -1282,10 +1288,10 @@ def test_headless_login(bake, context_override):
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"headless", "mfa", "socialaccount"}
     for path in IDENTITY_APP_FILES:
-        assert (project.root / path).exists(), path
+        assert generated(project, path).exists(), path
     # The API authenticates an app-issued JWT, or the session cookie with its CSRF check
     api = project.text("config/api.py")
-    assert "from my_awesome_project.identity.auth import user_auth" in api
+    assert f"from {project.package}.identity.auth import user_auth" in api
     assert "auth=user_auth," in api
     assert "SessionAuth" not in api
 
@@ -1299,8 +1305,8 @@ def test_calling_services(bake, context_override):
     production_env = project.env("production", "django")
 
     api = project.text("config/api.py")
-    assert 'api.add_router("/principal/", "my_awesome_project.identity.api.router")' in api
-    assert "class PrincipalHttpRequest(HttpRequest):" in project.text("my_awesome_project/typedefs.py")
+    assert f'api.add_router("/principal/", "{project.package}.identity.api.router")' in api
+    assert "class PrincipalHttpRequest(HttpRequest):" in project.text(f"{project.package}/typedefs.py")
     assert "pyjwt" in pinned(project)
     assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "pyjwt"] == [{"crypto"}]
     assert base.value("IDENTITY_SERVICE_ISSUERS")
@@ -1329,8 +1335,8 @@ def test_no_headless_login_without_ninja_and_a_provider(bake, context_override):
     assert "HEADLESS" not in base.source
     assert "FRONTEND" not in base.source
     assert "_allauth" not in project.text("config/urls.py")
-    assert not (project.root / "my_awesome_project" / "identity").exists()
-    assert "is_safe_url" not in project.text("my_awesome_project/users/adapters.py")
+    assert not (project.root / project.package / "identity").exists()
+    assert "is_safe_url" not in project.text(f"{project.package}/users/adapters.py")
     if context_override.get("rest_api") == "Django Ninja":
         assert "auth=SessionAuth()," in project.text("config/api.py")
     assert "DJANGO_HEADLESS_JWT_PRIVATE_KEY" not in project.env("production", "django")
@@ -1349,7 +1355,7 @@ def test_no_identity_provider(bake):
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"mfa"}
     for path in [*IDENTITY_PROVIDER_FILES, *ENTRA_FILES]:
-        assert not (project.root / path).exists(), path
+        assert not generated(project, path).exists(), path
     assert "authentication" not in project.text("docs/index.rst")
 
 

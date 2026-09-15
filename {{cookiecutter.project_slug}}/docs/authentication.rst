@@ -128,130 +128,6 @@ password reset, leaving {{ provider }} as the only way in. allauth requires
 installed, so an SSO-only deployment drops the second factors from
 ``INSTALLED_APPS`` and leaves them to the provider.
 
-{% if headless -%}
-Calling services
-----------------------------------------------------------------------
-
-A service that calls the API, a batch job or another application, presents a token
-{% if entra %}the tenant{% else %}Google{% endif %} issued for it, as ``Authorization: Bearer``. The project verifies
-the token against the provider's published keys, applies the provider's rules and
-looks the caller up among the *service registrations* of the admin: a valid signature
-alone authorises nothing, an unregistered or disabled service is refused with ``401``,
-and a service is never a user. Each calling service has one identity of its own;
-services do not share one. The example endpoint ``GET /api/principal/`` answers who is
-calling, ``{"kind": "service", "name": ...}`` for a service and
-``{"kind": "user", "name": ...}`` for a user; the users routes stay user-only.
-{% if entra %}
-**Registering the API.** In the Microsoft Entra admin center, create a second app
-registration for the API itself (the login registration stays what it is):
-
-#. Under *Expose an API*, set the application ID URI (``api://<client id>``), and in
-   the manifest set ``api.requestedAccessTokenVersion`` to ``2``, so that the tokens
-   issued for the API carry the v2.0 issuer the project accepts.
-#. Under *App roles*, add a role for applications, value ``Service.Access`` (or set
-   ``ENTRA_SERVICE_ROLE`` to the value you choose), allowed member type *Applications*.
-#. Under *Token configuration*, add the optional claim ``idtyp`` to the access token:
-   the project refuses a token that does not say it was issued to an application.
-#. In *Enterprise applications*, open the API's service principal and set *Assignment
-   required* to *Yes*, so that only assigned services obtain a token for it.
-#. Set ``ENTRA_API_CLIENT_ID`` to the registration's application (client) id: the
-   audience a service's token must name. An empty one is reported by the checks.
-
-**Registering a service.** Each calling service gets its own app registration with a
-client secret or certificate; under its *API permissions*, add the API's
-``Service.Access`` application permission and grant admin consent, which assigns the
-role. Then, in the project's admin under *Service registrations*, add the service with
-its name and, as the subject, the *Object ID* of its service principal (the enterprise
-application's object id, not the registration's). The subject cannot be changed
-afterwards: a new identity is a new registration.
-
-**Obtaining a token.** As the service, with the Azure CLI::
-
-    az login --service-principal --tenant <tenant id> \
-        --username <the service's client id> --password <its secret>
-    TOKEN="$(az account get-access-token --scope api://<the API's client id>/.default \
-        --query accessToken --output tsv)"
-    curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
-
-The project checks the token's issuer (the tenant's v2.0 endpoint), audience (the API),
-tenant, ``idtyp`` (``app``), the role, and finally the registration for the token's
-``oid``. Signing keys are read from the tenant's discovery endpoint when the first
-token arrives, and refreshed when a token names a key id the cached set lacks.
-
-**Deactivating a service.** Untick *Enabled* on its registration: its tokens are
-refused from the next request on, whatever the provider still issues. Removing the role
-assignment in the tenant stops the provider issuing tokens as well.
-{% else %}
-**Deactivating a service.** Untick *Enabled* on its registration: its tokens are
-refused from the next request on, whatever Google still issues.
-**Setting up a service.** In Google Cloud IAM, each calling service runs as a
-service account of its own; create one per service, and prefer a keyless setup, an
-attached service account or impersonation, over a downloaded key. In the project's
-admin under *Service registrations*, add the service with its name and, as the
-subject, the service account's *Unique ID* (the ``sub`` claim of its tokens, a
-number, not the email address). The subject cannot be changed afterwards: a new
-identity is a new registration.
-
-**Obtaining a token.** The service asks Google for an ID token whose audience is
-``GOOGLE_SERVICE_AUDIENCE`` (the site's ``https://`` URL by default):
-
-- On Compute Engine, Cloud Run, GKE or Cloud Functions with the service account
-  attached, from the metadata server::
-
-      curl --header "Metadata-Flavor: Google" \
-          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://{{ cookiecutter.domain_name }}"
-
-  The token in this standard format carries no email claim, which is why the project
-  never checks one.
-- From a workstation or a pipeline whose identity may impersonate the service account
-  (the *Service Account OpenID Connect Identity Token Creator* role on it), with an
-  explicit audience::
-
-      TOKEN="$(gcloud auth print-identity-token \
-          --impersonate-service-account=billing@project.iam.gserviceaccount.com \
-          --audiences=https://{{ cookiecutter.domain_name }})"
-      curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
-
-The project checks the token's issuer (``https://accounts.google.com``, with or without
-the scheme), its audience and finally the registration for the token's ``sub``. An
-ordinary user's ID token names the login client as its audience and its subject is
-registered nowhere, so it fails twice over; no email domain is checked. Google's
-signing keys are read from its discovery endpoint when the first token arrives, and
-refreshed when a token names a key id the cached set lacks.
-{% endif %}
-**Diagnostics.** A refused token is one log record of the ``identity.verification``
-logger with a fixed reason code and nothing from the token: ``reason=expired`` at
-info, the routine case, and the suspicious ones at warning (``bad_issuer``,
-``bad_audience``, ``bad_signature``, ``unknown_key``, ``key_lookup_failed``,
-``unregistered``, ``disabled``, ...). A warning repeats for the same reason at most
-once a minute, and then says how many the minute swallowed, so a burst is one record.
-The provider's key rotation needs nothing: a token naming a key id the cached set lacks
-makes the verifier fetch the set again, at most once a minute, and a key set is
-refreshed every hour regardless. A provider that cannot be reached refuses the token
-(``key_lookup_failed``) and is tried again on the next one; the discovery document is
-read when the first token arrives, never when the settings load, and read again on the
-next token if that fails.
-
-**Permissions.** A registration holds Django permissions, granted in the admin next
-to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with
-the full ``app_label.codename`` like a user does; a disabled registration holds none. A
-route both users and services may call, one under ``either_auth``, asks for a
-permission with ``require_permission`` from ``identity/permissions.py``, which answers
-``403`` for a caller that lacks it, a user or a service alike, where missing or invalid
-credentials are the policy's ``401``:
-
-.. code-block:: python
-
-    @router.get("/reports/", auth=either_auth)
-    def list_reports(request: PrincipalHttpRequest) -> list[ReportSchema]:
-        require_permission(request, "reports.view_report")
-        ...
-
-A permission says what a caller may do, not which rows it may see. The data-access
-boundary, which records a service or a user may read or change, is the project's to
-add to its own models and queries (the users API, for one, answers only the caller's
-own row); these permissions do not enforce it.
-{% endif -%}
 Content Security Policy
 ----------------------------------------------------------------------
 
@@ -396,6 +272,133 @@ cookie the browser would attach on its own; treat it like a password, and prefer
 in again over keeping it for long. The session token of a pending flow is short-lived and
 belongs in memory.
 
+{% endif -%}
+{% if headless -%}
+Calling services
+----------------------------------------------------------------------
+
+A service that calls the API, a batch job or another application, presents a token
+{% if entra %}the tenant{% else %}Google{% endif %} issued for it, as ``Authorization: Bearer``. The project verifies
+the token against the provider's published keys, applies the provider's rules and
+looks the caller up among the *service registrations* of the admin: a valid signature
+alone authorises nothing, an unregistered or disabled service is refused with ``401``,
+and a service is never a user. Each calling service has one identity of its own;
+services do not share one. The example endpoint ``GET /api/principal/`` answers who is
+calling, ``{"kind": "service", "name": ...}`` for a service and
+``{"kind": "user", "name": ...}`` for a user; the users routes stay user-only.
+{% if entra %}
+**Registering the API.** In the Microsoft Entra admin center, create a second app
+registration for the API itself (the login registration stays what it is):
+
+#. Under *Expose an API*, set the application ID URI (``api://<client id>``), and in
+   the manifest set ``api.requestedAccessTokenVersion`` to ``2``, so that the tokens
+   issued for the API carry the v2.0 issuer the project accepts.
+#. Under *App roles*, add a role for applications, value ``Service.Access`` (or set
+   ``ENTRA_SERVICE_ROLE`` to the value you choose), allowed member type *Applications*.
+#. Under *Token configuration*, add the optional claim ``idtyp`` to the access token:
+   the project refuses a token that does not say it was issued to an application.
+#. In *Enterprise applications*, open the API's service principal and set *Assignment
+   required* to *Yes*, so that only assigned services obtain a token for it.
+#. Set ``ENTRA_API_CLIENT_ID`` to the registration's application (client) id: the
+   audience a service's token must name. An empty one is reported by the checks.
+
+**Registering a service.** Each calling service gets its own app registration with a
+client secret or certificate; under its *API permissions*, add the API's
+``Service.Access`` application permission and grant admin consent, which assigns the
+role. Then, in the project's admin under *Service registrations*, add the service with
+its name and, as the subject, the *Object ID* of its service principal (the enterprise
+application's object id, not the registration's). The subject cannot be changed
+afterwards: a new identity is a new registration.
+
+**Obtaining a token.** As the service, with the Azure CLI::
+
+    az login --service-principal --tenant <tenant id> \
+        --username <the service's client id> --password <its secret>
+    TOKEN="$(az account get-access-token --scope api://<the API's client id>/.default \
+        --query accessToken --output tsv)"
+    curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
+
+The project checks the token's issuer (the tenant's v2.0 endpoint), audience (the API),
+tenant, ``idtyp`` (``app``), the role, and finally the registration for the token's
+``oid``. Signing keys are read from the tenant's discovery endpoint when the first
+token arrives, and refreshed when a token names a key id the cached set lacks.
+
+**Deactivating a service.** Untick *Enabled* on its registration: its tokens are
+refused from the next request on, whatever the provider still issues. Removing the role
+assignment in the tenant stops the provider issuing tokens as well.
+{% else %}
+**Setting up a service.** In Google Cloud IAM, each calling service runs as a
+service account of its own; create one per service, and prefer a keyless setup, an
+attached service account or impersonation, over a downloaded key. In the project's
+admin under *Service registrations*, add the service with its name and, as the
+subject, the service account's *Unique ID* (the ``sub`` claim of its tokens, a
+number, not the email address). The subject cannot be changed afterwards: a new
+identity is a new registration.
+
+**Obtaining a token.** The service asks Google for an ID token whose audience is
+``GOOGLE_SERVICE_AUDIENCE`` (the site's ``https://`` URL by default):
+
+- On Compute Engine, Cloud Run, GKE or Cloud Functions with the service account
+  attached, from the metadata server::
+
+      curl --header "Metadata-Flavor: Google" \
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://{{ cookiecutter.domain_name }}"
+
+  The token in this standard format carries no email claim, which is why the project
+  never checks one.
+- From a workstation or a pipeline whose identity may impersonate the service account
+  (the *Service Account OpenID Connect Identity Token Creator* role on it), with an
+  explicit audience::
+
+      TOKEN="$(gcloud auth print-identity-token \
+          --impersonate-service-account=billing@project.iam.gserviceaccount.com \
+          --audiences=https://{{ cookiecutter.domain_name }})"
+      curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
+
+The project checks the token's issuer (``https://accounts.google.com``, with or without
+the scheme), its audience and finally the registration for the token's ``sub``. An
+ordinary user's ID token names the login client as its audience and its subject is
+registered nowhere, so it fails twice over; no email domain is checked. Google's
+signing keys are read from its discovery endpoint when the first token arrives, and
+refreshed when a token names a key id the cached set lacks.
+
+**Deactivating a service.** Untick *Enabled* on its registration: its tokens are
+refused from the next request on, whatever Google still issues.
+{% endif %}
+**Diagnostics.** A refused token is one log record of the ``identity.verification``
+logger with fixed codes and nothing from the token: the branch that refused
+(``branch=service``, the verifier, or ``branch=router``, when the token's issuer
+matched no branch) and the reason, ``reason=expired`` at info, the routine case, and
+the suspicious ones at warning (``bad_issuer``, ``bad_audience``, ``bad_signature``,
+``unknown_key``, ``key_lookup_failed``, ``unregistered``, ``disabled``, ...). A warning
+repeats for the same codes at most once a minute, and then says how many the minute
+swallowed, so a burst is one record.
+The provider's key rotation needs nothing: a token naming a key id the cached set lacks
+makes the verifier fetch the set again, at most once a minute, and a key set is
+refreshed every hour regardless. A provider that cannot be reached refuses the token
+(``key_lookup_failed``) and is tried again on the next one; the discovery document is
+read when the first token arrives, never when the settings load, and read again on the
+next token if that fails.
+
+**Permissions.** A registration holds Django permissions, granted in the admin next
+to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with
+the full ``app_label.codename`` like a user does; a disabled registration holds none. A
+route both users and services may call, one under ``either_auth``, asks for a
+permission with ``require_permission`` from ``identity/permissions.py``, which answers
+``403`` for a caller that lacks it, a user or a service alike, where missing or invalid
+credentials are the policy's ``401``:
+
+.. code-block:: python
+
+    @router.get("/reports/", auth=either_auth)
+    def list_reports(request: PrincipalHttpRequest) -> list[ReportSchema]:
+        require_permission(request, "reports.view_report")
+        ...
+
+A permission says what a caller may do, not which rows it may see. The data-access
+boundary, which records a service or a user may read or change, is the project's to
+add to its own models and queries (the users API, for one, answers only the caller's
+own row); these permissions do not enforce it.
 {% endif -%}
 Smoke test
 ----------------------------------------------------------------------
