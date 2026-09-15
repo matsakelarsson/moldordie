@@ -219,6 +219,19 @@ registered nowhere, so it fails twice over; no email domain is checked. Google's
 signing keys are read from its discovery endpoint when the first token arrives, and
 refreshed when a token names a key id the cached set lacks.
 {% endif %}
+**Diagnostics.** A refused token is one log record of the ``identity.verification``
+logger with a fixed reason code and nothing from the token: ``reason=expired`` at
+info, the routine case, and the suspicious ones at warning (``bad_issuer``,
+``bad_audience``, ``bad_signature``, ``unknown_key``, ``key_lookup_failed``,
+``unregistered``, ``disabled``, ...). A warning repeats for the same reason at most
+once a minute, and then says how many the minute swallowed, so a burst is one record.
+The provider's key rotation needs nothing: a token naming a key id the cached set lacks
+makes the verifier fetch the set again, at most once a minute, and a key set is
+refreshed every hour regardless. A provider that cannot be reached refuses the token
+(``key_lookup_failed``) and is tried again on the next one; the discovery document is
+read when the first token arrives, never when the settings load, and read again on the
+next token if that fails.
+
 **Permissions.** A registration holds Django permissions, granted in the admin next
 to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with
 the full ``app_label.codename`` like a user does; a disabled registration holds none. A

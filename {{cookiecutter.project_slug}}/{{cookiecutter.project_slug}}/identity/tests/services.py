@@ -63,9 +63,14 @@ class FailingKeys:
 
 
 def use_keys(monkeypatch: pytest.MonkeyPatch, keys: object) -> None:
-    """Build the verifier on ``keys`` instead of the provider's discovered ones."""
+    """Build the verifier on ``keys`` instead of the provider's discovered ones.
+
+    The verifier is built afresh, and the warnings' cooldowns are forgotten so that
+    each test sees its own records.
+    """
     monkeypatch.setattr(verification, "DiscoveredKeys", lambda url: keys)
     verification.service_verifier.cache_clear()
+    verification.reset_rate_limits()
 
 
 def configure(settings: Any, monkeypatch: pytest.MonkeyPatch) -> StaticKeys:
