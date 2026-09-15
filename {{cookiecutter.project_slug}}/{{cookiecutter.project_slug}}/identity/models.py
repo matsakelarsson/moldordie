@@ -39,3 +39,18 @@ class ServiceRegistration(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def has_perm(self, perm: str) -> bool:
+        """Does the service hold ``perm``, the full ``app_label.codename``?
+
+        A model gains no ``has_perm`` from the relationship, and a disabled service
+        holds nothing.
+        """
+        if not self.enabled:
+            return False
+        app_label, _, codename = perm.partition(".")
+        granted = self.permissions.filter(
+            content_type__app_label=app_label,
+            codename=codename,
+        )
+        return granted.exists()

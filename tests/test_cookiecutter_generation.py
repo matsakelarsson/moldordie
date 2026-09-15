@@ -1187,6 +1187,7 @@ IDENTITY_APP_FILES = [
     "my_awesome_project/identity/management/commands/revoke_jwt_sessions.py",
     "my_awesome_project/identity/migrations/0001_initial.py",
     "my_awesome_project/identity/models.py",
+    "my_awesome_project/identity/permissions.py",
     "my_awesome_project/identity/verification.py",
     "my_awesome_project/identity/tests/headless.py",
     "my_awesome_project/identity/tests/services.py",
@@ -1194,6 +1195,7 @@ IDENTITY_APP_FILES = [
     "my_awesome_project/identity/tests/test_auth.py",
     "my_awesome_project/identity/tests/test_frontend.py",
     "my_awesome_project/identity/tests/test_login.py",
+    "my_awesome_project/identity/tests/test_permissions.py",
     "my_awesome_project/identity/tests/test_provider_login.py",
     "my_awesome_project/identity/tests/test_revoke_jwt_sessions.py",
 ]
