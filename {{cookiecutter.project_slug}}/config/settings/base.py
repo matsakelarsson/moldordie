@@ -315,7 +315,8 @@ UI_PALETTE = "blue"
 UI_MODE = "system"
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
-# Form fields are rendered with the Pico CSS markup in templates/django/forms/field.html
+# Every field of a form rendered by Django goes through templates/django/forms/field.html,
+# which hands it to the UI library's field component (docs/frontend.rst)
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
 # SECURITY
@@ -337,9 +338,9 @@ SECURE_CSP: dict[str, list[str]] = {
     # this origin; the nonce is for inline code
     "script-src": [CSP.SELF, CSP.NONCE],
     # htmx's injected indicator stylesheet is disabled in
-    # base.html; its rules live in css/project.css
+    # base.html; its rules live in css/ui/components.css
     "style-src": [CSP.SELF],
-    # Pico CSS embeds its icons as SVG data: URIs
+    # django-allauth's TOTP activation page shows its QR code as an SVG data: URI
     "img-src": [CSP.SELF, "data:"],
     "font-src": [CSP.SELF],
     # htmx requests and websockets go to this origin

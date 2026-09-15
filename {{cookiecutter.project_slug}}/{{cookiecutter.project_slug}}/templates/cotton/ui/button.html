@@ -1,0 +1,10 @@
+{% raw %}{% comment %}
+A native button. Variants primary (the default), secondary, danger and quiet; sizes normal (the default)
+and small. The type defaults to "button": pass type="submit" for the button that submits a form. Every
+attribute the component does not declare is forwarded to the button (docs/frontend.rst).
+{% endcomment %}
+<c-vars variant="primary" size="normal" type="button" class />
+<button type="{{ type|ui_attr }}"
+        class="ui-button {% if variant == "secondary" or variant == "danger" or variant == "quiet" %}ui-button-{{ variant|ui_attr }}{% else %}ui-button-primary{% endif %}{% if size == "small" %} ui-button-small{% endif %}{% if class %} {{ class|ui_attr }}{% endif %}"
+        {{ attrs|ui_attrs }}>{{ slot }}</button>
+{%- endraw %}

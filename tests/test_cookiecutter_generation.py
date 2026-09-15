@@ -1,5 +1,4 @@
 import ast  # noqa: EXE002
-import hashlib
 import json
 import os
 import re
@@ -30,10 +29,26 @@ RE_PLACEHOLDER = re.compile(r"!!!SET \w+!!!")
 RE_REMOTE_ASSET = re.compile(r"<(?:script|link)\b[^>]*\b(?:src|href)=[\"']https?://", re.IGNORECASE)
 # Inline code the Content Security Policy would block: <script> without src or nonce,
 # any <style> block (style-src allows no nonce), style="..." attributes, on*="..." handlers
+# and htmx's hx-on* handlers, which the htmx-config in base.html disables as well
 RE_INLINE_CODE = re.compile(
-    r"<script\b(?![^>]*\b(?:src|nonce)=)[^>]*>|<style\b|\sstyle=[\"']|\son[a-z]+=[\"']",
+    r"<script\b(?![^>]*\b(?:src|nonce)=)[^>]*>|<style\b|\sstyle=[\"']|\son[a-z]+=[\"']|\s(?:data-)?hx-on[^\s=]*=[\"']",
     re.IGNORECASE,
 )
+# A component template writes a value into an attribute only through the library's filters
+# (docs/adr/0009): an attribute value, with the template tags it may hold; an interpolation;
+# the filter an attribute needs, ui_url under the local policy for an htmx destination,
+# ui_url for a navigation URL and ui_attr for anything else
+RE_TEMPLATE_VALUE = r"(?:{%.*?%}|{{.*?}}|[^\"'{]|{(?![{%]))"
+RE_START_TAG = re.compile(
+    rf"<[a-zA-Z](?:\"{RE_TEMPLATE_VALUE}*\"|'{RE_TEMPLATE_VALUE}*'|{{%.*?%}}|{{{{.*?}}}}|[^<>\"'{{]|{{(?![{{%]))*>",
+)
+RE_ATTRIBUTE = re.compile(rf"(?<![-\w:.])([a-zA-Z][-\w:.]*)\s*=\s*(\"{RE_TEMPLATE_VALUE}*\"|'{RE_TEMPLATE_VALUE}*')")
+RE_INTERPOLATION = re.compile(r"{{(.*?)}}")
+FILTER_FOR_HTMX_DESTINATIONS = re.compile(r"\|\s*ui_url:([\"'])local\1\s*$")
+FILTER_FOR_URLS = re.compile(r"\|\s*ui_url\s*$")
+FILTER_FOR_VALUES = re.compile(r"\|\s*ui_attr\s*$")
+HTMX_DESTINATIONS = {"hx-get", "hx-post", "hx-put", "hx-patch", "hx-delete", "hx-push-url", "hx-replace-url"}
+URL_ATTRIBUTES = {"href", "action", "formaction", "src"}
 
 # Paths that must never be generated any more (Node.js / asset pipeline leftovers)
 FRONTEND_TOOLCHAIN_PATHS = [
@@ -45,6 +60,9 @@ FRONTEND_TOOLCHAIN_PATHS = [
     "my_test_project/static/sass",
     "my_test_project/static/js/vendors.js",
 ]
+# Pico CSS, which the UI library replaced (docs/adr/0009), as a word: a generated secret is
+# a run of letters and digits, which can hold the letters but never the word
+RE_PICO = re.compile(r"\bpico\b", re.IGNORECASE)
 # Case-insensitive tokens that must not appear in any generated text file
 FRONTEND_TOOLCHAIN_TOKENS = [
     "bootstrap",
@@ -329,8 +347,10 @@ def test_djlint_lint_passes(bake, context_override):
     project = bake(context_override)
 
     autofixable_rules = "H014,T001"
+    # The generated [tool.djlint] ignores, which --ignore replaces: H026 reads <c-vars class />,
+    # how a component declares the class it merges, as an empty class attribute
     # TODO: remove T002 when fixed https://github.com/Riverside-Healthcare/djLint/issues/687
-    ignored_rules = "H006,H030,H031,T002"
+    ignored_rules = "H006,H026,H030,H031,T002"
     try:
         sh.djlint(
             "--lint",
@@ -809,7 +829,7 @@ def test_docker_serves_asgi(bake, context, realtime):
 
 
 def test_frontend_stack(bake, context):
-    """Generated project uses django-htmx + vendored Pico CSS and has no Node.js/asset pipeline leftovers."""
+    """Generated project uses django-htmx + the UI library and has no Node.js, asset pipeline or Pico leftovers."""
     project = bake(context)
 
     for path in FRONTEND_TOOLCHAIN_PATHS:
@@ -817,10 +837,11 @@ def test_frontend_stack(bake, context):
 
     offenders = []
     for path in project.files():
-        if "static/vendor/" in path.as_posix() or is_binary(str(project.root / path)):
+        if is_binary(str(project.root / path)):
             continue
         content = project.text(path).lower()
         offenders.extend(f"{path}: {token}" for token in FRONTEND_TOOLCHAIN_TOKENS if token in content)
+        offenders.extend(f"{path}: {match.group(0)}" for match in RE_PICO.finditer(content))
     assert offenders == []
 
     base = project.settings("base")
@@ -831,7 +852,6 @@ def test_frontend_stack(bake, context):
     base_html = project.template("base.html")
     assert "{% htmx_script %}" in base_html
     assert 'hx-headers=\'{"X-CSRFToken": "{{ csrf_token }}"}\'' in base_html
-    assert "vendor/pico/pico.min.css" in base_html
 
 
 def test_no_remote_assets(bake, context):
@@ -842,19 +862,6 @@ def test_no_remote_assets(bake, context):
         path for path in project.files() if path.suffix == ".html" and RE_REMOTE_ASSET.search(project.text(path))
     ]
     assert offenders == []
-
-
-def test_vendored_pico_intact(bake, context):
-    """The vendored Pico CSS is copied byte-for-byte and matches its recorded checksum."""
-    project = bake(context)
-
-    vendor_dir = Path("my_test_project") / "static" / "vendor" / "pico"
-    metadata = project.json(vendor_dir / "pico.json")
-    css = project.bytes(vendor_dir / metadata["file"])
-
-    assert hashlib.sha256(css).hexdigest() == metadata["sha256"]
-    assert f"v{metadata['version']}".encode() in css[:300]
-    assert project.text(vendor_dir / "LICENSE.md").startswith("MIT License")
 
 
 def test_no_inline_code_in_templates(bake, context):
@@ -933,11 +940,77 @@ def test_ui_library(bake, context):
     assert (project.root / slug / "ui" / "templatetags" / "ui.py").is_file()
     assert (project.root / slug / "static" / "css" / "ui" / "tokens.css").is_file()
 
+    components = project.root / slug / "templates" / "cotton" / "ui"
+    assert sorted(path.name for path in components.iterdir()) == [
+        "alert.html",
+        "badge.html",
+        "button.html",
+        "card.html",
+        "empty_state.html",
+        "field.html",
+        "link.html",
+        "pagination.html",
+        "table.html",
+    ]
+    assert project.template("django/forms/field.html").rstrip().endswith('<c-ui.field :field="field" />')
+    for name in ("tokens", "base", "components"):
+        assert (project.root / slug / "static" / "css" / "ui" / f"{name}.css").is_file()
+    assert not (project.root / slug / "static" / "vendor").exists()
+    assert (project.root / slug / "tests" / "test_staticfiles.py").is_file()
+    assert (project.root / slug / "tests" / "test_error_pages.py").is_file()
+
     base_html = project.template("base.html")
-    assert "{% static 'css/ui/tokens.css' %}" in base_html
-    assert "{% url 'ui:theme' %}" in base_html
+    # The library's stylesheets in their order, the theme after them, the project's last
+    assert re.findall(r'<link href="([^"]+)" rel="stylesheet" />', base_html) == [
+        "{% static 'css/ui/tokens.css' %}",
+        "{% static 'css/ui/base.css' %}",
+        "{% static 'css/ui/components.css' %}",
+        "{% url 'ui:theme' %}",
+        "{% static 'css/project.css' %}",
+    ]
     assert 'data-ui-mode="{{ ui_theme.forced_mode }}"' in base_html
+    assert "<c-ui.alert" in base_html
+    assert "inline_javascript" not in base_html
     assert "   frontend\n" in project.text("docs/index.rst")
+
+
+def required_filter(attribute: str) -> re.Pattern[str]:
+    """The filter an interpolation inside ``attribute`` must end with."""
+    name = attribute.lower()
+    if name.startswith("data-hx-"):
+        name = name.removeprefix("data-")
+    if name in HTMX_DESTINATIONS:
+        return FILTER_FOR_HTMX_DESTINATIONS
+    if name in URL_ATTRIBUTES:
+        return FILTER_FOR_URLS
+    return FILTER_FOR_VALUES
+
+
+def test_components_write_attributes_through_the_filters(bake, context):
+    """A component's start tags interpolate attribute values through their filters, or the forwarded attributes."""
+    project = bake(context)
+
+    offenders = []
+    for path in project.files():
+        if path.suffix != ".html" or "cotton" not in path.parts:
+            continue
+        source = project.text(path)
+        offenders.extend(f"{path}: {tag}" for tag in ("<script", "<style", "<link") if tag in source.lower())
+        for tag in RE_START_TAG.finditer(source):
+            for attribute in RE_ATTRIBUTE.finditer(tag.group(0)):
+                name, value = attribute.group(1), attribute.group(2)[1:-1]
+                offenders.extend(
+                    f"{path}: {name}={interpolation.group(0)}"
+                    for interpolation in RE_INTERPOLATION.finditer(value)
+                    if not required_filter(name).search(interpolation.group(1))
+                )
+            bare = RE_ATTRIBUTE.sub("", tag.group(0))
+            offenders.extend(
+                f"{path}: {interpolation.group(0)} outside an attribute value"
+                for interpolation in RE_INTERPOLATION.finditer(bare)
+                if interpolation.group(1).strip() != "attrs|ui_attrs"
+            )
+    assert offenders == []
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])

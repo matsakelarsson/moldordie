@@ -1,0 +1,10 @@
+{% raw %}<c-ui.pagination :page="page" previous_url="/items/?page=1" next_url="/items/?page=3" />
+<c-ui.pagination :page="page"
+                 previous_url="/items/?page=1"
+                 next_url="/items/?page=3"
+                 :page_urls="page_urls"
+                 target="#items"
+                 label="Items"
+                 id="paged" />
+<c-ui.pagination :page="first" next_url="/items/?page=2" />
+{%- endraw %}

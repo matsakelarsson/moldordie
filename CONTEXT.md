@@ -127,7 +127,7 @@ A named design value of the UI library, a CSS custom property with the `--ui-` p
 colour tokens are owned by the palettes in Python and served by the theme stylesheet; the
 others live in `static/css/ui/tokens.css`.
 
-_Avoid_: variable, Pico variable.
+_Avoid_: variable.
 
 ## Palette
 

@@ -1,38 +1,38 @@
 {% raw %}{% load i18n %}
 
-<nav aria-label="{% translate 'Main navigation' %}">
-  <ul>
+<nav class="ui-nav" aria-label="{% translate 'Main navigation' %}">
+  <a class="ui-nav-brand" href="{% url 'home' %}">{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</a>
+  <ul class="ui-nav-links">
     <li>
-      <a href="{% url 'home' %}"><strong>{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</strong></a>
-    </li>
-  </ul>
-  <ul>
-    <li>
-      <a href="{% url 'home' %}"
+      <a class="ui-nav-link"
+         href="{% url 'home' %}"
          {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>{% translate "Home" %}</a>
     </li>
     <li>
-      <a href="{% url 'about' %}"
+      <a class="ui-nav-link"
+         href="{% url 'about' %}"
          {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>{% translate "About" %}</a>
     </li>
     {% if request.user.is_authenticated %}
       <li>
-        <a href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
+        <a class="ui-nav-link" href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
       </li>
       <li>
         {# URL provided by django-allauth/account/urls.py #}
-        <a href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
+        <a class="ui-nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
       </li>
     {% else %}
       {% if ACCOUNT_ALLOW_REGISTRATION %}
         <li>
           {# URL provided by django-allauth/account/urls.py #}
-          <a id="sign-up-link" href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
+          <a class="ui-nav-link"
+             id="sign-up-link"
+             href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
         </li>
       {% endif %}
       <li>
         {# URL provided by django-allauth/account/urls.py #}
-        <a id="log-in-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+        <a class="ui-nav-link" id="log-in-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
       </li>
     {% endif %}
   </ul>
