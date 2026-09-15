@@ -1179,8 +1179,10 @@ JWT_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"
 IDENTITY_APP_FILES = [
     "my_awesome_project/identity/__init__.py",
     "my_awesome_project/identity/apps.py",
+    "my_awesome_project/identity/auth.py",
     "my_awesome_project/identity/tests/headless.py",
     "my_awesome_project/identity/tests/test_apps.py",
+    "my_awesome_project/identity/tests/test_auth.py",
     "my_awesome_project/identity/tests/test_login.py",
 ]
 
@@ -1245,6 +1247,11 @@ def test_headless_login(bake, context_override):
     assert allauth.extras == {"headless", "mfa", "socialaccount"}
     for path in IDENTITY_APP_FILES:
         assert (project.root / path).exists(), path
+    # The API authenticates an app-issued JWT, or the session cookie with its CSRF check
+    api = project.text("config/api.py")
+    assert "from my_awesome_project.identity.auth import user_auth" in api
+    assert "auth=user_auth," in api
+    assert "SessionAuth" not in api
 
 
 @pytest.mark.parametrize(
@@ -1261,6 +1268,8 @@ def test_no_headless_login_without_ninja_and_a_provider(bake, context_override):
     assert "FRONTEND" not in base.source
     assert "_allauth" not in project.text("config/urls.py")
     assert not (project.root / "my_awesome_project" / "identity").exists()
+    if context_override.get("rest_api") == "Django Ninja":
+        assert "auth=SessionAuth()," in project.text("config/api.py")
     assert "DJANGO_HEADLESS_JWT_PRIVATE_KEY" not in project.env("production", "django")
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert "headless" not in allauth.extras
