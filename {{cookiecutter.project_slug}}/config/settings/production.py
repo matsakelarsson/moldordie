@@ -225,11 +225,12 @@ ADMIN_URL = env("DJANGO_ADMIN_URL")
 
 # django-allauth headless
 # ------------------------------------------------------------------------------
-# The key allauth signs the single-page application's tokens with, and the origins
-# the application is served from: required here, defaulted in development
+# The key allauth signs the single-page application's tokens with, the origins the
+# application is served from and where it is: required here, defaulted in development.
+# The settings base.py derives from the last two read the same environment.
 HEADLESS_JWT_PRIVATE_KEY = env("DJANGO_HEADLESS_JWT_PRIVATE_KEY")
 FRONTEND_ORIGINS = env.list("DJANGO_FRONTEND_ORIGINS")
-CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+FRONTEND_URL = env("DJANGO_FRONTEND_URL")
 {%- endif %}
 
 # Anymail

@@ -1180,11 +1180,22 @@ IDENTITY_APP_FILES = [
     "my_awesome_project/identity/__init__.py",
     "my_awesome_project/identity/apps.py",
     "my_awesome_project/identity/auth.py",
+    "my_awesome_project/identity/checks.py",
+    "my_awesome_project/identity/frontend.py",
     "my_awesome_project/identity/tests/headless.py",
     "my_awesome_project/identity/tests/test_apps.py",
     "my_awesome_project/identity/tests/test_auth.py",
+    "my_awesome_project/identity/tests/test_frontend.py",
     "my_awesome_project/identity/tests/test_login.py",
 ]
+# The pages of the frontend contract, as HEADLESS_FRONTEND_URLS names them
+FRONTEND_PAGES = {
+    "account_confirm_email": "/account/verify-email/{key}",
+    "account_reset_password": "/account/password/reset",
+    "account_reset_password_from_key": "/account/password/reset/key/{key}",
+    "account_signup": "/account/signup",
+    "socialaccount_login_error": "/account/provider/callback",
+}
 
 
 @pytest.mark.parametrize("context_override", HEADLESS_COMBINATIONS, ids=_fixture_id)
@@ -1216,7 +1227,18 @@ def test_headless_login(bake, context_override):
         "list",
         ["http://localhost:5173"],
     )
+    assert (reads["DJANGO_FRONTEND_URL"].method, reads["DJANGO_FRONTEND_URL"].default) == (
+        None,
+        "http://localhost:5173",
+    )
     assert "DJANGO_HEADLESS_JWT_PRIVATE_KEY" not in reads
+    # The five pages of the frontend contract, at the frontend URL
+    frontend_urls = base.value("HEADLESS_FRONTEND_URLS")
+    assert set(frontend_urls) == set(FRONTEND_PAGES)
+    for name, path in FRONTEND_PAGES.items():
+        assert frontend_urls[name] == Expression(f"FRONTEND_URL + '{path}'")
+    adapters = project.text("my_awesome_project/users/adapters.py")
+    assert "def is_safe_url(self, url: str) -> bool:" in adapters
     # The API and allauth's endpoints answer the frontend, which sends the session token of pending flows
     assert base.literal("CORS_URLS_REGEX") == r"^/(api|_allauth)/.*$"
     assert base.value("CORS_ALLOWED_ORIGINS") == base.value("FRONTEND_ORIGINS")
@@ -1226,7 +1248,7 @@ def test_headless_login(bake, context_override):
     production = project.settings("production")
     assert env_read(production, "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default is NO_DEFAULT
     assert env_read(production, "DJANGO_FRONTEND_ORIGINS").default is NO_DEFAULT
-    assert "CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS" in production.source
+    assert env_read(production, "DJANGO_FRONTEND_URL").default is NO_DEFAULT
     production_env = project.env("production", "django")
     keys = [
         production_env["DJANGO_HEADLESS_JWT_PRIVATE_KEY"],
@@ -1241,6 +1263,7 @@ def test_headless_login(bake, context_override):
     assert all(TOKEN.fullmatch(key) for key in keys)
     assert len(set(keys + secret_keys)) == len(keys + secret_keys)
     assert "DJANGO_FRONTEND_ORIGINS" in production_env
+    assert "DJANGO_FRONTEND_URL" in production_env
 
     assert 'path("_allauth/", include("allauth.headless.urls"))' in project.text("config/urls.py")
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
@@ -1268,6 +1291,7 @@ def test_no_headless_login_without_ninja_and_a_provider(bake, context_override):
     assert "FRONTEND" not in base.source
     assert "_allauth" not in project.text("config/urls.py")
     assert not (project.root / "my_awesome_project" / "identity").exists()
+    assert "is_safe_url" not in project.text("my_awesome_project/users/adapters.py")
     if context_override.get("rest_api") == "Django Ninja":
         assert "auth=SessionAuth()," in project.text("config/api.py")
     assert "DJANGO_HEADLESS_JWT_PRIVATE_KEY" not in project.env("production", "django")

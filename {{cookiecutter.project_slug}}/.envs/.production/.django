@@ -32,10 +32,11 @@ DJANGO_AWS_STORAGE_BUCKET_NAME=
 # ------------------------------------------------------------------------------
 DJANGO_ACCOUNT_ALLOW_REGISTRATION=True
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
-# The single-page application: the key its tokens are signed with, and the origins it
-# is served from (comma-separated)
+# The single-page application: the key its tokens are signed with, the origins it is
+# served from (comma-separated) and where it is
 DJANGO_HEADLESS_JWT_PRIVATE_KEY=!!!SET DJANGO_HEADLESS_JWT_PRIVATE_KEY!!!
 DJANGO_FRONTEND_ORIGINS=
+DJANGO_FRONTEND_URL=
 {%- endif %}
 {%- if cookiecutter.identity_provider == 'entra' %}
 # Sign-in through Microsoft Entra ID: the tenant and the login app registration

@@ -513,11 +513,22 @@ HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = env.int(
 # blocks; the documentation links the hosted specification instead
 HEADLESS_SERVE_SPECIFICATION = False
 # The origins the single-page application is served from: they may call the API and
-# allauth's endpoints (django-cors-headers below)
+# allauth's endpoints (django-cors-headers below), and a login may return to them
 FRONTEND_ORIGINS = env.list(
     "DJANGO_FRONTEND_ORIGINS",
     default=["http://localhost:5173"],
 )
+# Where the application is: the five pages allauth's mails and flows send the user to,
+# its contract with the frontend (docs/authentication.rst)
+FRONTEND_URL = env("DJANGO_FRONTEND_URL", default="http://localhost:5173")
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": FRONTEND_URL + "/account/verify-email/{key}",
+    "account_reset_password": FRONTEND_URL + "/account/password/reset",
+    "account_reset_password_from_key": FRONTEND_URL
+    + "/account/password/reset/key/{key}",
+    "account_signup": FRONTEND_URL + "/account/signup",
+    "socialaccount_login_error": FRONTEND_URL + "/account/provider/callback",
+}
 {%- endif %}
 {% if cookiecutter.rest_api == 'DRF' -%}
 # django-rest-framework

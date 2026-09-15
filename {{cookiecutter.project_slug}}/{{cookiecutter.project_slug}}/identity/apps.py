@@ -12,8 +12,11 @@ from typing import Protocol
 
 from django.apps import AppConfig
 from django.conf import settings
+from django.core import checks
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
+
+from .checks import check_frontend_url
 
 LIFETIMES = (
     "HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN",
@@ -50,3 +53,4 @@ class IdentityConfig(AppConfig):
 
     def ready(self) -> None:
         validate_token_settings(settings)
+        checks.register(check_frontend_url)
