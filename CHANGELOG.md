@@ -8,6 +8,63 @@ including release 2026.9.8, is kept in
 
 <!-- GENERATOR_PLACEHOLDER -->
 
+## 2026.9.16
+
+
+### Changed
+
+- Restore the daily pre-commit auto-update by quoting the Jinja in the config ([#76](https://github.com/matsakelarsson/moldordie/pull/76))
+
+- Replace Pico with django-cotton components and a project-owned UI library (#71–#74) ([#75](https://github.com/matsakelarsson/moldordie/pull/75))
+
+- Document htmx in the generated guide and test the forbidden pages ([#74](https://github.com/matsakelarsson/moldordie/pull/74))
+
+- Add brand colours, the theme preview and the component showcase ([#73](https://github.com/matsakelarsson/moldordie/pull/73))
+
+- Add the starter components and migrate every page from Pico ([#72](https://github.com/matsakelarsson/moldordie/pull/72))
+
+- Configure django-cotton and lay the UI library's foundation ([#71](https://github.com/matsakelarsson/moldordie/pull/71))
+
+- Land the identity provider stack on main (#46–#56) ([#70](https://github.com/matsakelarsson/moldordie/pull/70))
+
+- Address the review of the identity provider stack ([#69](https://github.com/matsakelarsson/moldordie/pull/69))
+
+- Make the verifier resilient around its key source, with diagnostics (#56) ([#68](https://github.com/matsakelarsson/moldordie/pull/68))
+
+- Cover the Google service verifier with tests and docs (#55) ([#67](https://github.com/matsakelarsson/moldordie/pull/67))
+
+- Add permissions for users and services on shared endpoints (#54) ([#66](https://github.com/matsakelarsson/moldordie/pull/66))
+
+- Verify calling services against the Entra tenant with service registrations (#53) ([#65](https://github.com/matsakelarsson/moldordie/pull/65))
+
+- Add the revoke_jwt_sessions command for key rotation (#52) ([#64](https://github.com/matsakelarsson/moldordie/pull/64))
+
+- Document and test provider login from the SPA (#51) ([#63](https://github.com/matsakelarsson/moldordie/pull/63))
+
+- Define the frontend contract for return destinations and mail links (#50) ([#62](https://github.com/matsakelarsson/moldordie/pull/62))
+
+- Authenticate the API with app-issued bearer tokens (#49) ([#61](https://github.com/matsakelarsson/moldordie/pull/61))
+
+- Serve the SPA login with app-issued JWTs on Ninja projects (#48) ([#60](https://github.com/matsakelarsson/moldordie/pull/60))
+
+- Refuse an Entra token without a usable object id (#47) ([#59](https://github.com/matsakelarsson/moldordie/pull/59))
+
+- Add the identity_provider option with sign-in through Entra or Google (#46) ([#58](https://github.com/matsakelarsson/moldordie/pull/58))
+
+- Render the CORS settings for both REST frameworks (#45) ([#57](https://github.com/matsakelarsson/moldordie/pull/57))
+
+- Keep the settings modules importable ([#44](https://github.com/matsakelarsson/moldordie/pull/44))
+
+- Keep the settings modules importable ([#43](https://github.com/matsakelarsson/moldordie/pull/43))
+
+- Render each setting from one block ([#42](https://github.com/matsakelarsson/moldordie/pull/42))
+
+- Render the release notes as Markdown, not HTML ([#41](https://github.com/matsakelarsson/moldordie/pull/41))
+
+### Updated
+
+- Update pyproject-fmt to v2.29.4 ([#77](https://github.com/matsakelarsson/moldordie/pull/77))
+
 ## 2026.9.14
 
 
