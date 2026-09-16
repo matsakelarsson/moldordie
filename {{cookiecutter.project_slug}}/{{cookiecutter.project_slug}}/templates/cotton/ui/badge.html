@@ -1,0 +1,9 @@
+{% raw %}{% comment %}
+A short status label whose meaning is in its text. The level is neutral (the default, which an unknown
+level also gets), info, success, warning or error. Every attribute the component does not declare is
+forwarded to the span, a title for one (docs/frontend.rst).
+{% endcomment %}
+<c-vars level="neutral" class />
+<span class="ui-badge ui-badge-{% if level == "info" or level == "success" or level == "warning" or level == "error" %}{{ level|ui_attr }}{% else %}neutral{% endif %}{% if class %} {{ class|ui_attr }}{% endif %}"
+      {{ attrs|ui_attrs }}>{{ slot }}</span>
+{%- endraw %}

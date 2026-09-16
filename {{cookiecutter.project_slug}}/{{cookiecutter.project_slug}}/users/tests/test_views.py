@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.django_db
 
 HTMX_HEADERS = {"HX-Request": "true"}
+# The messages container marked for htmx's out-of-band swap
+RE_MESSAGES_SWAPPED = re.compile(rb'<div[^>]*\bid="messages"[^>]*\bhx-swap-oob="true"')
 
 
 def template_names(response) -> list[str]:
@@ -37,6 +39,15 @@ def template_names(response) -> list[str]:
 
 def login_redirect(next_url: str) -> str:
     return f"{reverse(settings.LOGIN_URL)}?next={next_url}"
+
+
+def assert_fragment(content: bytes) -> None:
+    """Content for the target only: no page, no script, no style, no stylesheet."""
+    lowered = content.lower()
+    assert b"<html" not in lowered
+    assert b"<script" not in lowered
+    assert b"<style" not in lowered
+    assert b"<link" not in lowered
 
 
 class TestUserUpdateView:
@@ -58,7 +69,7 @@ class TestUserUpdateView:
         assert response.status_code == HTTPStatus.OK
         assert template_names(response)[0] == "users/user_form.html#profile"
         assert "base.html" not in template_names(response)
-        assert b"<html" not in response.content
+        assert_fragment(response.content)
         assert b'id="user-profile"' in response.content
         assert "HX-Request" in response["Vary"]
 
@@ -109,8 +120,12 @@ class TestUserUpdateView:
         assert response.redirect_chain == [(user.get_absolute_url(), HTTPStatus.FOUND)]
         assert template_names(response)[0] == "users/user_detail.html#profile"
         assert "base.html#messages" in template_names(response)
-        assert b'id="messages" hx-swap-oob="true"' in response.content
+        assert_fragment(response.content)
+        assert RE_MESSAGES_SWAPPED.search(response.content)
         assert str(_("Information successfully updated")).encode() in response.content
+        # The message arrives after the page loaded: announced, and dismissible
+        assert b'role="status"' in response.content
+        assert b"data-ui-dismiss" in response.content
 
     def test_not_authenticated(self, client: Client):
         url = reverse("users:update")
@@ -159,7 +174,7 @@ class TestUserDetailView:
         assert response.status_code == HTTPStatus.OK
         assert template_names(response)[0] == "users/user_detail.html#profile"
         assert "base.html" not in template_names(response)
-        assert b"<html" not in response.content
+        assert_fragment(response.content)
         assert b'id="user-profile"' in response.content
         assert "HX-Request" in response["Vary"]
 

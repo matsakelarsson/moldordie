@@ -1,0 +1,454 @@
+/* The components of the UI library (templates/cotton/ui/) and the htmx indicator. Every colour
+   is a token of the theme stylesheet, and every pair of colours that meet here is a pair the
+   palettes are checked for (ui/palettes.py): a hover state switches between checked pairs or
+   changes decoration, never to a colour of its own (docs/frontend.rst). */
+
+/* Buttons, and links drawn as buttons */
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-2);
+  min-height: 2.5rem;
+  padding: var(--ui-space-2) var(--ui-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.ui-button-small {
+  min-height: 2rem;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: var(--ui-text-sm);
+}
+
+.ui-button-primary {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-accent-fg);
+}
+
+.ui-button-primary:hover {
+  border-color: var(--ui-accent-hover);
+  background: var(--ui-accent-hover);
+  color: var(--ui-accent-fg);
+}
+
+.ui-button-secondary {
+  border-color: var(--ui-border-control);
+  background: var(--ui-bg);
+  color: var(--ui-fg);
+}
+
+.ui-button-secondary:hover {
+  background: var(--ui-surface);
+  color: var(--ui-fg);
+}
+
+.ui-button-danger {
+  border-color: var(--ui-error);
+  background: var(--ui-error);
+  color: var(--ui-error-fg);
+}
+
+.ui-button-danger:hover {
+  color: var(--ui-error-fg);
+  text-decoration: underline;
+}
+
+.ui-button-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-accent);
+}
+
+.ui-button-quiet:hover {
+  background: var(--ui-surface);
+  color: var(--ui-accent-hover);
+}
+
+.ui-button:disabled,
+.ui-button[aria-disabled="true"] {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-fg-muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+/* Cards */
+.ui-card {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.ui-card-header {
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-block-end: 1px solid var(--ui-border);
+}
+
+.ui-card-header :where(h1, h2, h3, h4) {
+  margin: 0;
+}
+
+.ui-card-header p {
+  margin: var(--ui-space-1) 0 0;
+  color: var(--ui-fg-muted);
+}
+
+.ui-card-body {
+  padding: var(--ui-space-5);
+}
+
+.ui-card-actions {
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-block-start: 1px solid var(--ui-border);
+}
+
+@media (max-width: 30rem) {
+  .ui-card-header,
+  .ui-card-body,
+  .ui-card-actions {
+    padding-inline: var(--ui-space-4);
+  }
+}
+
+/* Alerts: a tinted surface, its status colour as the leading edge, its text colour throughout */
+.ui-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-info);
+  border-inline-start-width: 4px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-info-tint);
+  color: var(--ui-info-text);
+}
+
+.ui-alert-success {
+  border-color: var(--ui-success);
+  background: var(--ui-success-tint);
+  color: var(--ui-success-text);
+}
+
+.ui-alert-warning {
+  border-color: var(--ui-warning);
+  background: var(--ui-warning-tint);
+  color: var(--ui-warning-text);
+}
+
+.ui-alert-error {
+  border-color: var(--ui-error);
+  background: var(--ui-error-tint);
+  color: var(--ui-error-text);
+}
+
+.ui-alert-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ui-alert-title {
+  margin: 0 0 var(--ui-space-1);
+  font-weight: 600;
+}
+
+.ui-alert a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.ui-alert-dismiss {
+  flex: none;
+  margin: calc(var(--ui-space-1) * -1) calc(var(--ui-space-2) * -1) 0 0;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--ui-text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ui-alert-dismiss:hover {
+  box-shadow: 0 0 0 2px currentcolor;
+}
+
+/* Badges */
+.ui-badge {
+  display: inline-block;
+  padding: 0.125rem var(--ui-space-2);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.ui-badge-neutral {
+  border-color: var(--ui-border-control);
+  background: var(--ui-surface);
+  color: var(--ui-fg);
+}
+
+.ui-badge-info {
+  background: var(--ui-info);
+  color: var(--ui-info-fg);
+}
+
+.ui-badge-success {
+  background: var(--ui-success);
+  color: var(--ui-success-fg);
+}
+
+.ui-badge-warning {
+  background: var(--ui-warning);
+  color: var(--ui-warning-fg);
+}
+
+.ui-badge-error {
+  background: var(--ui-error);
+  color: var(--ui-error-fg);
+}
+
+/* Fields: form controls are styled inside the field component's wrappers only, so the admin
+   and other pages with their own styles are untouched */
+.ui-field {
+  margin-block-end: var(--ui-space-4);
+}
+
+fieldset.ui-field {
+  min-width: 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ui-label,
+.ui-legend {
+  display: block;
+  margin-block-end: var(--ui-space-1);
+  padding: 0;
+  font-weight: 500;
+}
+
+.ui-label-check,
+.ui-field-group .ui-control label {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-weight: 400;
+}
+
+.ui-field-group .ui-control label {
+  margin-block-end: var(--ui-space-1);
+}
+
+.ui-control :where(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea) {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-border-control);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-bg);
+  color: var(--ui-fg);
+  font: inherit;
+  line-height: 1.25;
+}
+
+.ui-control textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.ui-control input[type="file"] {
+  display: block;
+  width: 100%;
+  padding-block: var(--ui-space-2);
+  font: inherit;
+}
+
+.ui-control :where(input[type="checkbox"], input[type="radio"]) {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--ui-accent);
+}
+
+.ui-control :where(input, select, textarea)::placeholder {
+  color: var(--ui-fg-muted);
+  opacity: 1;
+}
+
+.ui-control :where(input, select, textarea):disabled {
+  background: var(--ui-surface);
+  color: var(--ui-fg-muted);
+  cursor: not-allowed;
+}
+
+.ui-control :where(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--ui-error);
+}
+
+.ui-help {
+  margin: var(--ui-space-1) 0 0;
+  font-size: var(--ui-text-sm);
+  color: var(--ui-fg-muted);
+}
+
+/* Django's error lists, on a field and on the form (errorlist nonfield) */
+.errorlist {
+  margin: var(--ui-space-1) 0 0;
+  padding: 0;
+  font-size: var(--ui-text-sm);
+  color: var(--ui-error-text);
+  list-style: none;
+}
+
+.errorlist.nonfield {
+  margin: 0 0 var(--ui-space-4);
+}
+
+/* Tables */
+.ui-table-scroll {
+  overflow-x: auto;
+}
+
+.ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-text-sm);
+}
+
+.ui-table caption {
+  padding-block: var(--ui-space-2);
+  color: var(--ui-fg-muted);
+  text-align: start;
+}
+
+.ui-table th,
+.ui-table td {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-block-end: 1px solid var(--ui-border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.ui-table thead th {
+  background: var(--ui-surface);
+  font-weight: 600;
+}
+
+/* Pagination */
+.ui-pagination-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-pagination-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border: 1px solid var(--ui-border-control);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-accent);
+  text-decoration: none;
+}
+
+.ui-pagination-link:hover {
+  background: var(--ui-surface);
+  color: var(--ui-accent-hover);
+}
+
+.ui-pagination-current {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-accent-fg);
+}
+
+.ui-pagination-current:hover {
+  border-color: var(--ui-accent-hover);
+  background: var(--ui-accent-hover);
+  color: var(--ui-accent-fg);
+}
+
+.ui-pagination-unavailable {
+  border-color: var(--ui-border);
+  color: var(--ui-fg-muted);
+}
+
+.ui-pagination-status,
+.ui-pagination-ellipsis {
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-fg-muted);
+}
+
+/* Empty states */
+.ui-empty-state {
+  padding: var(--ui-space-6) var(--ui-space-4);
+  border: 1px dashed var(--ui-border-control);
+  border-radius: var(--ui-radius-lg);
+  color: var(--ui-fg-muted);
+  text-align: center;
+}
+
+.ui-empty-state-title {
+  margin: 0 0 var(--ui-space-2);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+}
+
+.ui-empty-state .ui-actions {
+  justify-content: center;
+  margin-block-start: var(--ui-space-4);
+}
+
+/* django-allauth (templates/allauth/): the narrow card of the entrance pages and the provider list */
+.ui-entrance {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.ui-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* htmx's request indicator: https://htmx.org/attributes/hx-indicator/ (htmx injects no styles of
+   its own, see the htmx-config meta tag in base.html) */
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  opacity: 1;
+}

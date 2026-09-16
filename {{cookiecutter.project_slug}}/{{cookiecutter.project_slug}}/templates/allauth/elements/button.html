@@ -1,14 +1,27 @@
 {% raw %}{% load allauth %}
 
-{% comment %} djlint:off {% endcomment %}
-<{% if attrs.href %}a href="{{ attrs.href }}" role="button"{% else %}button{% endif %}
-  {% if attrs.form %}form="{{ attrs.form }}"{% endif %}
-  {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-  {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-  {% if attrs.value %}value="{{ attrs.value }}"{% endif %}
-  {% if attrs.type %}type="{{ attrs.type }}"{% endif %}
-  {% if 'danger' in attrs.tags or 'delete' in attrs.tags %}class="contrast"{% elif 'link' in attrs.tags %}class="secondary outline"{% elif 'secondary' in attrs.tags %}class="secondary"{% endif %}
->
-  {% slot %}
-  {% endslot %}
-</{% if attrs.href %}a{% else %}button{% endif %}>{% endraw %}
+{% comment %}
+allauth's button element on the UI library: a link drawn as a button when it has an href, a button
+otherwise, submitting by default as allauth's own does. Its tags choose the variant: danger or delete,
+link (quiet), secondary. The form, id, name and value it names are forwarded when given, even empty.
+{% endcomment %}
+{% if attrs.href %}
+  <c-ui.link :href="attrs.href"
+             appearance="button"
+             variant="{% if 'danger' in attrs.tags or 'delete' in attrs.tags %}danger{% elif 'link' in attrs.tags %}quiet{% elif 'secondary' in attrs.tags %}secondary{% else %}primary{% endif %}"
+             :id="attrs.id">
+    {% slot %}
+    {% endslot %}
+  </c-ui.link>
+{% else %}
+  <c-ui.button type="{{ attrs.type|default:'submit' }}"
+               variant="{% if 'danger' in attrs.tags or 'delete' in attrs.tags %}danger{% elif 'link' in attrs.tags %}quiet{% elif 'secondary' in attrs.tags %}secondary{% else %}primary{% endif %}"
+               :form="attrs.form"
+               :id="attrs.id"
+               :name="attrs.name"
+               :value="attrs.value">
+    {% slot %}
+    {% endslot %}
+  </c-ui.button>
+{% endif %}
+{%- endraw %}

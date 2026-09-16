@@ -11,6 +11,7 @@ Welcome to {{ cookiecutter.project_name }}'s documentation!
    :caption: Contents:
 
    howto
+   frontend
    users
 {%- if cookiecutter.identity_provider != 'none' %}
    authentication

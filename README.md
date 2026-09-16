@@ -13,7 +13,7 @@ production-ready Django projects quickly.
 - For Django 6.0, using its template partials, Content Security Policy and Tasks framework
 - Works with Python 3.12, 3.13 and 3.14 (3.14 by default)
 - Renders Django projects with 100% starting test coverage
-- Server-rendered frontend with [htmx](https://htmx.org) (via [django-htmx](https://github.com/adamchainz/django-htmx)) and a vendored, pinned [Pico CSS](https://picocss.com) — no Node.js toolchain, no CDN
+- Server-rendered frontend with [htmx](https://htmx.org) (via [django-htmx](https://github.com/adamchainz/django-htmx)) and a starter UI library of [django-cotton](https://django-cotton.com) components with project-owned CSS, colour palettes and a development showcase — no Node.js toolchain, no CDN
 - Nonce-based Content Security Policy on every response
 - Background tasks with Django's Tasks framework, stored in PostgreSQL in production via [django-tasks-db](https://github.com/RealOrangeOne/django-tasks-db)
 - [12-Factor](https://12factor.net) based settings via [django-environ](https://github.com/joke2k/django-environ)
