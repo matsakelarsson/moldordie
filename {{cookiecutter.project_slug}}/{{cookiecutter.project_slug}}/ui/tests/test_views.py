@@ -20,3 +20,9 @@ def test_the_stylesheet_follows_the_settings(client, settings):
     assert css.startswith(":root{--ui-bg:#ffffff;")
     assert "--ui-accent:#6d28d9;" in css
     assert "--ui-accent:#a78bfa;" in css
+
+
+def test_the_stylesheet_applies_the_brand(client, settings):
+    settings.UI_BRAND = {"light": {"border": "#cccccc"}}
+    css = client.get(reverse("ui:theme")).content.decode()
+    assert "--ui-fg-muted:#5a6170;--ui-border:#cccccc;" in css

@@ -1,0 +1,41 @@
+{% raw %}<c-ui.table caption="Invoices due this month">
+  <c-slot name="head">
+    <tr>
+      <th scope="col">Invoice</th>
+      <th scope="col">Customer</th>
+      <th scope="col">Amount</th>
+      <th scope="col">Status</th>
+    </tr>
+  </c-slot>
+  <tr>
+    <td>INV-1041</td>
+    <td>Northwind Traders</td>
+    <td>1,200.00</td>
+    <td>
+      <c-ui.badge level="success">
+        Paid
+      </c-ui.badge>
+    </td>
+  </tr>
+  <tr>
+    <td>INV-1042</td>
+    <td>Contoso</td>
+    <td>860.00</td>
+    <td>
+      <c-ui.badge level="warning">
+        Due soon
+      </c-ui.badge>
+    </td>
+  </tr>
+  <tr>
+    <td>INV-1043</td>
+    <td>Fabrikam</td>
+    <td>2,450.00</td>
+    <td>
+      <c-ui.badge level="error">
+        Overdue
+      </c-ui.badge>
+    </td>
+  </tr>
+</c-ui.table>
+{%- endraw %}

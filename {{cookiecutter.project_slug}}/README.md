@@ -57,8 +57,9 @@ The frontend is server-rendered Django templates enhanced with [htmx](https://ht
 [django-htmx](https://django-htmx.readthedocs.io)) and built from the UI library:
 [django-cotton](https://django-cotton.com) components under
 `{{cookiecutter.project_slug}}/templates/cotton/ui/`, the stylesheets under
-`{{cookiecutter.project_slug}}/static/css/ui/` and the `ui` app with the colour palettes and the
-theme stylesheet. There is no Node.js toolchain: htmx ships with django-htmx and nothing is built.
+`{{cookiecutter.project_slug}}/static/css/ui/` and the `ui` app with the colour palettes, the
+theme stylesheet and, under `DEBUG`, the component showcase at `/ui/components/`. There is no
+Node.js toolchain: htmx ships with django-htmx and nothing is built.
 htmx fragments are Django template partials, and every response carries a nonce-based Content
 Security Policy, so templates must not contain inline scripts or styles. The library's contract is
 in `docs/frontend.rst`; see also the

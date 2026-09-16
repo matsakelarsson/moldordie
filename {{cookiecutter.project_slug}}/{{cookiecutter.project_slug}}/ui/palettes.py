@@ -1,7 +1,7 @@
 """The colour tokens of the UI library, the pairs they contrast in, and the palettes.
 
 Python owns the colours so that the theme stylesheet, the validation of a theme and the
-tests read the same values (docs/adr/0010); ``static/css/ui/tokens.css`` holds the
+tests read the same values (docs/frontend.rst); ``static/css/ui/tokens.css`` holds the
 tokens that are not colours. A palette is complete: every token, in both sets.
 """
 

@@ -1,0 +1,14 @@
+{% raw %}<c-ui.card>
+  <c-slot name="header">
+    <h3>Projects</h3>
+  </c-slot>
+  <c-ui.empty-state title="No projects yet">
+    Projects you create or join appear here.
+    <c-slot name="actions">
+      <c-ui.button>
+        Create a project
+      </c-ui.button>
+    </c-slot>
+  </c-ui.empty-state>
+</c-ui.card>
+{%- endraw %}
