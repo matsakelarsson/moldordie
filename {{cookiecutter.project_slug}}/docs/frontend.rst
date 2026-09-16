@@ -199,7 +199,8 @@ Stylesheets
 #. ``css/ui/tokens.css``: the tokens that are not colours.
 #. ``css/ui/base.css``: a small reset, the typography, the focus ring, the page header and
    navigation, the layout helpers (``ui-container``, ``ui-main``, ``ui-stack``,
-   ``ui-actions``, ``ui-muted``, ``ui-visually-hidden``) and the reduced-motion rule.
+   ``ui-actions``, ``ui-actions-vertical``, ``ui-muted``, ``ui-visually-hidden``) and the
+   reduced-motion rule.
 #. ``css/ui/components.css``: the components' rules, the form controls inside the field
    component's wrappers, and htmx's ``htmx-indicator`` rules, which htmx would otherwise
    inject as an inline stylesheet the policy forbids.
@@ -207,9 +208,11 @@ Stylesheets
 #. ``css/project.css``: the project's own rules, empty to begin with. Override a token
    there to change every component that reads it, or add rules of your own.
 
-Every class of the library starts with ``ui-`` and every token with ``--ui-``. Form
-controls are styled only inside the field component's wrappers, so the admin and other
-pages with their own styles are untouched. Expandable content is the browser's
+Every class the library writes starts with ``ui-`` and every token with ``--ui-``. Two
+classes it styles are written by other code: Django's ``errorlist``, on a field and as
+``errorlist nonfield`` on a form, and htmx's ``htmx-indicator``. Form controls are styled
+only inside the field component's wrappers, so the admin and other pages with their own
+styles are untouched. Expandable content is the browser's
 ``<details>`` element, which ``base.css`` styles; there is no component for it.
 
 Components
@@ -234,7 +237,9 @@ queries no model, decides no permission, embeds no URL and invents no id.
     A native ``<a>``; ``href`` is required and validated under the navigation policy.
     ``appearance`` is ``plain`` (the default, an underlined link) or ``button``, which
     takes the button's ``variant`` and ``size``. A link is never disabled and never
-    ``role="button"``: leave it out instead.
+    ``role="button"``: leave it out instead. A caller that has to show a control as
+    unavailable marks it ``aria-disabled="true"``, which ``components.css`` styles on a
+    button; the pagination component marks its unavailable previous and next that way.
 
 ``<c-ui.card>``
     An ``<article>`` on a raised surface. The content is the body, when there is any; the
@@ -326,6 +331,57 @@ field without an id (``auto_id=False``), and the filter then wraps the text in a
 ``<span>`` of the same class. A widget with an id of its own keeps it, and a label set on
 the bound field is the one shown. ``ui/tests/test_field.py`` covers each of these.
 
+htmx
+----
+
+``django-htmx`` is installed and its ``HtmxMiddleware`` sets ``request.htmx`` on every
+request. ``base.html`` loads the script with ``{% htmx_script %}`` from django-htmx's own
+static files, so upgrading django-htmx upgrades htmx; under ``DEBUG`` the tag also loads
+django-htmx's debug extension, which shows Django's error page for a failed htmx request.
+The ``htmx-config`` meta tag in ``base.html`` sets ``allowEval``, ``allowScriptTags`` and
+``includeIndicatorStyles`` to false, because the policy allows no inline code and no
+injected stylesheet. That also switches off ``hx-on*`` attributes, ``js:`` prefixes in
+``hx-vals`` and ``hx-headers``, and event filters such as ``click[ctrlKey]``; behaviour
+belongs in ``static/js/project.js``.
+
+Django's CSRF token rides on the ``<body>`` element in ``hx-headers``, so htmx sends it
+with every request, not only with form submissions, and ``CsrfViewMiddleware`` stays on.
+The navigation is deliberately not boosted: a boosted page swap would keep the body's
+attribute, and with it a token that signing in has rotated.
+
+A view answers an htmx request with one fragment of its own template. The fragment is a
+``{% partialdef name inline %}`` block, and the view names it:
+
+.. code-block:: python
+
+    class UserDetailView(LoginRequiredMixin, HtmxTemplateMixin, DetailView):
+        model = User
+        htmx_partial = "profile"
+
+``HtmxTemplateMixin``, in ``<project_slug>/htmx.py``, then renders
+``"users/user_detail.html#profile"`` for a request carrying the ``HX-Request`` header and
+the whole template for every other request, so the page keeps working without JavaScript;
+a boosted request expects a page and gets one. The mixin adds ``Vary: HX-Request`` to every
+response, because the body depends on that header. A view of your own that answers both
+needs the same header, from ``django.views.decorators.vary.vary_on_headers``.
+
+The mixin also puts ``htmx_fragment`` in the context, true only while the partial is
+rendered on its own. Templates branch on that flag rather than on ``request.htmx``: a
+template that reads the request varies by the header on every page that includes it, and
+``base.html`` is included by all of them.
+
+htmx swaps a 2xx or 3xx response and nothing else, so a view that answers an invalid form
+over htmx answers 200 with the form re-rendered, the way the showcase's sample form does.
+When a session has expired, ``HtmxLoginRedirectMiddleware`` (listed after
+``HtmxMiddleware``) turns the redirect to the login page into django-htmx's
+``HttpResponseClientRedirect``, a 200 carrying ``HX-Redirect``, so the browser leaves the
+page instead of swapping the login form into it. Every other redirect is left alone.
+
+The profile pages are the worked example: the edit link loads the form into the profile
+card with ``hx-get``, ``hx-target`` and ``hx-push-url``, the form posts with ``hx-post``,
+and the saved card is swapped back with its message beside it. The showcase's sample form,
+paged results and theme preview are three more.
+
 Messages and scripts
 --------------------
 
@@ -375,8 +431,9 @@ pages.
 Error pages
 -----------
 
-``403.html``, ``404.html`` and ``500.html`` are cards on ``base.html``. They read nothing
-from the database. ``500.html`` is rendered without a request, so without the context
+``403.html``, ``404.html`` and ``500.html`` are cards on ``base.html``, and
+``403_csrf.html``, the page a rejected CSRF token reaches, extends ``403.html``. They read
+nothing from the database. ``500.html`` is rendered without a request, so without the context
 processors: the theme stylesheet is still linked, but a mode forced by ``UI_MODE`` does not
 reach the page's root element, and the browser's preference decides. The package's
 ``tests/test_error_pages.py`` renders them with database access blocked.
