@@ -17,9 +17,14 @@ DEBUG_VALUE = "debug"
 ALPHANUMERIC = string.ascii_letters + string.digits
 LETTERS = string.ascii_letters
 
-# The env files that carry a placeholder.
+# The env files that carry a placeholder, in the order a change is promoted through the
+# environments: the developer's machine, then the three deployed ones.
 LOCAL_DJANGO = ".envs/.local/.django"
 LOCAL_POSTGRES = ".envs/.local/.postgres"
+DEV_DJANGO = ".envs/.dev/.django"
+DEV_POSTGRES = ".envs/.dev/.postgres"
+TEST_DJANGO = ".envs/.test/.django"
+TEST_POSTGRES = ".envs/.test/.postgres"
 PRODUCTION_DJANGO = ".envs/.production/.django"
 PRODUCTION_POSTGRES = ".envs/.production/.postgres"
 
@@ -61,20 +66,44 @@ class Secret:
 # pruned, and a placeholder the template renders only for some answers has a condition
 # (tests/test_hooks.py checks the rows against the template's placeholder sites).
 SECRETS = (
+    # A deployed environment's own key: dev and test share production's settings module,
+    # so nothing but a separate draw keeps a token minted for one from being accepted by
+    # another.
+    Secret("DJANGO_SECRET_KEY", (DEV_DJANGO,), debug=False),
+    Secret("DJANGO_SECRET_KEY", (TEST_DJANGO,), debug=False),
     Secret("DJANGO_SECRET_KEY", (PRODUCTION_DJANGO,), debug=False),
     Secret("DJANGO_SECRET_KEY", ("config/settings/local.py",), debug=False),
     Secret("DJANGO_SECRET_KEY", ("config/settings/test.py",), debug=False),
+    Secret("DJANGO_ADMIN_URL", (DEV_DJANGO,), length=32, debug=False),
+    Secret("DJANGO_ADMIN_URL", (TEST_DJANGO,), length=32, debug=False),
     Secret("DJANGO_ADMIN_URL", (PRODUCTION_DJANGO,), length=32, debug=False),
-    # One database role for both environments: pg_dump records the owner, so a backup
-    # taken in one restores in the other.
-    Secret("POSTGRES_USER", (LOCAL_POSTGRES, PRODUCTION_POSTGRES), length=32, alphabet=LETTERS),
+    # One database role for every environment: pg_dump records the owner, so a backup
+    # taken in one restores in the others.
+    Secret(
+        "POSTGRES_USER",
+        (LOCAL_POSTGRES, DEV_POSTGRES, TEST_POSTGRES, PRODUCTION_POSTGRES),
+        length=32,
+        alphabet=LETTERS,
+    ),
     Secret("POSTGRES_PASSWORD", (LOCAL_POSTGRES,)),
+    Secret("POSTGRES_PASSWORD", (DEV_POSTGRES,)),
+    Secret("POSTGRES_PASSWORD", (TEST_POSTGRES,)),
     Secret("POSTGRES_PASSWORD", (PRODUCTION_POSTGRES,)),
     # Flower's credentials are rendered with Celery only; its user is shared like the database role.
-    Secret("CELERY_FLOWER_USER", (LOCAL_DJANGO, PRODUCTION_DJANGO), length=32, alphabet=LETTERS, applies=with_celery),
+    Secret(
+        "CELERY_FLOWER_USER",
+        (LOCAL_DJANGO, DEV_DJANGO, TEST_DJANGO, PRODUCTION_DJANGO),
+        length=32,
+        alphabet=LETTERS,
+        applies=with_celery,
+    ),
     Secret("CELERY_FLOWER_PASSWORD", (LOCAL_DJANGO,), applies=with_celery),
+    Secret("CELERY_FLOWER_PASSWORD", (DEV_DJANGO,), applies=with_celery),
+    Secret("CELERY_FLOWER_PASSWORD", (TEST_DJANGO,), applies=with_celery),
     Secret("CELERY_FLOWER_PASSWORD", (PRODUCTION_DJANGO,), applies=with_celery),
     # The key allauth signs the single-page application's tokens with, one per environment.
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (DEV_DJANGO,), debug=False, applies=with_headless),
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (TEST_DJANGO,), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (PRODUCTION_DJANGO,), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/local.py",), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/test.py",), debug=False, applies=with_headless),
@@ -133,6 +162,8 @@ REMOVALS = (
         (
             "compose",
             "docker-compose.local.yml",
+            "docker-compose.dev.yml",
+            "docker-compose.test.yml",
             "docker-compose.production.yml",
             "docker-compose.docs.yml",
             ".dockerignore",

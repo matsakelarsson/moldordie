@@ -4,7 +4,7 @@
 DJANGO_SETTINGS_MODULE=config.settings.production
 DJANGO_SECRET_KEY=!!!SET DJANGO_SECRET_KEY!!!
 DJANGO_ADMIN_URL=!!!SET DJANGO_ADMIN_URL!!!/
-DJANGO_ALLOWED_HOSTS=.{{ cookiecutter.domain_name }}
+DJANGO_ALLOWED_HOSTS=test.{{ cookiecutter.domain_name }}
 
 # Security
 # ------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ ENTRA_API_CLIENT_ID=
 # ENTRA_SERVICE_ROLE=Service.Access
 {%- else %}
 # Calling services: the audience their identity tokens name
-# GOOGLE_SERVICE_AUDIENCE=https://{{ cookiecutter.domain_name }}
+# GOOGLE_SERVICE_AUDIENCE=https://test.{{ cookiecutter.domain_name }}
 {%- endif %}
 {%- endif %}
 {%- if cookiecutter.identity_provider == 'entra' %}
@@ -64,7 +64,7 @@ WEB_CONCURRENCY=4
 # Sentry
 # ------------------------------------------------------------------------------
 SENTRY_DSN=
-SENTRY_ENVIRONMENT=production
+SENTRY_ENVIRONMENT=test
 {% endif %}
 
 # Redis

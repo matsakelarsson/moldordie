@@ -45,12 +45,33 @@ def test_append_to_gitignore_file(tmp_path):
 # The sites below are written from the template, not read from the secrets table, so the
 # table is checked against them: every site is filled by exactly one row.
 
+# The deployed environments, in the order a change is promoted through them, and every
+# environment including the developer's machine.
+DEPLOYED_ENVIRONMENTS = ("dev", "test", "production")
+ENVIRONMENTS = ("local", *DEPLOYED_ENVIRONMENTS)
+
 # The placeholder sites of the template by file, in file order, as rendered with Celery and
 # with Django Ninja and an identity provider; the Flower ones are not rendered without
 # Celery, the headless key without Ninja and a provider.
 PLACEHOLDER_SITES = {
     ".envs/.local/.django": ("CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"),
     ".envs/.local/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    ".envs/.dev/.django": (
+        "DJANGO_SECRET_KEY",
+        "DJANGO_ADMIN_URL",
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "CELERY_FLOWER_USER",
+        "CELERY_FLOWER_PASSWORD",
+    ),
+    ".envs/.dev/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    ".envs/.test/.django": (
+        "DJANGO_SECRET_KEY",
+        "DJANGO_ADMIN_URL",
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "CELERY_FLOWER_USER",
+        "CELERY_FLOWER_PASSWORD",
+    ),
+    ".envs/.test/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
     ".envs/.production/.django": (
         "DJANGO_SECRET_KEY",
         "DJANGO_ADMIN_URL",
@@ -68,14 +89,16 @@ HEADLESS_ANSWERS = {"rest_api": "Django Ninja", "identity_provider": "entra"}
 # The sites that read one shared value: the database role, so that a backup restores across
 # the environments, and Flower's user.
 SHARED_SITES = (
-    {(".envs/.local/.postgres", "POSTGRES_USER"), (".envs/.production/.postgres", "POSTGRES_USER")},
-    {(".envs/.local/.django", "CELERY_FLOWER_USER"), (".envs/.production/.django", "CELERY_FLOWER_USER")},
+    {(f".envs/.{environment}/.postgres", "POSTGRES_USER") for environment in ENVIRONMENTS},
+    {(f".envs/.{environment}/.django", "CELERY_FLOWER_USER") for environment in ENVIRONMENTS},
 )
 # The sites the debug answer leaves random: nothing types a key or the admin URL.
 RANDOM_IN_DEBUG = {
-    (".envs/.production/.django", "DJANGO_SECRET_KEY"),
-    (".envs/.production/.django", "DJANGO_ADMIN_URL"),
-    (".envs/.production/.django", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
+    *(
+        (f".envs/.{environment}/.django", placeholder)
+        for environment in DEPLOYED_ENVIRONMENTS
+        for placeholder in ("DJANGO_SECRET_KEY", "DJANGO_ADMIN_URL", "DJANGO_HEADLESS_JWT_PRIVATE_KEY")
+    ),
     ("config/settings/local.py", "DJANGO_SECRET_KEY"),
     ("config/settings/local.py", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
     ("config/settings/test.py", "DJANGO_SECRET_KEY"),
@@ -291,6 +314,8 @@ USERNAME_LOGIN = {f"{PKG}/users/managers.py", f"{PKG}/users/tests/test_managers.
 NO_DOCKER = {
     "compose",
     "docker-compose.local.yml",
+    "docker-compose.dev.yml",
+    "docker-compose.test.yml",
     "docker-compose.production.yml",
     "docker-compose.docs.yml",
     ".dockerignore",

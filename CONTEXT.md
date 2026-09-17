@@ -32,12 +32,27 @@ name, which Traefik's `Host()` rules embed with no escape.
 
 _Avoid_: sanitising, quoting; a `replace` chain written at the site.
 
+## Environment
+
+One configuration of the generated project, named by a directory of env files under `.envs` and,
+except for `local`, by a `docker-compose.<name>.yml` in the project root. `local` is the
+developer's machine. The **deployed environments** are `dev`, `test` and `production`, in the
+order a change is promoted through them: each builds its images from `compose/production/` and
+runs `config/settings/production.py`, which its `.django` file names in
+`DJANGO_SETTINGS_MODULE`, so what an environment owns is its variables — its hosts, its own
+secrets, the deployment it reports as — and its Traefik routers, one file per environment
+selected by the image's `ENVIRONMENT` build argument (`docs/adr/0013`). A settings module is not
+an environment: `config/settings/test.py` is the settings the generated suite runs under, and no
+deployment uses it.
+
+_Avoid_: stage, tier, staging (for `test`); a settings module per deployment.
+
 ## Secret
 
 One row of `SECRETS` in `hooks/post_gen_project.py`: a value drawn once when the project is generated,
 the placeholder (`!!!SET NAME!!!` in a template file) it replaces, and the files it is written to. A
-value the environments share is one row naming both files; the same placeholder in several rows is
-drawn afresh for each, so nothing else is shared. The row also says whether `debug` replaces the value
+value the environments share is one row naming every file it goes to; the same placeholder in several
+rows is drawn afresh for each, so nothing else is shared. The row also says whether `debug` replaces the value
 with `debug` (the credentials, not the keys) and, for a placeholder the template renders only for some
 answers, the condition. `fill_secrets(root, context)` writes them before pruning; a file or placeholder
 it cannot find is an error.

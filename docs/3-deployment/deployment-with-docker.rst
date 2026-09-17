@@ -1,3 +1,5 @@
+.. _deployment-with-docker:
+
 Deployment with Docker
 ======================
 
@@ -11,16 +13,50 @@ Prerequisites
 * Docker Compose 1.17+
 
 
+The Deployed Environments
+-------------------------
+
+The project is generated with three deployed environments, in the order a change is promoted through them: ``dev``, ``test`` and ``production``. Each one is a Compose file in the root of the project and a directory of env files beside it:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Environment
+     - Compose file
+     - Env files
+     - Host it answers for
+   * - ``dev``
+     - ``docker-compose.dev.yml``
+     - ``.envs/.dev/``
+     - ``dev.<your domain>``
+   * - ``test``
+     - ``docker-compose.test.yml``
+     - ``.envs/.test/``
+     - ``test.<your domain>``
+   * - ``production``
+     - ``docker-compose.production.yml``
+     - ``.envs/.production/``
+     - ``<your domain>``
+
+All three run the same code, built the same way: every one of them builds its images from ``compose/production/``, and every one of them runs ``config/settings/production.py``, which each environment's ``.django`` file names in ``DJANGO_SETTINGS_MODULE``. There is no ``config/settings/dev.py``: a settings module belongs to a *kind* of configuration, not to a deployment, and an environment that ran its own module would drift from production and stop rehearsing it. What an environment is free to differ in is its environment variables, and each one gets its own:
+
+* its hosts, in ``DJANGO_ALLOWED_HOSTS`` and in the Traefik routers the image is built with;
+* its secrets — the Django secret key, the admin URL, the database password, Flower's password and, with the single-page application, the token signing key — each drawn separately when the project is generated, so a session or token minted for one environment is not accepted by another. The database role and Flower's user are the deliberate exception: they are shared, so a ``pg_dump`` taken in one environment restores in another;
+* the deployment it reports as, in ``SENTRY_ENVIRONMENT``;
+* its own Docker volumes, each prefixed with the environment's name, and its own image tags.
+
+The commands below are written with ``docker-compose.production.yml``. Point ``-f`` at another environment's Compose file to run them against it.
+
 Understanding the Docker Compose Setup
 --------------------------------------
 
-Before you begin, check out the ``docker-compose.production.yml`` file in the root of this project. Keep note of how it provides configuration for the following services:
+Before you begin, check out the ``docker-compose.production.yml`` file in the root of this project — the ``dev`` and ``test`` files differ from it only in the configuration named above. Keep note of how it provides configuration for the following services:
 
 * ``django``: your application running behind ``Gunicorn``;
 * ``postgres``: PostgreSQL database with the application's relational data;
 * ``redis``: Redis instance for caching;
 * ``taskworker``: the worker of Django's Tasks framework (``python manage.py db_worker``, see :ref:`tasks`);
-* ``traefik``: Traefik reverse proxy with HTTPS on by default.
+* ``traefik``: Traefik reverse proxy with HTTPS on by default. Its static configuration is ``compose/production/traefik/traefik.yml``; its dynamic configuration is the directory beside it, where ``shared.yml`` holds the services and middlewares every environment shares and ``dev.yml``, ``test.yml`` and ``production.yml`` hold each environment's routers. The Compose file passes its environment's name as the ``ENVIRONMENT`` build argument, and the image is built with that environment's routers.
 
 Provided you have opted for Celery (via setting ``use_celery`` to ``y``) there are three more services:
 
@@ -90,7 +126,7 @@ You can read more about this feature and how to configure it, at `Automatic HTTP
 (Optional) Postgres Data Volume Modifications
 ---------------------------------------------
 
-Postgres is saving its database files to the ``production_postgres_data`` volume by default. Change that if you want something else and make sure to make backups since this is not done automatically.
+Postgres is saving its database files to the ``production_postgres_data`` volume by default, and to the ``dev_``- and ``test_``-prefixed volumes in the other environments. Change that if you want something else and make sure to make backups since this is not done automatically.
 
 
 Building & Running Production Stack
