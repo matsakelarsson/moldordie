@@ -8,7 +8,6 @@ from pathlib import Path
 
 TERMINATOR = "\x1b[0m"
 WARNING = "\x1b[1;33m [WARNING]: "
-INFO = "\x1b[1;33m [INFO]: "
 SUCCESS = "\x1b[1;32m [SUCCESS]: "
 
 # What the credentials read when the ``debug`` answer is ``y``.
@@ -110,6 +109,30 @@ SECRETS = (
 )
 
 
+# The committed example of a deployment's environment. No env file is ever committed, so
+# this is where the generated tests and whoever deploys read the list of variables a
+# deployment supplies; the values that would be secret are left unset.
+EXAMPLE_DOTENV = ".env.example"
+EXAMPLE_SOURCES = (PRODUCTION_DJANGO, PRODUCTION_POSTGRES)
+
+
+def write_example_dotenv(root):
+    """Write ``.env.example``: the production env files merged, every secret left unset.
+
+    Called before ``fill_secrets``, while the placeholders are still in the files, so the
+    example cannot declare anything but what a deployment actually reads.
+    """
+    lines = []
+    for file in EXAMPLE_SOURCES:
+        for line in (root / file).read_text().splitlines():
+            name, separator, _ = line.partition("=")
+            # A drawn value is the deployment's to set, and the trailing text of a line
+            # like ``DJANGO_ADMIN_URL=!!!SET ...!!!/`` goes with it.
+            lines.append(f"{name}=" if separator and "!!!SET " in line else line)
+        lines.append("")
+    (root / EXAMPLE_DOTENV).write_text("\n".join(lines))
+
+
 def random_string(length, alphabet):
     """``length`` characters drawn from ``alphabet`` by the operating system's randomness."""
     return "".join(secrets.choice(alphabet) for _ in range(length))
@@ -135,12 +158,6 @@ def fill_secrets(root, context, draw=random_string):
                 msg = f"{file} has no {marker}"
                 raise ValueError(msg)
             path.write_text(content.replace(marker, value))
-
-
-def append_to_gitignore_file(root, ignored_line):
-    with (root / ".gitignore").open("a") as gitignore_file:
-        gitignore_file.write(ignored_line)
-        gitignore_file.write("\n")
 
 
 # Removal rules. When a rule's condition holds for the answers, the paths
@@ -176,11 +193,6 @@ REMOVALS = (
     (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "None", ("compose/production/nginx",)),
     # The AWS image holds the S3 backup maintenance scripts.
     (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "AWS", ("compose/production/aws",)),
-    # Docker Compose is the only consumer of the ``.envs`` files.
-    (
-        lambda c: c["use_docker"] == "n" and c["keep_local_envs_in_vcs"] == "n",
-        (".envs", "merge_production_dotenvs_in_dotenv.py", "tests"),
-    ),
     # users/tasks.py and its tests stay: they also hold the Django Tasks example.
     (lambda c: c["use_celery"] == "n", ("config/celery_app.py",)),
     (
@@ -256,20 +268,8 @@ def prune(context, root):
 
 def main(context):
     root = Path.cwd()
+    write_example_dotenv(root)
     fill_secrets(root, context)
-
-    if context["use_docker"] == "n":
-        if context["keep_local_envs_in_vcs"] == "y":
-            print(
-                INFO + ".env(s) are only utilized when Docker Compose is enabled. "
-                "Keeping them as requested, but they may not be useful "
-                "in your current setup." + TERMINATOR,
-            )
-    else:
-        append_to_gitignore_file(root, ".env")
-        append_to_gitignore_file(root, ".envs/*")
-        if context["keep_local_envs_in_vcs"] == "y":
-            append_to_gitignore_file(root, "!.envs/.local/")
 
     if context["cloud_provider"] == "None" and context["use_docker"] == "n":
         print(

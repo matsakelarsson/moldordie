@@ -42,7 +42,6 @@ KINDS = {
     "use_sentry": FLAG,
     "use_whitenoise": FLAG,
     "ci_tool": LIST,
-    "keep_local_envs_in_vcs": FLAG,
     "debug": FLAG,
 }
 
@@ -68,7 +67,6 @@ def test_option_names_partition_the_catalogue_by_kind():
         "use_celery",
         "use_sentry",
         "use_whitenoise",
-        "keep_local_envs_in_vcs",
         "debug",
     )
     assert sorted(name for names in by_kind.values() for name in names) == sorted(OPTIONS)

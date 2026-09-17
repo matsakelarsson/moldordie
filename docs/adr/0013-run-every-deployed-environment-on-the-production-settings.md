@@ -78,8 +78,8 @@ A deployment is promoted by pointing `-f` at another Compose file, and every com
 `docs/3-deployment/deployment-with-docker.rst` works unchanged against any of the three. A
 setting that a deployment must be able to vary has to be read from the environment in
 `production.py`, as one already had to be. The generated project carries two more Compose files
-and four more env files, and `.gitignore` keeps all of them out of version control except
-`.envs/.local/`, as before.
+and four more env files, none of which is in version control; what a deployment must supply is
+declared in the committed `.env.example` (`docs/adr/0014`).
 
 A change to how the deployments route — a new entry point, a service behind a new path — is made
 in three router files rather than one, which is the cost of each environment naming its own

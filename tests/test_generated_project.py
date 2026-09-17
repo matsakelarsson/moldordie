@@ -530,6 +530,7 @@ def project(tmp_path):
             'dev = ["ruff==0.16.6"]\n'
         ),
         ".envs/.local/.django": "# Django\nDJANGO_DEBUG=True\n\nEMPTY=\n",
+        ".env.example": "# Deployment\nDJANGO_SECRET_KEY=\nWEB_CONCURRENCY=4\n",
         ".envs/.production/.postgres": "export POSTGRES_USER=debug\n",
         "docker-compose.local.yml": "services:\n  django:\n    image: django\n",
         "my_project/templates/base.html": "<!doctype html>\n",
@@ -554,6 +555,7 @@ def test_package_is_the_name_of_the_root_directory(project):
 
 def test_files_are_sorted_relative_paths_without_the_venv_and_caches(project):
     expected = [
+        ".env.example",
         ".envs/.local/.django",
         ".envs/.production/.postgres",
         "broken.yml",
@@ -587,6 +589,12 @@ def test_parser_errors_propagate(project):
         project.module("broken.yml")
     with pytest.raises(FileNotFoundError):
         project.text("missing.txt")
+
+
+def test_dotenv_reads_an_env_file_by_path(project):
+    """``.env.example`` is not under ``.envs``, so it is read by path rather than by environment."""
+    assert project.dotenv(".env.example") == {"DJANGO_SECRET_KEY": "", "WEB_CONCURRENCY": "4"}
+    assert project.dotenv(Path(".envs/.local/.django")) == project.env("local", "django")
 
 
 def test_env_reads_the_name_value_lines_and_rejects_any_other(project):

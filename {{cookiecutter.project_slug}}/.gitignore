@@ -211,6 +211,13 @@ tags
 dump.rdb
 
 ### Project template
+
+# The environment files: each carries the credentials of the environment it configures, so
+# none of them, the developer's machine included, is ever committed. What a deployment must
+# supply is declared in .env.example, which is. .env is the merged deployment file, and the
+# one DJANGO_READ_DOT_ENV_FILE reads.
+.env
+.envs/*
 {%- if cookiecutter.mail_catcher == 'Mailpit' and cookiecutter.use_docker == 'n' %}
 mailpit
 {%- endif %}

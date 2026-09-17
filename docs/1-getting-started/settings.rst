@@ -88,7 +88,7 @@ ENTRA_SERVICE_ROLE                           ENTRA_SERVICE_ROLE                 
 GOOGLE_SERVICE_AUDIENCE                      IDENTITY_SERVICE_AUDIENCE              "https://your_domain_name" "https://your_domain_name"
 ============================================ ====================================== ========================== ==========================
 
-The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.envs/.production`` declares. The ``dev`` and ``test`` deployments run the same module, under the environment their own files declare; see :ref:`deployment-with-docker`.
+The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.env.example`` declares: no env file is in version control, so the committed example is where a checkout reads the deployment's variables from. The ``dev`` and ``test`` deployments run the same module, under the environment their own files declare; see :ref:`deployment-with-docker`.
 
 --------------------------
 Other Environment Settings

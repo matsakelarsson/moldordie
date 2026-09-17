@@ -617,8 +617,9 @@ def test_uppercase_flag_answers_select_the_same_features(bake, context, answer):
     assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned(uppercase)) is selected
     assert ("SENTRY_DSN" in uppercase.settings("production").source) is selected
     assert (uppercase.root / "docker-compose.local.yml").exists() is selected
-    assert (uppercase.root / ".envs").exists() is selected
-    assert ("!.envs/.local/" in uppercase.text(".gitignore")) is selected
+    # The env files are generated for every project, and none of them is ever committed.
+    assert (uppercase.root / ".envs").is_dir()
+    assert ".envs/*" in uppercase.text(".gitignore")
     if selected:
         assert uppercase.env("local", "postgres")["POSTGRES_USER"] == "debug"
 
@@ -843,6 +844,28 @@ def test_deployed_environments_declare_the_same_variables(bake, context_override
 
     hosts = {project.env(environment, "django")["DJANGO_ALLOWED_HOSTS"] for environment in DEPLOYED_ENVIRONMENTS}
     assert len(hosts) == len(DEPLOYED_ENVIRONMENTS), hosts
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_the_example_dotenv_declares_the_deployment_variables(bake, context_override):
+    """No env file is committed, so ``.env.example`` is what a checkout -- the project's own
+    CI included -- reads the deployment's variables from. It is the production env files
+    merged, so it declares exactly what they do, with every drawn value left for the
+    deployment to set and every other value as it stands.
+    """
+    project = bake(context_override)
+
+    example = project.dotenv(".env.example")
+    declared = {**project.env("production", "django"), **project.env("production", "postgres")}
+    assert set(example) == set(declared)
+    for name, value in example.items():
+        # Either the deployment's to set, or the value the env file carries; never a
+        # drawn secret, and never something the example invented.
+        assert value in ("", declared[name]), f"{name}={value}"
+    assert TOKEN.search(project.text(".env.example")) is None
+    # The generated test fills an unset value with a stand-in named after it, so the keys
+    # it loads stay distinct; a shared placeholder would make them equal.
+    assert {name for name, value in example.items() if not value} >= {"DJANGO_SECRET_KEY"}
 
 
 @pytest.mark.xdist_group("deployed-environments")

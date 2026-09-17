@@ -43,9 +43,12 @@ runs `config/settings/production.py`, which its `.django` file names in
 secrets, the deployment it reports as — and its Traefik routers, one file per environment
 selected by the image's `ENVIRONMENT` build argument (`docs/adr/0013`). A settings module is not
 an environment: `config/settings/test.py` is the settings the generated suite runs under, and no
-deployment uses it.
+deployment uses it. No env file is in version control, so what a deployment supplies is declared
+in the **example**, `.env.example`: the production env files merged with every drawn value left
+unset, written by the hook before the secrets are filled (`docs/adr/0014`).
 
-_Avoid_: stage, tier, staging (for `test`); a settings module per deployment.
+_Avoid_: stage, tier, staging (for `test`); a settings module per deployment; treating the
+example as a file to edit by hand.
 
 ## Secret
 

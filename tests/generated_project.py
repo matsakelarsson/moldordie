@@ -592,12 +592,11 @@ class GeneratedProject:
     def yaml(self, relative: str | Path) -> object:
         return yaml.safe_load(self.text(relative))
 
-    def env(self, environment: str, service: str) -> dict[str, str]:
-        """The ``NAME=value`` lines of ``.envs/.<environment>/.<service>``.
+    def dotenv(self, relative: str | Path) -> dict[str, str]:
+        """The ``NAME=value`` lines of the env file at ``relative``.
 
         A line that is neither that, blank nor a comment raises.
         """
-        relative = f".envs/.{environment}/.{service}"
         values = {}
         for number, line in enumerate(self.text(relative).splitlines(), start=1):
             if not line or line.startswith("#"):
@@ -608,6 +607,10 @@ class GeneratedProject:
                 raise ValueError(message)
             values[match[1]] = match[2]
         return values
+
+    def env(self, environment: str, service: str) -> dict[str, str]:
+        """The ``NAME=value`` lines of ``.envs/.<environment>/.<service>``."""
+        return self.dotenv(f".envs/.{environment}/.{service}")
 
     def compose(self, name: str) -> object:
         """The parsed ``docker-compose.<name>.yml``."""
