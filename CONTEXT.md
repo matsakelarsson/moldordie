@@ -89,6 +89,18 @@ on which other tests the context kept there.
 
 _Avoid_: describing it as a removal rule.
 
+## Agent guide
+
+The generated project's instructions for AI coding agents: the answers it was generated from,
+its commands, its layout and its conventions, rendered from one template file. Which coding
+agent reads it is the `coding_agent` answer, and each reads it under its own name, so the hook
+moves the rendered file there after pruning (`AGENT_FILES` and `place_agent_guide`,
+`docs/adr/0015`); `none` deletes it through a removal rule. The guide describes the tree that
+was generated, never the options it was generated from: its table of choices is a record, and
+everything else names what is actually there.
+
+_Avoid_: instructions file, CLAUDE.md or AGENTS.md (one agent's name for it), rules.
+
 ## Bake
 
 Generating one project in the tests from a complete set of answers, through the `bake` fixture

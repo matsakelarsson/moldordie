@@ -42,6 +42,7 @@ KINDS = {
     "use_sentry": FLAG,
     "use_whitenoise": FLAG,
     "ci_tool": LIST,
+    "coding_agent": LIST,
     "debug": FLAG,
 }
 
@@ -70,6 +71,11 @@ def test_option_names_partition_the_catalogue_by_kind():
         "debug",
     )
     assert sorted(name for names in by_kind.values() for name in names) == sorted(OPTIONS)
+
+
+def test_option_names_takes_several_kinds_in_declaration_order():
+    """The agent guide's table of answers is rendered from the list and flag options together."""
+    assert option_names(LIST, FLAG) == tuple(name for name, option in OPTIONS.items() if option.kind != FREE_TEXT)
 
 
 def test_cookiecutter_exposes_option_names_to_the_templates_and_hooks():

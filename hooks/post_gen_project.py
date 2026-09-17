@@ -160,6 +160,35 @@ def fill_secrets(root, context, draw=random_string):
             path.write_text(content.replace(marker, value))
 
 
+# The agent guide. The template renders it once, under AGENT_GUIDE; every coding agent
+# reads it under its own name, so ``place_agent_guide`` moves it there after pruning
+# (docs/adr/0015). The ``none`` answer keeps no guide at all: that is a removal rule.
+AGENT_GUIDE = "AGENTS.md"
+AGENT_FILES = {
+    "claude": "CLAUDE.md",
+    "codex": AGENT_GUIDE,
+    "cursor": AGENT_GUIDE,
+    "copilot": ".github/copilot-instructions.md",
+}
+
+
+def place_agent_guide(context, root):
+    """Move the guide of the project at ``root`` to the file its coding agent reads.
+
+    Runs after pruning: the target may sit in a directory the answers dropped, as
+    ``.github`` is dropped without GitHub Actions, and is then created for the guide.
+    """
+    agent = context["coding_agent"]
+    if agent == "none":  # the removal rule deleted the guide
+        return
+    target = AGENT_FILES[agent]
+    if target == AGENT_GUIDE:
+        return
+    path = root / target
+    path.parent.mkdir(parents=True, exist_ok=True)
+    (root / AGENT_GUIDE).rename(path)
+
+
 # Removal rules. When a rule's condition holds for the answers, the paths
 # listed with it are deleted from the generated project. Paths are relative to the
 # project root; ``{project_slug}`` stands for the project package. For any answers,
@@ -201,6 +230,8 @@ REMOVALS = (
     ),
     (lambda c: c["ci_tool"] != "Gitlab", (".gitlab-ci.yml",)),
     (lambda c: c["ci_tool"] != "Github", (".github",)),
+    # No coding agent, so no guide; every other answer moves it to the file that agent reads.
+    (lambda c: c["coding_agent"] == "none", (AGENT_GUIDE,)),
     (lambda c: c["rest_api"] == "DRF", ("config/api.py", "{project_slug}/users/api/schema.py")),
     (
         lambda c: c["rest_api"] == "Django Ninja",
@@ -278,6 +309,7 @@ def main(context):
         )
 
     prune(context, root)
+    place_agent_guide(context, root)
 
     print(SUCCESS + "Project initialized, keep up the good work!" + TERMINATOR)
 

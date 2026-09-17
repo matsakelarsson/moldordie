@@ -137,6 +137,18 @@ ci_tool:
     2. `Gitlab CI`_
     3. `Github Actions`_
 
+coding_agent:
+    Select the coding agent the generated project writes its instructions for. The guide it
+    writes records the answers given here, the commands the project runs, where its code lives
+    and the conventions that code follows, under the file name that agent reads. The choices
+    are:
+
+    1. none, so no guide is written
+    2. claude, for `Claude Code`_, which reads ``CLAUDE.md``
+    3. codex, for `OpenAI Codex`_, which reads ``AGENTS.md``
+    4. cursor, for Cursor_, which reads ``AGENTS.md``
+    5. copilot, for `GitHub Copilot`_, which reads ``.github/copilot-instructions.md``
+
 debug:
     Indicates whether the project should be configured for debugging.
     This option is relevant for moldordie developers only.
@@ -177,4 +189,9 @@ debug:
 .. _GitLab CI: https://docs.gitlab.com/ee/ci/
 
 .. _Github Actions: https://docs.github.com/en/actions
+
+.. _Claude Code: https://code.claude.com/docs
+.. _OpenAI Codex: https://developers.openai.com/codex
+.. _Cursor: https://cursor.com/docs
+.. _GitHub Copilot: https://docs.github.com/en/copilot
 .. _Django Channels: https://channels.readthedocs.io/

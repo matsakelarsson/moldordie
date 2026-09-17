@@ -38,6 +38,7 @@ _These features can be enabled during initial project setup._
 - Configuration for [Celery](https://docs.celeryq.dev) and [Flower](https://github.com/mher/flower) as an additional task queue with scheduling (the latter in Docker setup only)
 - Integration with [Mailpit](https://github.com/axllent/mailpit/) or [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) for local email testing
 - Integration with [Sentry](https://sentry.io/welcome/) for error logging
+- A guide for your coding agent — `CLAUDE.md`, `AGENTS.md` or GitHub Copilot's instructions — recording the answers the project was generated from, its commands, its layout and its conventions
 
 ## Constraints
 
@@ -64,70 +65,77 @@ You'll be prompted for some values. Provide them, then a Django project will be 
 
 Answer the prompts with your own desired [options](docs/1-getting-started/project-generation-options.rst). For example:
 
-      [1/23] project_name (My Awesome Project): Reddit Clone
-      [2/23] project_slug (reddit_clone): reddit
-      [3/23] description (Behold My Awesome Project!): A reddit clone.
-      [4/23] author_name (Daniel Roy Greenfeld): Daniel Greenfeld
-      [5/23] domain_name (example.com): myreddit.com
-      [6/23] email (daniel-greenfeld@myreddit.com): pydanny@gmail.com
-      [7/23] version (0.1.0): 0.0.1
-      [8/23] Select open_source_license
+      [1/24] project_name (My Awesome Project): Reddit Clone
+      [2/24] project_slug (reddit_clone): reddit
+      [3/24] description (Behold My Awesome Project!): A reddit clone.
+      [4/24] author_name (Daniel Roy Greenfeld): Daniel Greenfeld
+      [5/24] domain_name (example.com): myreddit.com
+      [6/24] email (daniel-greenfeld@myreddit.com): pydanny@gmail.com
+      [7/24] version (0.1.0): 0.0.1
+      [8/24] Select open_source_license
         1 - MIT
         2 - BSD
         3 - GPLv3
         4 - Apache Software License 2.0
         5 - Not open source
         Choose from [1/2/3/4/5] (1): 1
-      [9/23] Select username_type
+      [9/24] Select username_type
         1 - username
         2 - email
         Choose from [1/2] (1): 1
-      [10/23] timezone (UTC): America/Los_Angeles
-      [11/23] use_docker (n): n
-      [12/23] Select postgresql_version
+      [10/24] timezone (UTC): America/Los_Angeles
+      [11/24] use_docker (n): n
+      [12/24] Select postgresql_version
         1 - 18
         2 - 17
         3 - 16
         4 - 15
         5 - 14
         Choose from [1/2/3/4/5] (1): 1
-      [13/23] Select cloud_provider
+      [13/24] Select cloud_provider
         1 - AWS
         2 - None
         Choose from [1/2] (1): 1
-      [14/23] Select mail_service
+      [14/24] Select mail_service
         1 - Mailgun
         2 - Amazon SES
         3 - Other SMTP
         Choose from [1/2/3] (1): 1
-      [15/23] Select rest_api
+      [15/24] Select rest_api
         1 - None
         2 - DRF
         3 - Django Ninja
         Choose from [1/2/3] (1): 1
-      [16/23] Select identity_provider
+      [16/24] Select identity_provider
         1 - none
         2 - entra
         3 - google
         Choose from [1/2/3] (1): 1
-      [17/23] Select realtime
+      [17/24] Select realtime
         1 - none
         2 - channels
         Choose from [1/2] (1): 1
-      [18/23] use_celery (n): y
-      [19/23] Select mail_catcher
+      [18/24] use_celery (n): y
+      [19/24] Select mail_catcher
         1 - None
         2 - Mailpit
         3 - Mailtrap Local
         Choose from [1/2/3] (1): 1
-      [20/23] use_sentry (n): y
-      [21/23] use_whitenoise (n): n
-      [22/23] Select ci_tool
+      [20/24] use_sentry (n): y
+      [21/24] use_whitenoise (n): n
+      [22/24] Select ci_tool
         1 - None
         2 - Gitlab
         3 - Github
         Choose from [1/2/3] (1): 3
-      [23/23] debug (n): n
+      [23/24] Select coding_agent
+        1 - none
+        2 - claude
+        3 - codex
+        4 - cursor
+        5 - copilot
+        Choose from [1/2/3/4/5] (1): 2
+      [24/24] debug (n): n
 
 Enter the project and take a look around:
 
