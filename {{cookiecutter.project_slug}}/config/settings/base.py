@@ -146,6 +146,9 @@ THIRD_PARTY_APPS = [
     "corsheaders",
 {%- endif %}
     "django_htmx",
+    # Tailwind CSS and daisyUI without Node.js: the tailwind management command
+    # and the tailwind_css template tag
+    "django_tailwind_cli",
     # Cotton components; this config leaves TEMPLATES as written below
     "django_cotton.apps.SimpleAppConfig",
 ]
@@ -301,6 +304,26 @@ TEMPLATES = [
         },
     },
 ]
+
+# TAILWIND
+# ------------------------------------------------------------------------------
+# https://django-tailwind-cli.readthedocs.io/latest/settings.html
+# The stylesheet is built by Tailwind's standalone CLI through ``manage.py tailwind
+# build`` and ``manage.py tailwind watch``. The CLI is downloaded on first use into
+# .django_tailwind_cli/, which git and Docker ignore. These settings live here only:
+# the production image builds the stylesheet under the test settings.
+# daisyUI comes bundled in the tailwind-cli-extra build of the CLI
+TAILWIND_CLI_USE_DAISY_UI = True
+# A release of https://github.com/dobicinaitis/tailwind-cli-extra, pinned so every
+# machine and image builds with the same CLI: 2.10.28 bundles Tailwind CSS 4.3.3 and
+# daisyUI 5.7.42. Bumped by hand; nothing else names the version.
+TAILWIND_CLI_VERSION = "2.10.28"
+# The source stylesheet, relative to BASE_DIR. It stays outside STATICFILES_DIRS, where
+# collectstatic would collect it and a manifest storage would fail on its imports
+TAILWIND_CLI_SRC_CSS = "{{ cookiecutter.project_slug }}/styles/main.css"
+# The built stylesheet, relative to STATICFILES_DIRS[0]: a build artefact that git
+# ignores, the production image builds and collectstatic collects
+TAILWIND_CLI_DIST_CSS = "css/tailwind.css"
 
 # UI
 # ------------------------------------------------------------------------------

@@ -226,6 +226,11 @@ mailtrap-local
 {%- endif %}
 {{ cookiecutter.project_slug }}/media/
 
+# The stylesheet Tailwind's CLI builds from the templates (manage.py tailwind build),
+# and the CLI itself, downloaded on first use
+{{ cookiecutter.project_slug }}/static/css/tailwind.css
+.django_tailwind_cli/
+
 .pytest_cache/
 
 {%- if cookiecutter.use_docker == 'y' %}

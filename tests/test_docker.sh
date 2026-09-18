@@ -36,11 +36,29 @@ docker compose -f docker-compose.local.yml run django uv lock
 
 docker compose -f docker-compose.local.yml build
 
+# the watcher service downloads the Tailwind CLI, builds the stylesheet and stays up:
+# Tailwind's CLI stops watching when its standard input closes, which tty: true prevents
+docker compose -f docker-compose.local.yml up -d tailwind
+waited=0
+until [ -s my_awesome_project/static/css/tailwind.css ]; do
+  waited=$((waited + 1))
+  if [ "$waited" -gt 180 ]; then
+    docker compose -f docker-compose.local.yml logs tailwind
+    exit 1
+  fi
+  sleep 1
+done
+sleep 2
+test -n "$(docker compose -f docker-compose.local.yml ps --status running -q tailwind)"
+
 # run the project's type checks
 docker compose -f docker-compose.local.yml run --rm django mypy .
 
 # run the project's tests
 docker compose -f docker-compose.local.yml run --rm django pytest
+
+# build the stylesheet from the command line, as a deployment does before collectstatic
+docker compose -f docker-compose.local.yml run --rm -e DJANGO_SETTINGS_MODULE=config.settings.local django python manage.py tailwind build
 
 # return non-zero status code if there are migrations that have not been created
 docker compose -f docker-compose.local.yml run --rm django python manage.py makemigrations --check || { echo "ERROR: there were changes in the models, but migration listed above have not been created and are not saved in version control"; exit 1; }
@@ -92,6 +110,10 @@ for environment in dev test production; do
 done
 
 docker build -f ./compose/production/django/Dockerfile -t django-prod .
+
+# the production image carries the stylesheet its build stage built, and not the CLI
+docker run --rm --entrypoint sh django-prod -c \
+  'test -s /app/my_awesome_project/static/css/tailwind.css && ! ls /app/.django_tailwind_cli/tailwindcss-* > /dev/null 2>&1'
 
 docker run --rm \
 --env-file .envs/.local/.django \

@@ -10,3 +10,7 @@ venv
 .envs/
 .venv/
 **/__pycache__/
+# Tailwind's CLI and the stylesheet it builds are never taken from the host: the
+# production image builds its own stylesheet
+.django_tailwind_cli/
+{{ cookiecutter.project_slug }}/static/css/tailwind.css

@@ -28,6 +28,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-dev
 
+# Build the stylesheet, which collectstatic collects when a container starts. The
+# Tailwind CLI is downloaded into a build cache, so it never becomes part of the image;
+# the settings module only has to import, as it does for compilemessages below.
+RUN --mount=type=cache,target=/app/.django_tailwind_cli \
+    DATABASE_URL="postgres://dummy" \
+    DJANGO_SETTINGS_MODULE="config.settings.test" \
+    ${APP_HOME}/.venv/bin/python manage.py tailwind build --skip-checks
+
 # Python 'run' stage
 FROM python:3.14-slim-bookworm AS python-run-stage
 
