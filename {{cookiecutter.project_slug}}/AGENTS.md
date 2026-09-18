@@ -38,7 +38,8 @@ already there.
   CDN and no JavaScript of the project's own. `{{ cookiecutter.project_slug }}/styles/` holds
   the source stylesheet and the project's own theme, the look to edit;
   `static/css/tailwind.css` is built from them and never committed. Every daisyUI theme is
-  enabled, and the navigation's theme picker keeps a visitor's choice in a cookie through htmx
+  enabled, and the navigation's theme picker keeps a visitor's choice in a cookie through htmx.
+  `/examples/` shows the components and the htmx patterns as this project writes them
 - A nonce-based Content Security Policy on every response, configured by `SECURE_CSP` in
   `config/settings/base.py`
 - Background work through Django's Tasks framework: run immediately in development and tests,
@@ -163,7 +164,7 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | Path | What lives there |
 | ---- | ---------------- |
 | `config/settings/` | The four settings modules; each setting is rendered from one block |
-| `config/urls.py` | URL routing, with the theme picker's view; under `DEBUG` also the error-page previews |
+| `config/urls.py` | URL routing, with the theme picker's view and the examples page; under `DEBUG` also the error-page previews |
 | `config/asgi.py` | The ASGI entry point |
 {%- if cookiecutter.rest_api == 'DRF' %}
 | `config/api_router.py` | The REST API's routes |
@@ -187,6 +188,7 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `{{ cookiecutter.project_slug }}/static/` | Images and fonts; `css/tailwind.css` is built into it and never committed |
 | `{{ cookiecutter.project_slug }}/styles/` | The source stylesheet `main.css` and the project's own daisyUI theme, `theme.css` |
 | `{{ cookiecutter.project_slug }}/themes.py` | The themes a visitor may choose, the cookie that keeps the choice and the view the picker posts to |
+| `{{ cookiecutter.project_slug }}/examples/` | The examples page: starter content, routed in every environment until it is deleted |
 | `{{ cookiecutter.project_slug }}/htmx.py` | The htmx mixin and the login-redirect middleware |
 | `{{ cookiecutter.project_slug }}/typedefs.py` | The shared request types the views annotate against |
 | `{{ cookiecutter.project_slug }}/tests/` | Tests that belong to no single app, such as the policy and the error pages |
@@ -219,6 +221,8 @@ New apps go under `{{ cookiecutter.project_slug }}/`, are created from there wit
    mechanisms: a dropdown that opens on focus, a collapse on a details element, tabs and
    drawers on radio buttons and checkboxes. Build pages from daisyUI's component classes and
    Tailwind's utilities, and change the look in `styles/theme.css`, not by overriding them.
+   The examples page, `/examples/`, has a worked pattern for a validated form, a filtered
+   and paged table, a toggle, lazy tabs, a dialog and out-of-band messages: copy from it.
 3. **Write class names whole.** Tailwind generates a rule only for a class name it finds
    written out in a template or a Python module of this package, so a template chooses between
    whole names and never joins a prefix such as `alert-` to a variable.
@@ -247,7 +251,8 @@ New apps go under `{{ cookiecutter.project_slug }}/`, are created from there wit
 
 - `README.md` — setting up, the commands, and what the chosen options added
 - `docs/howto.rst` — how to write and build these docs
-- `docs/frontend.rst` — the stylesheet and the theme, forms, allauth, htmx and the policy's rules for templates
+- `docs/frontend.rst` — the stylesheet and the themes, forms, allauth, htmx, the examples page and how to delete
+  it, and the policy's rules for templates
 - `docs/users.rst` — the user model and its views
 {%- if cookiecutter.identity_provider != 'none' %}
 - `docs/authentication.rst` — sign-in through the identity provider, and what it trusts

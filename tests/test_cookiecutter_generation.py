@@ -1208,6 +1208,36 @@ def test_themes(bake, context):
     assert (project.root / slug / "tests" / "test_themes.py").is_file()
 
 
+def test_examples_page(bake, context):
+    """The examples page is routed in every environment, and a project that deletes it needs no other edit."""
+    project = bake(context)
+    slug = context["project_slug"]
+
+    for name in ("__init__", "content", "forms", "urls", "views"):
+        assert (project.root / slug / "examples" / f"{name}.py").is_file()
+    # Not an installed app: it has no models, no template tags and no templates of its own
+    assert f"{slug}.examples" not in project.settings("base").literal("INSTALLED_APPS")
+    templates = project.root / slug / "templates" / "examples"
+    names = sorted(path.stem for path in templates.iterdir())
+    content = project.module(f"{slug}/examples/content.py")
+    static = ["theme", "buttons", "alerts", "badges", "card"]
+    assert names == sorted(["index", *static, *content.literal("HTMX_EXAMPLES")])
+
+    # Outside the DEBUG block, unlike the error page previews
+    routed, _, debug_only = project.text("config/urls.py").partition("if settings.DEBUG:")
+    include = f'include("{slug}.examples.urls", namespace="examples")'
+    assert include in routed
+    assert include not in debug_only
+    # The link asks for the route first, so deleting the page leaves the navigation working
+    navigation = project.template("partials/navigation.html")
+    assert "{% url 'examples:index' as examples_url %}" in navigation
+    assert "{% if examples_url %}" in navigation
+    # Where an htmx request puts a dialog
+    assert '<div id="modal"></div>' in project.template("base.html")
+    # The page keeps nothing on the server: its views open no transaction
+    assert "transaction.non_atomic_requests" in project.text(f"{slug}/examples/views.py")
+
+
 def test_docker_builds_and_watches_the_stylesheet(bake, context):
     """The production image builds the stylesheet in its build stage; only the local stack runs the watcher."""
     project = bake({**context, "use_docker": "y"})

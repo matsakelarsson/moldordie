@@ -10,6 +10,14 @@
     <a href="{% url 'about' %}"
        {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>{% translate "About" %}</a>
   </li>
+  {# The examples page, until the project deletes it: without its route there is no link (docs/frontend.rst) #}
+  {% url 'examples:index' as examples_url %}
+  {% if examples_url %}
+    <li>
+      <a href="{{ examples_url }}"
+         {% if request.resolver_match.namespace == 'examples' %}aria-current="page"{% endif %}>{% translate "Examples" %}</a>
+    </li>
+  {% endif %}
 {% endpartialdef links %}
 <nav class="navbar bg-base-100 shadow-sm"
      aria-label="{% translate 'Main navigation' %}">

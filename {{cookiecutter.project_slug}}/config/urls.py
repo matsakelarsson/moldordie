@@ -35,6 +35,12 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     # The theme picker of the navigation posts the visitor's choice here
     path("theme/", set_theme, name="set_theme"),
+    # The examples page, in every environment until the project deletes it:
+    # this line, the examples package and templates/examples/ (docs/frontend.rst)
+    path(
+        "examples/",
+        include("{{ cookiecutter.project_slug }}.examples.urls", namespace="examples"),
+    ),
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
     # The single-page application's login: allauth's headless API, app client only
     path("_allauth/", include("allauth.headless.urls")),

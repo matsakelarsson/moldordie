@@ -23,8 +23,16 @@ def elements(markup: str, tag: str) -> list[Attributes]:
     return [attrs for found, attrs in parser.found if found == tag]
 
 
-def element(markup: str, tag: str) -> Attributes:
-    """The attributes of the one ``tag`` element in ``markup``."""
+def element(
+    markup: str,
+    tag: str,
+    key: str | None = None,
+    value: str | None = None,
+) -> Attributes:
+    """The attributes of the one ``tag`` element in ``markup``, or of the one whose
+    ``key`` attribute is ``value``."""
     found = elements(markup, tag)
+    if key is not None:
+        found = [attrs for attrs in found if attrs.get(key) == value]
     assert len(found) == 1, found
     return found[0]

@@ -124,8 +124,8 @@ to the tests: the reader asserts nothing, makes no existence check and validates
 
 ---
 
-The vocabulary of the generated project's server-rendered frontend: its stylesheets and its
-themes. The terms of the generation flow above still apply; in particular "context" alone is
+The vocabulary of the generated project's server-rendered frontend: its stylesheets, its themes
+and its examples page. The terms of the generation flow above still apply; in particular "context" alone is
 the answers the hooks receive, and Django's is the **template context**.
 
 ## Source stylesheet
@@ -167,6 +167,15 @@ the page through daisyUI's CSS as soon as it is checked, and an htmx request tha
 choice in a cookie, from which the server writes `data-theme` on the next page.
 
 _Avoid_: theme switcher, theme toggle, dark mode switch.
+
+## Examples page
+
+The page, routed in every environment and linked from the navigation, that shows daisyUI
+components and htmx patterns as the project writes them: each example a template under
+`templates/examples/`, rendered live and shown as written. It is starter content, which a
+project deletes once it has pages of its own.
+
+_Avoid_: style guide, storybook, demo, component library.
 
 ## Watcher
 
