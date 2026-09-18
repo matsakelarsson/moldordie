@@ -361,9 +361,11 @@ A view answers an htmx request with one fragment of its own template. The fragme
 ``HtmxTemplateMixin``, in ``<project_slug>/htmx.py``, then renders
 ``"users/user_detail.html#profile"`` for a request carrying the ``HX-Request`` header and
 the whole template for every other request, so the page keeps working without JavaScript;
-a boosted request expects a page and gets one. The mixin adds ``Vary: HX-Request`` to every
-response, because the body depends on that header. A view of your own that answers both
-needs the same header, from ``django.views.decorators.vary.vary_on_headers``.
+a boosted request expects a page and gets one, and so does the request htmx sends to
+restore a page its history cache no longer holds, which carries ``HX-Request`` too. The
+mixin adds ``Vary: HX-Request, HX-History-Restore-Request`` to every response, because the
+body depends on those headers. A view of your own that answers both
+needs the same headers, from ``django.views.decorators.vary.vary_on_headers``.
 
 The mixin also puts ``htmx_fragment`` in the context, true only while the partial is
 rendered on its own. Templates branch on that flag rather than on ``request.htmx``: a
