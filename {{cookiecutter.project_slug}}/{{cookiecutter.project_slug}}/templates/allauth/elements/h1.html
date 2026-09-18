@@ -1,0 +1,8 @@
+{% raw %}{% load allauth %}
+
+{# Tailwind's preflight leaves a bare heading unstyled, so allauth's headings get their size here #}
+<h1 class="text-2xl font-bold">
+  {% slot %}
+  {% endslot %}
+</h1>
+{%- endraw %}

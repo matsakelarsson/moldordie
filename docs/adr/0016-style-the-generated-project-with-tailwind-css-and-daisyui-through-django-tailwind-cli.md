@@ -67,7 +67,16 @@ build one file and the deployment ask for another. `test_tailwind_and_daisyui` h
 settings modules to that.
 
 Tailwind generates a class only where it finds the whole name in a scanned file, so templates
-choose between whole class names and never assemble one.
+choose between whole class names and never assemble one. There is no component layer of the
+project's own between a template and daisyUI's classes, and no script of the project's own:
+what involves the server is an htmx request, what does not is one of daisyUI's CSS-only
+mechanisms.
+
+The look is the project's own daisyUI theme, `brand` in `styles/theme.css`, with every value
+daisyUI reads written out, so that restyling a project is editing one block. Whether colours are
+legible together is daisyUI's concern for its themes and the developer's for that block: the
+shipped values were computed once to a contrast of at least 4.5:1 for the pairs the templates
+use, and no generated test checks what a developer puts there.
 
 `test_tailwind_and_daisyui` and `test_docker_builds_and_watches_the_stylesheet` check the wiring
 without running the CLI. The generated `tests/test_staticfiles.py` runs it: it builds the

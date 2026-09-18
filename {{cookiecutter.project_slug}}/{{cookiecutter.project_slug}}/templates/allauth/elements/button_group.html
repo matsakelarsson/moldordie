@@ -1,7 +1,7 @@
 {% raw %}{% load allauth %}
 
-{# allauth's button group: the library's action group, stacked when allauth asks for vertical #}
-<div class="ui-actions{% if attrs.vertical %} ui-actions-vertical{% endif %}">
+{# allauth's button group: its buttons in a row, or stacked when allauth asks for vertical #}
+<div class="flex gap-2 {% if attrs.vertical %}flex-col{% else %}flex-wrap items-center{% endif %}">
   {% slot %}
   {% endslot %}
 </div>

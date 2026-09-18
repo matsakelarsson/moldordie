@@ -62,7 +62,9 @@ Failing to do so will result with a bunch of CI and Linter errors that can be av
 Run the Stack
 -------------
 
-This brings up both Django and PostgreSQL. The first time it is run it might take a while to get started, but subsequent runs will occur quickly.
+This brings up Django, PostgreSQL and the Tailwind watcher. The first time it is run it might take a while to get started, but subsequent runs will occur quickly.
+
+The ``tailwind`` service runs ``python manage.py tailwind watch``: it builds ``<project_slug>/static/css/tailwind.css``, the stylesheet the pages load, when the stack starts and again whenever a template or a module changes. The file appears in your working tree through the bind mount, where ``.gitignore`` keeps it out of version control. The first ``up`` downloads the Tailwind CLI into a volume the services share, so the pages have no styles until that has finished; ``docker compose -f docker-compose.local.yml logs tailwind`` shows it. The Tailwind CLI stops watching once its standard input closes, which is why the service sets ``tty: true``. The watcher prints nothing as it rebuilds, errors included: ``docker compose -f docker-compose.local.yml run --rm django python manage.py tailwind build`` reports them.
 
 Open a terminal at the project root and run the following for local development::
 

@@ -1,7 +1,53 @@
 {% raw %}{% comment %}
 Django renders every field of {{ form }} / form.as_div through this template (FORM_RENDERER in
-config/settings/base.py). The UI library's field component writes the markup, so a form rendered
-by Django and a field placed by hand look the same (docs/frontend.rst).
+config/settings/base.py), and allauth's forms with them. It writes daisyUI's fieldset, label and
+legend classes around the widget, whose own classes come from the templates under widgets/, and keeps
+Django's associations: the label names the widget, the widget (the fieldset of a radio or checkbox
+group) names its help text and its errors in aria-describedby, and an invalid widget carries
+aria-invalid. The order is label, widget, errors, help. A hidden field is its widget alone, a checkbox
+sits inside its label, and a form without ids gets a span for a label (docs/frontend.rst).
 {% endcomment %}
-<c-ui.field :field="field" />
+{% if field.is_hidden %}
+  {{ field }}
+{% elif field.use_fieldset %}
+  <fieldset class="fieldset"
+            {% if field.aria_describedby %}aria-describedby="{{ field.aria_describedby }}"{% endif %}>
+    {% if field.label %}<legend class="fieldset-legend">{{ field.label }}</legend>{% endif %}
+    {{ field }}
+    {{ field.errors }}
+    {% if field.help_text %}
+      <div class="text-base-content/70"
+           {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</div>
+    {% endif %}
+  </fieldset>
+{% elif field.widget_type == "checkbox" %}
+  <div class="fieldset">
+    <label class="label text-base-content whitespace-normal"
+           {% if field.id_for_label %}for="{{ field.id_for_label }}"{% endif %}>
+      {{ field }}
+      {% if field.label %}<span>{{ field.label }}</span>{% endif %}
+    </label>
+    {{ field.errors }}
+    {% if field.help_text %}
+      <div class="text-base-content/70"
+           {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="fieldset">
+    {% if field.label %}
+      {% if field.id_for_label %}
+        <label class="fieldset-legend" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {% else %}
+        <span class="fieldset-legend">{{ field.label }}</span>
+      {% endif %}
+    {% endif %}
+    {{ field }}
+    {{ field.errors }}
+    {% if field.help_text %}
+      <div class="text-base-content/70"
+           {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</div>
+    {% endif %}
+  </div>
+{% endif %}
 {%- endraw %}

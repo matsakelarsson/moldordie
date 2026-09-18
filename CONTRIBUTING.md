@@ -44,7 +44,7 @@ For further information, please consult the [pytest usage docs](https://pytest.o
 
 ### Run the generated project tests
 
-The template tests check that the generated project is fully rendered and that it passes `ruff` and `djlint`. We also have some test scripts which generate a specific project combination, install its dependencies, and then run its type checks, its test suite, the migration check, Django's checks with the local settings and its deployment checks with the production settings, `makemessages --all` (which checks that extraction completes and updates the catalogues, not that the translations are complete or usable) and its documentation build. The Docker script also builds the local and production images. They run everything through `uv`, so there is no virtual environment to set up first.
+The template tests check that the generated project is fully rendered and that it passes `ruff` and `djlint`. We also have some test scripts which generate a specific project combination, install its dependencies, and then run its type checks, its test suite, the migration check, Django's checks with the local settings and its deployment checks with the production settings, `makemessages --all` (which checks that extraction completes and updates the catalogues, not that the translations are complete or usable), its stylesheet build with the Tailwind CLI, which they download, and its documentation build. The Docker script also builds the local and production images, and checks that the Tailwind watcher service stays up and that the production image carries the built stylesheet. They run everything through `uv`, so there is no virtual environment to set up first.
 
 These tests are slower and can be run with or without Docker:
 

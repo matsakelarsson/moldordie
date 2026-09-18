@@ -1,0 +1,8 @@
+{% raw %}{# Django's error list with its class and the id the widget names in aria-describedby, in the error colour #}
+{% if errors %}
+  <ul class="{{ error_class }} text-error text-sm{% if 'nonfield' in error_class %} font-medium{% endif %}"
+      {% if errors.field_id %}id="{{ errors.field_id }}_error"{% endif %}>
+    {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+  </ul>
+{% endif %}
+{%- endraw %}

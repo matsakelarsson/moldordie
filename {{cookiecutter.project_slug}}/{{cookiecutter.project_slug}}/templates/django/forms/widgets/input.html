@@ -1,0 +1,16 @@
+{% raw %}{% comment %}
+Every input Django renders: daisyUI's class for its type, then the widget's own, in one class
+attribute. A checkbox whose widget asks for the toggle class is a toggle and takes no checkbox class.
+aria-invalid, which Django sets on an invalid widget, is what colours the control. A hidden input
+keeps Django's markup. The admin renders through this template too and ignores the classes: it does
+not load the stylesheet, and none of them is a name its own styles use.
+{% endcomment %}
+{% if widget.type == "hidden" %}
+  <input type="hidden"
+         name="{{ widget.name }}"
+         {% if widget.value != None %}value="{{ widget.value|stringformat:'s' }}"{% endif %}
+         {% include "django/forms/widgets/attrs.html" %} />
+{% else %}
+  <input type="{{ widget.type }}" name="{{ widget.name }}" {% if widget.value != None %}value="{{ widget.value|stringformat:'s' }}"{% endif %} class="{% if widget.type == 'checkbox' %}{% if 'toggle' in widget.attrs.class %}aria-invalid:toggle-error{% else %}checkbox aria-invalid:checkbox-error{% endif %}{% elif widget.type == 'radio' %}radio aria-invalid:radio-error{% elif widget.type == 'file' %}file-input aria-invalid:file-input-error w-full{% elif widget.type == 'range' %}range aria-invalid:range-error w-full{% else %}input aria-invalid:input-error w-full{% endif %}{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}" {% include "django/forms/widgets/attrs_without_class.html" %} />
+{% endif %}
+{%- endraw %}

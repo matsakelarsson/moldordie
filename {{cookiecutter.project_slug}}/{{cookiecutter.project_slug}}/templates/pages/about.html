@@ -1,1 +1,16 @@
-{% raw %}{% extends "base.html" %}{% endraw %}
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {% translate "About" %}
+{% endblock title %}
+{% block content %}
+  {# prose, from Tailwind's typography plugin (styles/main.css), styles running text such as this page's #}
+  <article class="prose max-w-none">
+    <h1>{% translate "About" %}</h1>
+    <p>{% endraw %}{{ cookiecutter.description | e }}{% raw %}</p>
+    <p>{% translate "This page is a placeholder: replace it with what your visitors should know about you." %}</p>
+  </article>
+{% endblock content %}
+{%- endraw %}

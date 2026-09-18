@@ -1,0 +1,56 @@
+/* The project's own theme, "brand": the default look, and the style example. Every value daisyUI
+   reads is spelled out, so restyling the site is editing this block and rebuilding (the watcher
+   does it as you save). The colours start from daisyUI's light theme; secondary, accent and the
+   status colours are darkened so that each has a contrast of at least 4.5:1 both as text on the
+   base colours and beneath its -content colour. https://daisyui.com/docs/themes/ describes every
+   value, and https://daisyui.com/theme-generator/ edits them visually. */
+@plugin "daisyui/theme" {
+  name: "brand";
+  default: true; /* the theme of a page that names none */
+  prefersdark: false; /* daisyUI's dark answers a dark colour scheme: see main.css */
+  color-scheme: light; /* how the browser draws its own parts, scrollbars for one */
+
+  /* The page: its surfaces from lightest to darkest, and the text on them */
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(98% 0 0);
+  --color-base-300: oklch(95% 0 0);
+  --color-base-content: oklch(21% 0.006 285.885);
+
+  /* The brand's colours, each with the colour of what is written on it */
+  --color-primary: oklch(45% 0.24 277.023);
+  --color-primary-content: oklch(93% 0.034 272.788);
+  --color-secondary: oklch(50% 0.2 354);
+  --color-secondary-content: oklch(97% 0.02 354);
+  --color-accent: oklch(52% 0.085 190);
+  --color-accent-content: oklch(98% 0.02 190);
+  --color-neutral: oklch(14% 0.005 285.823);
+  --color-neutral-content: oklch(92% 0.004 286.32);
+
+  /* The status colours of alerts, badges and invalid fields */
+  --color-info: oklch(50% 0.12 243);
+  --color-info-content: oklch(98% 0.013 237);
+  --color-success: oklch(50% 0.12 155);
+  --color-success-content: oklch(98% 0.02 155);
+  --color-warning: oklch(53% 0.13 55);
+  --color-warning-content: oklch(98% 0.02 85);
+  --color-error: oklch(54% 0.2 27);
+  --color-error-content: oklch(98% 0.01 27);
+
+  /* Corners: of checkboxes, toggles and badges; of buttons, inputs and tabs; of cards and alerts */
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+
+  /* The base size of the small controls and of the fields, and the width of borders */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+
+  /* 1 gives components a slight depth, or a noise texture; 0 leaves them flat */
+  --depth: 1;
+  --noise: 0;
+}
+
+/* A dark counterpart of its own: add a second block named "brand-dark" with prefersdark: true and
+   color-scheme: dark, starting from the values of daisyUI's dark theme, and take --prefersdark
+   off "dark" in main.css, since only one theme can answer a dark colour scheme. */

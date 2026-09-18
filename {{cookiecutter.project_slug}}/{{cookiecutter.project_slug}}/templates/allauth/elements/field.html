@@ -2,21 +2,19 @@
 
 {% comment %}
 allauth's field element, for the inputs its pages write outside a Django form. It is written by hand
-with the field component's classes (templates/cotton/ui/field.html) and the same associations: the
-help text and the error list are named by aria-describedby, errors also by aria-invalid.
+with the classes of templates/django/forms/field.html and the same associations: the help text and the
+error list are named by aria-describedby, errors also by aria-invalid, which is what colours the control.
 {% endcomment %}
 {% if attrs.type == "textarea" %}
-  <div class="ui-field{% if attrs.errors %} ui-field-invalid{% endif %}">
-    <label class="ui-label" for="{{ attrs.id }}">
+  <div class="fieldset">
+    <label class="fieldset-legend" for="{{ attrs.id }}">
       {% slot label %}
       {% endslot %}
     </label>
-    <div class="ui-control">
-      <textarea {% if attrs.required %}required{% endif %} {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %} {% if attrs.disabled %}disabled{% endif %} {% if attrs.readonly %}readonly{% endif %} {% if attrs.name %}name="{{ attrs.name }}"{% endif %} {% if attrs.id %}id="{{ attrs.id }}"{% endif %} {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %} {% if attrs.errors %}aria-invalid="true"{% endif %} {% if attrs.errors.field_id or attrs.id and slots.help_text %}aria-describedby="{% if attrs.id and slots.help_text %}{{ attrs.id }}_helptext{% endif %}{% if attrs.errors.field_id %}{% if attrs.id and slots.help_text %} {% endif %}{{ attrs.errors.field_id }}_error{% endif %}"{% endif %}>{% slot value %}{% endslot %}</textarea>
-    </div>
+    <textarea class="textarea aria-invalid:textarea-error w-full" {% if attrs.required %}required{% endif %} {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %} {% if attrs.disabled %}disabled{% endif %} {% if attrs.readonly %}readonly{% endif %} {% if attrs.name %}name="{{ attrs.name }}"{% endif %} {% if attrs.id %}id="{{ attrs.id }}"{% endif %} {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %} {% if attrs.errors %}aria-invalid="true"{% endif %} {% if attrs.errors.field_id or attrs.id and slots.help_text %}aria-describedby="{% if attrs.id and slots.help_text %}{{ attrs.id }}_helptext{% endif %}{% if attrs.errors.field_id %}{% if attrs.id and slots.help_text %} {% endif %}{{ attrs.errors.field_id }}_error{% endif %}"{% endif %}>{% slot value %}{% endslot %}</textarea>
     {{ attrs.errors }}
     {% if slots.help_text %}
-      <div class="ui-help"
+      <div class="text-base-content/70"
            {% if attrs.id %}id="{{ attrs.id }}_helptext"{% endif %}>
         {% slot help_text %}
         {% endslot %}
@@ -24,9 +22,10 @@ help text and the error list are named by aria-describedby, errors also by aria-
     {% endif %}
   </div>
 {% elif attrs.type == "checkbox" or attrs.type == "radio" %}
-  <div class="ui-field ui-field-check{% if attrs.errors %} ui-field-invalid{% endif %}">
-    <label class="ui-label ui-label-check" for="{{ attrs.id }}">
-      <input {% if attrs.required %}required{% endif %} {% if attrs.disabled %}disabled{% endif %} {% if attrs.readonly %}readonly{% endif %} {% if attrs.checked %}checked{% endif %} {% if attrs.name %}name="{{ attrs.name }}"{% endif %} {% if attrs.id %}id="{{ attrs.id }}"{% endif %} {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %} {% if attrs.errors %}aria-invalid="true"{% endif %} {% if attrs.errors.field_id or attrs.id and slots.help_text %}aria-describedby="{% if attrs.id and slots.help_text %}{{ attrs.id }}_helptext{% endif %}{% if attrs.errors.field_id %}{% if attrs.id and slots.help_text %} {% endif %}{{ attrs.errors.field_id }}_error{% endif %}"{% endif %} type="{{ attrs.type }}" />
+  <div class="fieldset">
+    <label class="label text-base-content whitespace-normal"
+           for="{{ attrs.id }}">
+      <input class="{% if attrs.type == 'radio' %}radio aria-invalid:radio-error{% else %}checkbox aria-invalid:checkbox-error{% endif %}" {% if attrs.required %}required{% endif %} {% if attrs.disabled %}disabled{% endif %} {% if attrs.readonly %}readonly{% endif %} {% if attrs.checked %}checked{% endif %} {% if attrs.name %}name="{{ attrs.name }}"{% endif %} {% if attrs.id %}id="{{ attrs.id }}"{% endif %} {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %} {% if attrs.errors %}aria-invalid="true"{% endif %} {% if attrs.errors.field_id or attrs.id and slots.help_text %}aria-describedby="{% if attrs.id and slots.help_text %}{{ attrs.id }}_helptext{% endif %}{% if attrs.errors.field_id %}{% if attrs.id and slots.help_text %} {% endif %}{{ attrs.errors.field_id }}_error{% endif %}"{% endif %} type="{{ attrs.type }}" />
       <span>
         {% slot label %}
         {% endslot %}
@@ -34,7 +33,7 @@ help text and the error list are named by aria-describedby, errors also by aria-
     </label>
     {{ attrs.errors }}
     {% if slots.help_text %}
-      <div class="ui-help"
+      <div class="text-base-content/70"
            {% if attrs.id %}id="{{ attrs.id }}_helptext"{% endif %}>
         {% slot help_text %}
         {% endslot %}
@@ -42,17 +41,15 @@ help text and the error list are named by aria-describedby, errors also by aria-
     {% endif %}
   </div>
 {% else %}
-  <div class="ui-field{% if attrs.errors %} ui-field-invalid{% endif %}">
-    <label class="ui-label" for="{{ attrs.id }}">
+  <div class="fieldset">
+    <label class="fieldset-legend" for="{{ attrs.id }}">
       {% slot label %}
       {% endslot %}
     </label>
-    <div class="ui-control">
-      <input {% if attrs.required %}required{% endif %} {% if attrs.disabled %}disabled{% endif %} {% if attrs.readonly %}readonly{% endif %} {% if attrs.name %}name="{{ attrs.name }}"{% endif %} {% if attrs.id %}id="{{ attrs.id }}"{% endif %} {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %} {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %} {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %} {% if attrs.errors %}aria-invalid="true"{% endif %} {% if attrs.errors.field_id or attrs.id and slots.help_text %}aria-describedby="{% if attrs.id and slots.help_text %}{{ attrs.id }}_helptext{% endif %}{% if attrs.errors.field_id %}{% if attrs.id and slots.help_text %} {% endif %}{{ attrs.errors.field_id }}_error{% endif %}"{% endif %} type="{{ attrs.type }}" />
-    </div>
+    <input class="input aria-invalid:input-error w-full" {% if attrs.required %}required{% endif %} {% if attrs.disabled %}disabled{% endif %} {% if attrs.readonly %}readonly{% endif %} {% if attrs.name %}name="{{ attrs.name }}"{% endif %} {% if attrs.id %}id="{{ attrs.id }}"{% endif %} {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %} {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %} {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %} {% if attrs.errors %}aria-invalid="true"{% endif %} {% if attrs.errors.field_id or attrs.id and slots.help_text %}aria-describedby="{% if attrs.id and slots.help_text %}{{ attrs.id }}_helptext{% endif %}{% if attrs.errors.field_id %}{% if attrs.id and slots.help_text %} {% endif %}{{ attrs.errors.field_id }}_error{% endif %}"{% endif %} type="{{ attrs.type }}" />
     {{ attrs.errors }}
     {% if slots.help_text %}
-      <div class="ui-help"
+      <div class="text-base-content/70"
            {% if attrs.id %}id="{{ attrs.id }}_helptext"{% endif %}>
         {% slot help_text %}
         {% endslot %}

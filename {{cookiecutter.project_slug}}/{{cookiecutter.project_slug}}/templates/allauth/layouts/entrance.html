@@ -8,12 +8,14 @@
   {% endblock head_title %}
 {% endblock title %}
 {% block main %}
-  {# The entrance pages (sign in, sign up, ...): one narrow card #}
-  <div class="ui-entrance">
-    <c-ui.card>
-      {% block content %}
-      {% endblock content %}
-    </c-ui.card>
+  {# The entrance pages (sign in, sign up, ...): one narrow card. allauth writes its links bare, so they are underlined here #}
+  <div class="mx-auto w-full max-w-md [&_a:not(.btn)]:underline [&_a:not(.btn)]:underline-offset-2">
+    <div class="card card-border bg-base-100 shadow-sm">
+      <div class="card-body gap-4">
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </div>
   </div>
   {% block extra_body %}
   {% endblock extra_body %}

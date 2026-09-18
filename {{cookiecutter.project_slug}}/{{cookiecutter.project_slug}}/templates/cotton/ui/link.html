@@ -1,9 +1,0 @@
-{% raw %}{% comment %}
-A native link; href is required and validated as a navigation URL. The plain appearance (the default)
-is an underlined link, appearance="button" draws it as a button with the button's variants and sizes.
-An anchor is never disabled: leave it out instead. Every attribute the component does not declare is
-forwarded to the anchor (docs/frontend.rst).
-{% endcomment %}
-<c-vars href="" appearance="plain" variant="primary" size="normal" class />
-<a href="{{ href|ui_url }}" class="{% if appearance == "button" %}ui-button {% if variant == "secondary" or variant == "danger" or variant == "quiet" %}ui-button-{{ variant|ui_attr }}{% else %}ui-button-primary{% endif %}{% if size == "small" %} ui-button-small{% endif %}{% else %}ui-link{% endif %}{% if class %} {{ class|ui_attr }}{% endif %}" {{ attrs|ui_attrs }}>{{ slot }}</a>
-{%- endraw %}

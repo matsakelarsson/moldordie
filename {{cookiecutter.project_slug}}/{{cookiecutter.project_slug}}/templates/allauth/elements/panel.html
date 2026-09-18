@@ -1,19 +1,17 @@
 {% raw %}{% load allauth %}
 
-{# allauth's panel element: a card whose title is a second-level heading #}
-<c-ui.card>
-  <c-slot name="header">
-    <h2>
+{# allauth's panel element: a card whose title is a second-level heading, with its actions at the end #}
+<section class="card card-border bg-base-100 shadow-sm">
+  <div class="card-body">
+    <h2 class="card-title">
       {% slot title %}
       {% endslot %}
     </h2>
-  </c-slot>
-  {% slot body %}
-  {% endslot %}
-  {% if slots.actions %}
-    <c-slot name="actions">
-      {% for action in slots.actions %}{{ action }}{% endfor %}
-    </c-slot>
-  {% endif %}
-</c-ui.card>
+    {% slot body %}
+    {% endslot %}
+    {% if slots.actions %}
+      <div class="card-actions justify-end">{% for action in slots.actions %}{{ action }}{% endfor %}</div>
+    {% endif %}
+  </div>
+</section>
 {%- endraw %}

@@ -28,12 +28,14 @@ BACKEND = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 {%- else %}
 BACKEND = "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
 {%- endif %}
-LIBRARY = (
-    "css/ui/tokens.css",
-    "css/ui/base.css",
-    "css/ui/components.css",
-    "css/project.css",
-    "js/project.js",
+# What the templates rely on and only a working build holds: a daisyUI component, the
+# rules of htmx's indicator from the source stylesheet, and two variants whose class
+# names, escaped as the stylesheet writes them, compile to nothing if misspelt
+BUILT = (
+    ".btn",
+    ".htmx-indicator",
+    r"aria-invalid\:input-error",
+    r"has-\[\:checked\]\:hidden",
 )
 
 
@@ -54,7 +56,10 @@ def test_the_stylesheet_builds_and_the_static_files_collect(
     call_command("collectstatic", interactive=False, verbosity=0)
 
     manifest = json.loads((static_root / "staticfiles.json").read_text())["paths"]
-    for path in (*LIBRARY, stylesheet):
-        assert (static_root / manifest[path]).is_file(), path
+    for hashed in manifest.values():
+        assert (static_root / hashed).is_file(), hashed
+    built = (static_root / manifest[stylesheet]).read_text()
+    for rule in BUILT:
+        assert rule in built, rule
     # What the tailwind_css tag hands to the static tag resolves through the manifest
     assert static(stylesheet) == f"{settings.STATIC_URL}{manifest[stylesheet]}"

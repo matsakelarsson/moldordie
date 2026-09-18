@@ -1,15 +1,41 @@
 /* The stylesheet's source. "python manage.py tailwind build" compiles it, with the Tailwind CSS
-   and daisyUI it imports, into static/css/tailwind.css. It sits outside the static
-   directories on purpose: collectstatic must never collect it. Class names are collected
-   from this package's templates and Python modules, and from nowhere else, so the build is the
-   same on every machine and in every image. */
+   and daisyUI it imports, into static/css/tailwind.css, the one stylesheet base.html loads
+   (docs/frontend.rst). It sits outside the static directories on purpose: collectstatic must
+   never collect it. Class names are collected from this package's templates and Python modules,
+   and from nowhere else, so the build is the same on every machine and in every image. A class
+   name is therefore always written whole, never assembled from parts. */
 @import "tailwindcss" source(none);
+@import "./theme.css";
 
 @source "../";
 @source not "../media";
 @source not "../static";
 
-/* daisyUI (https://daisyui.com), bundled in the CLI that TAILWIND_CLI_VERSION names */
+/* prose, for running text such as templates/pages/about.html */
+@plugin "@tailwindcss/typography";
+
+/* daisyUI (https://daisyui.com), bundled in the CLI that TAILWIND_CLI_VERSION names. Neither of
+   its themes is the default: that is "brand", the project's own, in theme.css. "dark" answers a
+   browser that prefers a dark colour scheme. */
 @plugin "daisyui" {
+  themes:
+    light,
+    dark --prefersdark;
   logs: false;
+}
+
+/* htmx's request indicator (https://htmx.org/attributes/hx-indicator/): the htmx-config meta tag
+   in base.html stops htmx from injecting these rules, which the policy would block. */
+@layer components {
+  .htmx-indicator {
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+  }
+
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    visibility: visible;
+    opacity: 1;
+  }
 }
