@@ -276,6 +276,9 @@ TEMPLATES = [
                 "django.template.context_processors.csp",
                 "django.contrib.messages.context_processors.messages",
                 "{{cookiecutter.project_slug}}.users.context_processors.allauth_settings",
+                # Exposes current_theme, the visitor's daisyUI theme, and themes,
+                # the choices of the picker in the navigation (themes.py)
+                "{{cookiecutter.project_slug}}.themes.theme",
             ],
         },
     },

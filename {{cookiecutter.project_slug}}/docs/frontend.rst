@@ -103,6 +103,42 @@ only one theme can answer a dark colour scheme.
 
 .. _theme generator: https://daisyui.com/theme-generator/
 
+Themes and the picker
+---------------------
+
+Next to ``brand``, ``main.css`` enables every theme daisyUI ships, and the navigation
+offers them all in the theme picker, with "System" for no choice at all. The picker
+involves no script:
+
+- It is a form of radio buttons of daisyUI's ``theme-controller`` class. daisyUI applies
+  the theme of a checked one in CSS alone, so the page is restyled the moment a visitor
+  picks.
+- The form posts the change to ``set_theme``, in ``<project_slug>/themes.py``, through
+  htmx (``hx-trigger="change"``, ``hx-swap="none"``). The view keeps the name in the
+  ``theme`` cookie for a year and answers 204: there is nothing to swap.
+- The ``theme`` context processor reads the cookie back, and ``base.html`` writes it as
+  ``data-theme`` on the root element, so every later page arrives in the chosen theme.
+  Only a name in ``THEMES`` reaches the cookie, and only a cookie naming one reaches the
+  attribute.
+- "System" deletes the cookie, and the view answers it with ``HX-Refresh``, because
+  nothing on the page can undo the ``data-theme`` it was served with. ``base.html`` then
+  writes no attribute at all, never an empty one: daisyUI's rule for a dark colour scheme
+  applies to a root element without it.
+- Without JavaScript the radio still restyles the page, and the "Apply" button of the
+  form's ``noscript`` element posts it; the view redirects back to the page.
+
+The choice belongs to the browser, not to the account. ``500.html`` is rendered without a
+request, so it is always in the default theme and has no picker. ``<main>`` carries
+``hx-history-elt``, so htmx's history saves and restores the content and leaves the
+navigation alone; without it, going back would bring back the picker as it was, and its
+checked radio would outweigh the theme the page was served in.
+
+``THEMES`` in ``themes.py`` and the ``themes:`` list in ``main.css`` say the same thing in
+two languages, and ``tests/test_themes.py`` in the package compares them. To offer fewer
+themes, delete the same names from both; the built stylesheet shrinks by about a
+kilobyte for each. To add a theme of your own to the picker, add its block to
+``theme.css`` and its name to ``THEMES`` after ``OWN_THEME``.
+
 Building pages
 --------------
 
@@ -274,7 +310,7 @@ Error pages
 ``403.html``, ``404.html`` and ``500.html`` are daisyUI heroes on ``base.html``, and
 ``403_csrf.html``, the page a rejected CSRF token reaches, extends ``403.html``. They read
 nothing from the database. ``500.html`` is rendered without a request, so without the
-context processors. The package's ``tests/test_error_pages.py`` renders them with database
+context processors: it is in the default theme and has no theme picker. The package's ``tests/test_error_pages.py`` renders them with database
 access blocked.
 
 Static files and deployment

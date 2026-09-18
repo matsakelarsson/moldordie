@@ -14,13 +14,48 @@
 /* prose, for running text such as templates/pages/about.html */
 @plugin "@tailwindcss/typography";
 
-/* daisyUI (https://daisyui.com), bundled in the CLI that TAILWIND_CLI_VERSION names. Neither of
-   its themes is the default: that is "brand", the project's own, in theme.css. "dark" answers a
-   browser that prefers a dark colour scheme. */
+/* daisyUI (https://daisyui.com), bundled in the CLI that TAILWIND_CLI_VERSION names, with every
+   theme it ships, for the picker in templates/partials/navigation.html. None of them is the
+   default: that is "brand", the project's own, in theme.css. "dark" answers a browser that
+   prefers a dark colour scheme until the visitor chooses. THEMES in themes.py mirrors this list
+   and tests/test_themes.py compares the two: drop a theme from both. */
 @plugin "daisyui" {
   themes:
     light,
-    dark --prefersdark;
+    dark --prefersdark,
+    cupcake,
+    bumblebee,
+    emerald,
+    corporate,
+    synthwave,
+    retro,
+    cyberpunk,
+    valentine,
+    halloween,
+    garden,
+    forest,
+    aqua,
+    lofi,
+    pastel,
+    fantasy,
+    wireframe,
+    black,
+    luxury,
+    dracula,
+    cmyk,
+    autumn,
+    business,
+    acid,
+    lemonade,
+    night,
+    coffee,
+    winter,
+    dim,
+    nord,
+    sunset,
+    caramellatte,
+    abyss,
+    silk;
   logs: false;
 }
 

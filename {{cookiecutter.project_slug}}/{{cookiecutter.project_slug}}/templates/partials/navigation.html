@@ -40,6 +40,44 @@
     </ul>
   </div>
   <div class="flex flex-none items-center gap-1">
+    {% if themes %}
+      {# A checked theme-controller radio restyles the page at once, in CSS alone; htmx posts the choice, and themes.py keeps it in a cookie #}
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm">{% translate "Theme" %}</div>
+        <form tabindex="-1"
+              class="dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow"
+              method="post"
+              action="{% url 'set_theme' %}"
+              autocomplete="off"
+              hx-post="{% url 'set_theme' %}"
+              hx-trigger="change"
+              hx-swap="none"
+              hx-sync="this:replace">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+          <fieldset class="flex max-h-80 flex-col gap-1 overflow-y-auto">
+            <legend class="sr-only">{% translate "Theme" %}</legend>
+            <input type="radio"
+                   name="theme"
+                   value="system"
+                   class="btn btn-ghost btn-sm btn-block justify-start"
+                   aria-label="{% translate 'System' %}"
+                   {% if not current_theme %}checked{% endif %} />
+            {% for name in themes %}
+              <input type="radio"
+                     name="theme"
+                     value="{{ name }}"
+                     class="theme-controller btn btn-ghost btn-sm btn-block justify-start"
+                     aria-label="{{ name|capfirst }}"
+                     {% if name == current_theme %}checked{% endif %} />
+            {% endfor %}
+          </fieldset>
+          <noscript>
+            <button type="submit" class="btn btn-primary btn-sm btn-block mt-2">{% translate "Apply" %}</button>
+          </noscript>
+        </form>
+      </div>
+    {% endif %}
     {% if request.user.is_authenticated %}
       <a class="btn btn-ghost btn-sm"
          href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>

@@ -2,7 +2,9 @@
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
-<html lang="{{ LANGUAGE_CODE }}">
+{# data-theme is the daisyUI theme the visitor chose (themes.py); without it the browser's colour scheme decides #}
+<html lang="{{ LANGUAGE_CODE }}"
+      {% if current_theme %}data-theme="{{ current_theme }}"{% endif %}>
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
@@ -41,7 +43,8 @@
     {# djlint:on #}
     {% block body %}
       {% include "partials/navigation.html" %}
-      <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      {# htmx snapshots and restores this element alone, so going back never restores a theme picker of the past #}
+      <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6" hx-history-elt>
         {# Rendered on every page. Fragments include "base.html#messages" so new messages #}
         {# are swapped out-of-band; htmx_fragment comes from HtmxTemplateMixin. #}
         {% partialdef messages inline %}
