@@ -133,11 +133,21 @@ The most important thing for us here now is ``env_file`` section enlisting ``./.
     ├── .local
     │   ├── .django
     │   └── .postgres
+    ├── .dev
+    │   ├── .django
+    │   └── .postgres
+    ├── .test
+    │   ├── .django
+    │   └── .postgres
     └── .production
         ├── .django
         └── .postgres
 
-By convention, for any service ``sI`` in environment ``e`` (you know ``someenv`` is an environment when there is a ``someenv.yml`` file in the project root), given ``sI`` requires configuration, a ``.envs/.e/.sI`` `service configuration` file exists.
+By convention, for any service ``sI`` in environment ``e`` (you know ``someenv`` is an environment when there is a ``docker-compose.someenv.yml`` file in the project root), given ``sI`` requires configuration, a ``.envs/.e/.sI`` `service configuration` file exists.
+
+``.local`` configures the stack on your own machine. ``.dev``, ``.test`` and ``.production`` configure the three deployed environments, in the order a change is promoted through them; they all run ``config/settings/production.py``, which each of their ``.django`` files names in ``DJANGO_SETTINGS_MODULE``, and differ only in their values. See :ref:`deployment-with-docker`.
+
+None of these files is in version control: each carries the credentials of the environment it configures, so the generated ``.gitignore`` ignores ``.env`` and ``.envs/*``, and a fresh checkout has none of them. What a deployment must supply is declared in ``.env.example``, which *is* committed: the production env files merged, with every value drawn on generation left unset. The project's ``tests/test_production_settings.py`` loads the production settings under it.
 
 Consider the aforementioned ``.envs/.local/.postgres``: ::
 

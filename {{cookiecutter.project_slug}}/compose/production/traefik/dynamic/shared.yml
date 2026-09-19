@@ -1,0 +1,29 @@
+# The dynamic configuration every deployed environment shares. The routers that name
+# these services, and the hosts they answer for, are in the file beside this one.
+http:
+  middlewares:
+    csrf:
+      # https://doc.traefik.io/traefik/master/middlewares/http/headers/#hostsproxyheaders
+      # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
+      headers:
+        hostsProxyHeaders: ['X-CSRFToken']
+
+  services:
+    django:
+      loadBalancer:
+        servers:
+          - url: http://django:5000
+    {%- if cookiecutter.use_celery == 'y' %}
+
+    flower:
+      loadBalancer:
+        servers:
+          - url: http://flower:5555
+    {%- endif %}
+    {%- if cookiecutter.cloud_provider == 'None' %}
+
+    django-media:
+      loadBalancer:
+        servers:
+          - url: http://nginx:80
+    {%- endif %}

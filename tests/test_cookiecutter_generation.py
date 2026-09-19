@@ -168,6 +168,8 @@ HEADLESS_COMBINATIONS = [
 PAIRED_COMBINATIONS = [
     {"cloud_provider": "AWS", "use_whitenoise": "y"},
     {"cloud_provider": "None", "use_whitenoise": "y"},
+    # nginx serves the media files, and Traefik's media router points at it, only here.
+    {"cloud_provider": "None", "use_whitenoise": "y", "use_docker": "y"},
     {"realtime": "channels", "use_docker": "y"},
     {"realtime": "channels", "use_celery": "y", "use_docker": "y"},
     {"mail_catcher": "Mailpit", "use_docker": "y"},
@@ -514,10 +516,18 @@ def test_trim_domain_email(bake, context):
     assert "<me@example.com>" in project.settings("base").source
 
 
+# The deployed environments, in the order a change is promoted through them. Each has its own
+# env files, Compose file and Traefik routers, and all three run config/settings/production.py.
+DEPLOYED_ENVIRONMENTS = ("dev", "test", "production")
+
 # The generated files that hold a secret drawn on each bake, so two bakes never agree on them.
 SECRET_FILES = {
     ".envs/.local/.django",
     ".envs/.local/.postgres",
+    ".envs/.dev/.django",
+    ".envs/.dev/.postgres",
+    ".envs/.test/.django",
+    ".envs/.test/.postgres",
     ".envs/.production/.django",
     ".envs/.production/.postgres",
     "config/settings/local.py",
@@ -607,8 +617,9 @@ def test_uppercase_flag_answers_select_the_same_features(bake, context, answer):
     assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned(uppercase)) is selected
     assert ("SENTRY_DSN" in uppercase.settings("production").source) is selected
     assert (uppercase.root / "docker-compose.local.yml").exists() is selected
-    assert (uppercase.root / ".envs").exists() is selected
-    assert ("!.envs/.local/" in uppercase.text(".gitignore")) is selected
+    # The env files are generated for every project, and none of them is ever committed.
+    assert (uppercase.root / ".envs").is_dir()
+    assert ".envs/*" in uppercase.text(".gitignore")
     if selected:
         assert uppercase.env("local", "postgres")["POSTGRES_USER"] == "debug"
 
@@ -804,11 +815,113 @@ def test_docker_compose_files_match_use_docker(bake, context, use_docker):
 
     compose_files = [
         "docker-compose.local.yml",
-        "docker-compose.production.yml",
+        *(f"docker-compose.{environment}.yml" for environment in DEPLOYED_ENVIRONMENTS),
         "docker-compose.docs.yml",
     ]
     for compose_file in compose_files:
         assert (project.root / compose_file).exists() is (use_docker == "y")
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_deployed_environments_declare_the_same_variables(bake, context_override):
+    """The deployed environments run one settings module, so their env files agree on what
+    they declare and differ only in the values: their own hosts, secrets and Sentry name.
+    """
+    project = bake(context_override)
+    if not (project.root / ".envs").exists():
+        pytest.skip("the env files are pruned without Docker when the local ones are not kept")
+
+    for service in ("django", "postgres"):
+        declared = {environment: set(project.env(environment, service)) for environment in DEPLOYED_ENVIRONMENTS}
+        assert len(set(map(frozenset, declared.values()))) == 1, declared
+
+    for environment in DEPLOYED_ENVIRONMENTS:
+        django = project.env(environment, "django")
+        assert django["DJANGO_SETTINGS_MODULE"] == "config.settings.production"
+        # Sentry is told which deployment reported, so each environment names itself.
+        if "SENTRY_ENVIRONMENT" in django:
+            assert django["SENTRY_ENVIRONMENT"] == environment
+
+    hosts = {project.env(environment, "django")["DJANGO_ALLOWED_HOSTS"] for environment in DEPLOYED_ENVIRONMENTS}
+    assert len(hosts) == len(DEPLOYED_ENVIRONMENTS), hosts
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_the_example_dotenv_declares_the_deployment_variables(bake, context_override):
+    """No env file is committed, so ``.env.example`` is what a checkout -- the project's own
+    CI included -- reads the deployment's variables from. It is the production env files
+    merged, so it declares exactly what they do, with every drawn value left for the
+    deployment to set and every other value as it stands.
+    """
+    project = bake(context_override)
+
+    example = project.dotenv(".env.example")
+    declared = {**project.env("production", "django"), **project.env("production", "postgres")}
+    assert set(example) == set(declared)
+    for name, value in example.items():
+        # Either the deployment's to set, or the value the env file carries; never a
+        # drawn secret, and never something the example invented.
+        assert value in ("", declared[name]), f"{name}={value}"
+    assert TOKEN.search(project.text(".env.example")) is None
+    # The generated test fills an unset value with a stand-in named after it, so the keys
+    # it loads stay distinct; a shared placeholder would make them equal.
+    assert {name for name, value in example.items() if not value} >= {"DJANGO_SECRET_KEY"}
+
+
+@pytest.mark.xdist_group("deployed-environments")
+@pytest.mark.parametrize("environment", DEPLOYED_ENVIRONMENTS)
+def test_deployed_compose_file_wires_its_own_environment(bake, context, environment):
+    """Each deployed environment reads its own env files, keeps its own volumes and builds
+    Traefik with its own routers, from the one set of production images.
+    """
+    context.update({"use_docker": "y"})
+    project = bake(context)
+
+    compose = project.compose(environment)
+    for name, service in compose["services"].items():
+        for entry in service.get("env_file", []):
+            assert entry.startswith(f"./.envs/.{environment}/"), f"{name} reads {entry}"
+        build = service.get("build")
+        if build is None:  # an upstream image, tagged and pulled as it comes
+            continue
+        # The images are production's, and the tagged ones name the environment that built them.
+        assert build["dockerfile"].startswith("./compose/production/"), f"{name} builds {build['dockerfile']}"
+        if "image" in service:
+            assert f"_{environment}_" in service["image"], f"{name} is {service['image']}"
+    assert all(name.startswith(f"{environment}_") for name in compose["volumes"]), compose["volumes"]
+    assert compose["services"]["traefik"]["build"]["args"] == {"ENVIRONMENT": environment}
+
+
+def test_traefik_routers_name_the_shared_services(bake, context):
+    """Traefik's configuration is split: the static file, the shared services and middlewares,
+    and one router file per environment, which the image is built with. A router naming
+    something the shared file does not declare would only fail once deployed, so the answers
+    that render every router are baked and the three environments checked against it.
+    """
+    context.update(
+        {"use_docker": "y", "use_celery": "y", "cloud_provider": "None", "use_whitenoise": "y"},
+    )
+    project = bake(context)
+
+    traefik = Path("compose") / "production" / "traefik"
+    static = project.yaml(traefik / "traefik.yml")
+    # The routers live in the directory, so the static file no longer points back at itself.
+    assert static["providers"]["file"] == {"directory": "/etc/traefik/dynamic", "watch": True}
+    shared = project.yaml(traefik / "dynamic" / "shared.yml")["http"]
+    assert set(shared) == {"middlewares", "services"}
+
+    for environment in DEPLOYED_ENVIRONMENTS:
+        routers = project.yaml(traefik / "dynamic" / f"{environment}.yml")["http"]["routers"]
+        assert set(routers) == {"web-secure-router", "flower-secure-router", "web-media-router"}
+        for name, router in routers.items():
+            assert router["service"] in shared["services"], f"{environment}: {name} names no service"
+            for middleware in router.get("middlewares", []):
+                assert middleware in shared["middlewares"], f"{environment}: {name} names {middleware}"
+            assert set(router["entryPoints"]) <= set(static["entryPoints"]), f"{environment}: {name}"
+            # Every host the deployment answers for is its own, so one environment's
+            # certificate is never requested by another.
+            host = "" if environment == "production" else f"{environment}."
+            assert f"Host(`{host}{context['domain_name']}`)" in router["rule"], router["rule"]
 
 
 @pytest.mark.parametrize("realtime", ["none", "channels"])

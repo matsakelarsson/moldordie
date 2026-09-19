@@ -1,6 +1,5 @@
 """Unit tests for the hooks"""
 
-import os
 import re
 from itertools import product
 from pathlib import Path
@@ -12,11 +11,11 @@ import pytest
 from hooks.post_gen_project import ALPHANUMERIC
 from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import SECRETS
-from hooks.post_gen_project import append_to_gitignore_file
 from hooks.post_gen_project import fill_secrets
 from hooks.post_gen_project import prune
 from hooks.post_gen_project import random_string
 from hooks.post_gen_project import remove_channels_tests
+from hooks.post_gen_project import write_example_dotenv
 from local_extensions import FREE_TEXT
 from local_extensions import OPTIONS
 
@@ -31,19 +30,15 @@ def default_context():
     return {**{name: option.default for name, option in OPTIONS.items()}, "project_slug": PROJECT_SLUG}
 
 
-def test_append_to_gitignore_file(tmp_path):
-    gitignore_file = tmp_path / ".gitignore"
-    gitignore_file.write_text("node_modules/\n")
-    append_to_gitignore_file(tmp_path, ".envs/*")
-    linesep = os.linesep.encode()
-    assert gitignore_file.read_bytes() == b"node_modules/" + linesep + b".envs/*" + linesep
-    assert gitignore_file.read_text() == "node_modules/\n.envs/*\n"
-
-
 # ``fill_secrets`` on hand-written placeholder files, through a generator the tests control.
 #
 # The sites below are written from the template, not read from the secrets table, so the
 # table is checked against them: every site is filled by exactly one row.
+
+# The deployed environments, in the order a change is promoted through them, and every
+# environment including the developer's machine.
+DEPLOYED_ENVIRONMENTS = ("dev", "test", "production")
+ENVIRONMENTS = ("local", *DEPLOYED_ENVIRONMENTS)
 
 # The placeholder sites of the template by file, in file order, as rendered with Celery and
 # with Django Ninja and an identity provider; the Flower ones are not rendered without
@@ -51,6 +46,22 @@ def test_append_to_gitignore_file(tmp_path):
 PLACEHOLDER_SITES = {
     ".envs/.local/.django": ("CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"),
     ".envs/.local/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    ".envs/.dev/.django": (
+        "DJANGO_SECRET_KEY",
+        "DJANGO_ADMIN_URL",
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "CELERY_FLOWER_USER",
+        "CELERY_FLOWER_PASSWORD",
+    ),
+    ".envs/.dev/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    ".envs/.test/.django": (
+        "DJANGO_SECRET_KEY",
+        "DJANGO_ADMIN_URL",
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "CELERY_FLOWER_USER",
+        "CELERY_FLOWER_PASSWORD",
+    ),
+    ".envs/.test/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
     ".envs/.production/.django": (
         "DJANGO_SECRET_KEY",
         "DJANGO_ADMIN_URL",
@@ -68,14 +79,16 @@ HEADLESS_ANSWERS = {"rest_api": "Django Ninja", "identity_provider": "entra"}
 # The sites that read one shared value: the database role, so that a backup restores across
 # the environments, and Flower's user.
 SHARED_SITES = (
-    {(".envs/.local/.postgres", "POSTGRES_USER"), (".envs/.production/.postgres", "POSTGRES_USER")},
-    {(".envs/.local/.django", "CELERY_FLOWER_USER"), (".envs/.production/.django", "CELERY_FLOWER_USER")},
+    {(f".envs/.{environment}/.postgres", "POSTGRES_USER") for environment in ENVIRONMENTS},
+    {(f".envs/.{environment}/.django", "CELERY_FLOWER_USER") for environment in ENVIRONMENTS},
 )
 # The sites the debug answer leaves random: nothing types a key or the admin URL.
 RANDOM_IN_DEBUG = {
-    (".envs/.production/.django", "DJANGO_SECRET_KEY"),
-    (".envs/.production/.django", "DJANGO_ADMIN_URL"),
-    (".envs/.production/.django", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
+    *(
+        (f".envs/.{environment}/.django", placeholder)
+        for environment in DEPLOYED_ENVIRONMENTS
+        for placeholder in ("DJANGO_SECRET_KEY", "DJANGO_ADMIN_URL", "DJANGO_HEADLESS_JWT_PRIVATE_KEY")
+    ),
     ("config/settings/local.py", "DJANGO_SECRET_KEY"),
     ("config/settings/local.py", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
     ("config/settings/test.py", "DJANGO_SECRET_KEY"),
@@ -238,6 +251,54 @@ def test_remove_channels_tests_keeps_other_tests(tmp_path, channels_tests):
     assert (channels_tests / "__init__.py").exists()
 
 
+# ``write_example_dotenv`` on hand-written env files: no env file is committed, so the example
+# is what a checkout reads the deployment's variables from, and it is derived rather than
+# written by hand so that it cannot declare anything else.
+
+
+def test_write_example_dotenv_merges_the_files_and_unsets_the_drawn_values(tmp_path):
+    for file, content in {
+        ".envs/.production/.django": (
+            "# General\n"
+            "# DJANGO_READ_DOT_ENV_FILE=True\n"
+            "DJANGO_SETTINGS_MODULE=config.settings.production\n"
+            "DJANGO_SECRET_KEY=!!!SET DJANGO_SECRET_KEY!!!\n"
+            "DJANGO_ADMIN_URL=!!!SET DJANGO_ADMIN_URL!!!/\n"
+            "WEB_CONCURRENCY=4\n"
+            "DJANGO_SERVER_EMAIL=\n"
+        ),
+        ".envs/.production/.postgres": "POSTGRES_DB=my_project\nPOSTGRES_USER=!!!SET POSTGRES_USER!!!\n",
+    }.items():
+        path = tmp_path / file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+    write_example_dotenv(tmp_path)
+
+    assert (tmp_path / ".env.example").read_text() == (
+        "# General\n"
+        # A commented-out line carries no value to unset.
+        "# DJANGO_READ_DOT_ENV_FILE=True\n"
+        "DJANGO_SETTINGS_MODULE=config.settings.production\n"
+        # The drawn values, and the trailing slash of the admin URL, are the deployment's to set.
+        "DJANGO_SECRET_KEY=\n"
+        "DJANGO_ADMIN_URL=\n"
+        "WEB_CONCURRENCY=4\n"
+        "DJANGO_SERVER_EMAIL=\n"
+        "\n"
+        "POSTGRES_DB=my_project\n"
+        "POSTGRES_USER=\n"
+    )
+
+
+def test_write_example_dotenv_runs_before_the_secrets_are_filled():
+    """Afterwards the placeholders are gone and the example would carry the drawn values."""
+    source = REPO / "{{cookiecutter.project_slug}}" / ".envs" / ".production" / ".django"
+    assert "!!!SET DJANGO_SECRET_KEY!!!" in source.read_text(), source
+    body = (REPO / "hooks" / "post_gen_project.py").read_text().partition("def main(context):")[2]
+    assert body.index("write_example_dotenv(root)") < body.index("fill_secrets(root, context)")
+
+
 # ``prune`` on a copy of the template tree, checked against hand-written expectations.
 #
 # The expectations below are written from ``cookiecutter.json`` and the generation-options
@@ -291,6 +352,8 @@ USERNAME_LOGIN = {f"{PKG}/users/managers.py", f"{PKG}/users/tests/test_managers.
 NO_DOCKER = {
     "compose",
     "docker-compose.local.yml",
+    "docker-compose.dev.yml",
+    "docker-compose.test.yml",
     "docker-compose.production.yml",
     "docker-compose.docs.yml",
     ".dockerignore",
@@ -301,7 +364,6 @@ NO_NGINX = {"compose/production/nginx"}
 NO_AWS_IMAGE = {"compose/production/aws"}
 NO_CELERY = {"config/celery_app.py"}
 NO_CELERY_IMAGES = {"compose/local/django/celery", "compose/production/django/celery"}
-UNUSED_ENVS = {".envs", "merge_production_dotenvs_in_dotenv.py", "tests"}
 CI_CONFIGS = {"Gitlab": ".gitlab-ci.yml", "Github": ".github"}
 NO_CI = set(CI_CONFIGS.values())
 NO_DRF = {"config/api_router.py", f"{PKG}/users/api/serializers.py"}
@@ -322,7 +384,7 @@ NOT_ENTRA = {f"{PKG}/users/providers.py", f"{PKG}/users/tests/test_providers.py"
 NO_IDENTITY_APP = {f"{PKG}/identity"}
 
 # cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
-# envs kept, no CI, no REST API, no identity provider, no Channels, no Sentry.
+# no CI, no REST API, no identity provider, no Channels, no Sentry.
 DEFAULTS = (
     NOT_GPL
     | USERNAME_LOGIN
@@ -397,25 +459,6 @@ def test_prune_docker_and_cloud_provider(unpruned_project, use_docker, cloud_pro
 )
 def test_prune_docker_and_celery(unpruned_project, use_docker, use_celery, expected):
     assert_prunes(unpruned_project, expected, use_docker=use_docker, use_celery=use_celery)
-
-
-@pytest.mark.parametrize(
-    ("use_docker", "keep_local_envs_in_vcs", "expected"),
-    [
-        # The envs only go when nothing uses them and the user did not ask to keep them.
-        ("n", "n", DEFAULTS | UNUSED_ENVS),
-        ("n", "y", DEFAULTS),
-        ("y", "n", WITH_DOCKER | NO_NGINX),
-        ("y", "y", WITH_DOCKER | NO_NGINX),
-    ],
-)
-def test_prune_docker_and_envs(unpruned_project, use_docker, keep_local_envs_in_vcs, expected):
-    assert_prunes(
-        unpruned_project,
-        expected,
-        use_docker=use_docker,
-        keep_local_envs_in_vcs=keep_local_envs_in_vcs,
-    )
 
 
 @pytest.mark.parametrize("ci_tool", ["None", "Gitlab", "Github"])
@@ -498,7 +541,6 @@ REMOVAL_OPTIONS = (
     "username_type",
     "use_docker",
     "cloud_provider",
-    "keep_local_envs_in_vcs",
     "use_celery",
     "ci_tool",
     "rest_api",

@@ -27,7 +27,6 @@
   "use_sentry": "n",
   "use_whitenoise": "n",
   "ci_tool": ["None", "Gitlab", "Github"],
-  "keep_local_envs_in_vcs": "y",
   "debug": "n",
   "_extensions": ["local_extensions.OptionsExtension", "local_extensions.StringEscapeExtension"]
 }

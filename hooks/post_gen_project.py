@@ -8,7 +8,6 @@ from pathlib import Path
 
 TERMINATOR = "\x1b[0m"
 WARNING = "\x1b[1;33m [WARNING]: "
-INFO = "\x1b[1;33m [INFO]: "
 SUCCESS = "\x1b[1;32m [SUCCESS]: "
 
 # What the credentials read when the ``debug`` answer is ``y``.
@@ -17,9 +16,14 @@ DEBUG_VALUE = "debug"
 ALPHANUMERIC = string.ascii_letters + string.digits
 LETTERS = string.ascii_letters
 
-# The env files that carry a placeholder.
+# The env files that carry a placeholder, in the order a change is promoted through the
+# environments: the developer's machine, then the three deployed ones.
 LOCAL_DJANGO = ".envs/.local/.django"
 LOCAL_POSTGRES = ".envs/.local/.postgres"
+DEV_DJANGO = ".envs/.dev/.django"
+DEV_POSTGRES = ".envs/.dev/.postgres"
+TEST_DJANGO = ".envs/.test/.django"
+TEST_POSTGRES = ".envs/.test/.postgres"
 PRODUCTION_DJANGO = ".envs/.production/.django"
 PRODUCTION_POSTGRES = ".envs/.production/.postgres"
 
@@ -61,24 +65,72 @@ class Secret:
 # pruned, and a placeholder the template renders only for some answers has a condition
 # (tests/test_hooks.py checks the rows against the template's placeholder sites).
 SECRETS = (
+    # A deployed environment's own key: dev and test share production's settings module,
+    # so nothing but a separate draw keeps a token minted for one from being accepted by
+    # another.
+    Secret("DJANGO_SECRET_KEY", (DEV_DJANGO,), debug=False),
+    Secret("DJANGO_SECRET_KEY", (TEST_DJANGO,), debug=False),
     Secret("DJANGO_SECRET_KEY", (PRODUCTION_DJANGO,), debug=False),
     Secret("DJANGO_SECRET_KEY", ("config/settings/local.py",), debug=False),
     Secret("DJANGO_SECRET_KEY", ("config/settings/test.py",), debug=False),
+    Secret("DJANGO_ADMIN_URL", (DEV_DJANGO,), length=32, debug=False),
+    Secret("DJANGO_ADMIN_URL", (TEST_DJANGO,), length=32, debug=False),
     Secret("DJANGO_ADMIN_URL", (PRODUCTION_DJANGO,), length=32, debug=False),
-    # One database role for both environments: pg_dump records the owner, so a backup
-    # taken in one restores in the other.
-    Secret("POSTGRES_USER", (LOCAL_POSTGRES, PRODUCTION_POSTGRES), length=32, alphabet=LETTERS),
+    # One database role for every environment: pg_dump records the owner, so a backup
+    # taken in one restores in the others.
+    Secret(
+        "POSTGRES_USER",
+        (LOCAL_POSTGRES, DEV_POSTGRES, TEST_POSTGRES, PRODUCTION_POSTGRES),
+        length=32,
+        alphabet=LETTERS,
+    ),
     Secret("POSTGRES_PASSWORD", (LOCAL_POSTGRES,)),
+    Secret("POSTGRES_PASSWORD", (DEV_POSTGRES,)),
+    Secret("POSTGRES_PASSWORD", (TEST_POSTGRES,)),
     Secret("POSTGRES_PASSWORD", (PRODUCTION_POSTGRES,)),
     # Flower's credentials are rendered with Celery only; its user is shared like the database role.
-    Secret("CELERY_FLOWER_USER", (LOCAL_DJANGO, PRODUCTION_DJANGO), length=32, alphabet=LETTERS, applies=with_celery),
+    Secret(
+        "CELERY_FLOWER_USER",
+        (LOCAL_DJANGO, DEV_DJANGO, TEST_DJANGO, PRODUCTION_DJANGO),
+        length=32,
+        alphabet=LETTERS,
+        applies=with_celery,
+    ),
     Secret("CELERY_FLOWER_PASSWORD", (LOCAL_DJANGO,), applies=with_celery),
+    Secret("CELERY_FLOWER_PASSWORD", (DEV_DJANGO,), applies=with_celery),
+    Secret("CELERY_FLOWER_PASSWORD", (TEST_DJANGO,), applies=with_celery),
     Secret("CELERY_FLOWER_PASSWORD", (PRODUCTION_DJANGO,), applies=with_celery),
     # The key allauth signs the single-page application's tokens with, one per environment.
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (DEV_DJANGO,), debug=False, applies=with_headless),
+    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (TEST_DJANGO,), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (PRODUCTION_DJANGO,), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/local.py",), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/test.py",), debug=False, applies=with_headless),
 )
+
+
+# The committed example of a deployment's environment. No env file is ever committed, so
+# this is where the generated tests and whoever deploys read the list of variables a
+# deployment supplies; the values that would be secret are left unset.
+EXAMPLE_DOTENV = ".env.example"
+EXAMPLE_SOURCES = (PRODUCTION_DJANGO, PRODUCTION_POSTGRES)
+
+
+def write_example_dotenv(root):
+    """Write ``.env.example``: the production env files merged, every secret left unset.
+
+    Called before ``fill_secrets``, while the placeholders are still in the files, so the
+    example cannot declare anything but what a deployment actually reads.
+    """
+    lines = []
+    for file in EXAMPLE_SOURCES:
+        for line in (root / file).read_text().splitlines():
+            name, separator, _ = line.partition("=")
+            # A drawn value is the deployment's to set, and the trailing text of a line
+            # like ``DJANGO_ADMIN_URL=!!!SET ...!!!/`` goes with it.
+            lines.append(f"{name}=" if separator and "!!!SET " in line else line)
+        lines.append("")
+    (root / EXAMPLE_DOTENV).write_text("\n".join(lines))
 
 
 def random_string(length, alphabet):
@@ -108,12 +160,6 @@ def fill_secrets(root, context, draw=random_string):
             path.write_text(content.replace(marker, value))
 
 
-def append_to_gitignore_file(root, ignored_line):
-    with (root / ".gitignore").open("a") as gitignore_file:
-        gitignore_file.write(ignored_line)
-        gitignore_file.write("\n")
-
-
 # Removal rules. When a rule's condition holds for the answers, the paths
 # listed with it are deleted from the generated project. Paths are relative to the
 # project root; ``{project_slug}`` stands for the project package. For any answers,
@@ -133,6 +179,8 @@ REMOVALS = (
         (
             "compose",
             "docker-compose.local.yml",
+            "docker-compose.dev.yml",
+            "docker-compose.test.yml",
             "docker-compose.production.yml",
             "docker-compose.docs.yml",
             ".dockerignore",
@@ -145,11 +193,6 @@ REMOVALS = (
     (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "None", ("compose/production/nginx",)),
     # The AWS image holds the S3 backup maintenance scripts.
     (lambda c: c["use_docker"] == "y" and c["cloud_provider"] != "AWS", ("compose/production/aws",)),
-    # Docker Compose is the only consumer of the ``.envs`` files.
-    (
-        lambda c: c["use_docker"] == "n" and c["keep_local_envs_in_vcs"] == "n",
-        (".envs", "merge_production_dotenvs_in_dotenv.py", "tests"),
-    ),
     # users/tasks.py and its tests stay: they also hold the Django Tasks example.
     (lambda c: c["use_celery"] == "n", ("config/celery_app.py",)),
     (
@@ -225,20 +268,8 @@ def prune(context, root):
 
 def main(context):
     root = Path.cwd()
+    write_example_dotenv(root)
     fill_secrets(root, context)
-
-    if context["use_docker"] == "n":
-        if context["keep_local_envs_in_vcs"] == "y":
-            print(
-                INFO + ".env(s) are only utilized when Docker Compose is enabled. "
-                "Keeping them as requested, but they may not be useful "
-                "in your current setup." + TERMINATOR,
-            )
-    else:
-        append_to_gitignore_file(root, ".env")
-        append_to_gitignore_file(root, ".envs/*")
-        if context["keep_local_envs_in_vcs"] == "y":
-            append_to_gitignore_file(root, "!.envs/.local/")
 
     if context["cloud_provider"] == "None" and context["use_docker"] == "n":
         print(

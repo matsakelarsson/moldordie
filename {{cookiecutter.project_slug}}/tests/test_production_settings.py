@@ -1,8 +1,13 @@
-"""The production settings, loaded under the environment ``.envs/.production`` declares.
+"""The production settings, loaded under the environment ``.env.example`` declares.
 
-A deployment provides these variables. The values the files leave blank are filled with
-stand-ins here, so loading the settings shows that the files declare every variable the
+Every deployed environment runs this module, and ``.env.example`` is the
+committed list of the variables they supply: the env files under ``.envs/``
+carry the credentials, so none of them is in version control and a checkout
+cannot read them. The values the example leaves unset are filled with stand-ins
+here, so loading the settings shows that the example declares every variable the
 settings require, and the loaded values are what the tests check.
+``test_the_example_matches_the_env_files`` checks the example against the env
+files wherever they are there.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from django.core.exceptions import ImproperlyConfigured
 {%- endif %}
 from django.utils.csp import CSP
 
+from merge_production_dotenvs_in_dotenv import BASE_DIR
 from merge_production_dotenvs_in_dotenv import PRODUCTION_DOTENV_FILES
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 from {{ cookiecutter.project_slug }}.identity.apps import validate_token_settings
@@ -41,16 +47,44 @@ TRACES_SAMPLE_RATE = 0.5
 {%- endif %}
 
 
+EXAMPLE_DOTENV_FILE = BASE_DIR / ".env.example"
+
+
+def declared(text: str) -> dict[str, str]:
+    """The ``NAME=value`` lines of an env file, comments and blank lines skipped."""
+    values = {}
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        name, _, value = line.partition("=")
+        values[name] = value
+    return values
+
+
 def declared_environment() -> dict[str, str]:
-    """The variables the production env files declare, with stand-ins for blanks."""
-    environment = {}
+    """The variables ``.env.example`` declares, with stand-ins for the unset ones.
+
+    A stand-in is derived from the name, so two secrets left unset never read alike.
+    """
+    return {
+        name: value or f"{name.lower()}-stand-in"
+        for name, value in declared(EXAMPLE_DOTENV_FILE.read_text()).items()
+    }
+
+
+def test_the_example_matches_the_env_files():
+    """The example is committed and the env files are not, so only a run that has
+    them -- a freshly generated project, or a developer's machine -- can check
+    that they still agree.
+    """
+    missing = [path.name for path in PRODUCTION_DOTENV_FILES if not path.exists()]
+    if missing:
+        pytest.skip(f"not in version control: {', '.join(missing)}")
+
+    names: set[str] = set()
     for path in PRODUCTION_DOTENV_FILES:
-        for line in path.read_text().splitlines():
-            if not line or line.startswith("#"):
-                continue
-            name, _, value = line.partition("=")
-            environment[name] = value or f"{name.lower()}-stand-in"
-    return environment
+        names |= set(declared(path.read_text()))
+    assert names == set(declared_environment())
 
 
 @pytest.fixture

@@ -29,9 +29,12 @@ Register the login application in the tenant, in the Microsoft Entra admin cente
 #. Create a registration for accounts in this organizational directory only. The
    *Directory (tenant) ID* and the *Application (client) ID* of its overview page are
    ``ENTRA_TENANT_ID`` and ``ENTRA_LOGIN_CLIENT_ID``.
-#. Under *Authentication*, add a *Web* platform with the redirect URI
-   ``https://{{ cookiecutter.domain_name }}/accounts/oidc/entra/login/callback/``; for
-   development add ``http://localhost:8000/accounts/oidc/entra/login/callback/`` as well.
+#. Under *Authentication*, add a *Web* platform with one redirect URI per deployed
+   environment: ``https://{{ cookiecutter.domain_name }}``,
+   ``https://dev.{{ cookiecutter.domain_name }}`` and
+   ``https://test.{{ cookiecutter.domain_name }}``, each followed by
+   ``/accounts/oidc/entra/login/callback/``; for development add
+   ``http://localhost:8000/accounts/oidc/entra/login/callback/`` as well.
 #. Under *Certificates & secrets*, create a client secret: ``ENTRA_LOGIN_CLIENT_SECRET``.
    It expires; note the date.
 #. Under *API permissions*, the delegated Microsoft Graph permissions ``openid``,
@@ -53,10 +56,13 @@ Register the web client in the Google Cloud console under *APIs & Services*:
 #. Configure the *OAuth consent screen*: the application name and support addresses that
    users see, and the user type, *Internal* for a Google Workspace organisation or
    *External* for any Google account.
-#. Under *Credentials*, create an *OAuth client ID* of type *Web application*, with the
-   authorised redirect URI
-   ``https://{{ cookiecutter.domain_name }}/accounts/google/login/callback/``; for
-   development add ``http://localhost:8000/accounts/google/login/callback/`` as well.
+#. Under *Credentials*, create an *OAuth client ID* of type *Web application*, with one
+   authorised redirect URI per deployed environment:
+   ``https://{{ cookiecutter.domain_name }}``,
+   ``https://dev.{{ cookiecutter.domain_name }}`` and
+   ``https://test.{{ cookiecutter.domain_name }}``, each followed by
+   ``/accounts/google/login/callback/``; for development add
+   ``http://localhost:8000/accounts/google/login/callback/`` as well.
 #. Its client id and secret are ``GOOGLE_LOGIN_CLIENT_ID`` and
    ``GOOGLE_LOGIN_CLIENT_SECRET``.
 {% endif %}
@@ -68,8 +74,11 @@ to empty, so the project starts without them; ``python manage.py check`` (and th
 development server on startup) reports each empty one, because sign-in through
 {{ provider }} cannot work until it is set. In development, export them in the shell{% if cookiecutter.use_docker == 'y' %} or
 put them in ``.envs/.local/.django``{% else %} or
-in a ``.env`` file read with ``DJANGO_READ_DOT_ENV_FILE=True``{% endif %}; in production they belong with the
-other secrets of ``.envs/.production/.django``.
+in a ``.env`` file read with ``DJANGO_READ_DOT_ENV_FILE=True``{% endif %}; in a deployed
+environment they belong with the other secrets of its ``.django`` file, one of
+``.envs/.dev/``, ``.envs/.test/`` and ``.envs/.production/``. A registration may be shared
+by the environments or given one per environment; either way each environment reads its
+own file.
 
 {% if entra -%}
 ==========================  ================================================================

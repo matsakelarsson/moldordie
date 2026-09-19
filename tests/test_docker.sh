@@ -84,6 +84,13 @@ docker compose -f docker-compose.local.yml run --rm \
 # Generate the HTML for the documentation
 docker compose -f docker-compose.docs.yml run --rm docs make html
 
+# Every deployed environment's Compose file is a valid configuration, and Traefik's image
+# builds with that environment's routers, selected by the ENVIRONMENT build argument
+for environment in dev test production; do
+  docker compose -f "docker-compose.$environment.yml" config > /dev/null
+  docker compose -f "docker-compose.$environment.yml" build traefik
+done
+
 docker build -f ./compose/production/django/Dockerfile -t django-prod .
 
 docker run --rm \
