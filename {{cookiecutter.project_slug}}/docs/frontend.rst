@@ -358,7 +358,8 @@ to keep that true.
 Error pages
 -----------
 
-``403.html``, ``404.html`` and ``500.html`` are daisyUI heroes on ``base.html``, and
+``400.html``, ``403.html``, ``404.html`` and ``500.html`` are daisyUI heroes on ``base.html``
+(Django hands ``400.html`` no exception, so that it says nothing about the request), and
 ``403_csrf.html``, the page a rejected CSRF token reaches, extends ``403.html``. They read
 nothing from the database. ``500.html`` is rendered without a request, so without the
 context processors: it is in the default theme and has no theme picker. The package's ``tests/test_error_pages.py`` renders them with database
