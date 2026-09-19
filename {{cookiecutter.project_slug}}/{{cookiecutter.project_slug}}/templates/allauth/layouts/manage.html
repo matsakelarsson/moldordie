@@ -5,7 +5,8 @@
   {% endblock head_title %}
 {% endblock title %}
 {% block main %}
-  <div class="ui-stack">
+  {# The account pages (email addresses, sessions, ...): their panels in a column. allauth writes its links bare #}
+  <div class="mx-auto flex w-full max-w-2xl flex-col gap-4 [&_a:not(.btn)]:underline [&_a:not(.btn)]:underline-offset-2">
     {% block content %}
     {% endblock content %}
   </div>

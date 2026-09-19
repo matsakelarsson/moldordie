@@ -41,7 +41,6 @@ dependencies = [
 {%- if cookiecutter.rest_api in ('DRF', 'Django Ninja') %}
   "django-cors-headers==4.9.0",
 {%- endif %}
-  "django-cotton==2.7.2",
   "django-environ==0.14.0",
   "django-htmx==1.29.0",
 {%- if cookiecutter.rest_api == 'Django Ninja' %}
@@ -124,8 +123,7 @@ custom_blocks = "element,slot,partialdef"
 close_void_tags = true
 format_css = true
 format_js = true
-# H026 would flag <c-vars class />, how a component declares the class it merges
-ignore = "H006,H026,H030,H031"
+ignore = "H006,H030,H031"
 include = "H017,H035"
 indent = 2
 max_line_length = 119

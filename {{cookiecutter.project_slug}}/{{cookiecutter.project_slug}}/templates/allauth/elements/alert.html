@@ -1,8 +1,10 @@
 {% raw %}{% load allauth %}
 
-{# allauth's alert element: a notice in the page, so it is not announced #}
-<c-ui.alert level="{{ attrs.level|default:'info' }}">
-  {% slot message %}
-  {% endslot %}
-</c-ui.alert>
+{# allauth's alert element: a notice that is in the page from the start, so it carries no role and is not announced #}
+<div class="alert {% if attrs.level == 'success' %}alert-success{% elif attrs.level == 'warning' %}alert-warning{% elif attrs.level == 'error' or attrs.level == 'danger' %}alert-error{% else %}alert-info{% endif %}">
+  <span>
+    {% slot message %}
+    {% endslot %}
+  </span>
+</div>
 {%- endraw %}

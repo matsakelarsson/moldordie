@@ -1,9 +1,9 @@
 {% raw %}{% load allauth %}
 
-{# allauth's badge element; its tags choose the level: success, warning, danger (error), primary (info) #}
-<c-ui.badge level="{% if 'success' in attrs.tags %}success{% elif 'warning' in attrs.tags %}warning{% elif 'danger' in attrs.tags %}error{% elif 'primary' in attrs.tags %}info{% else %}neutral{% endif %}"
-            :title="attrs.title">
+{# allauth's badge element; its tags choose the colour: success, warning, danger (error), primary #}
+<span class="badge badge-sm {% if 'success' in attrs.tags %}badge-success{% elif 'warning' in attrs.tags %}badge-warning{% elif 'danger' in attrs.tags %}badge-error{% elif 'primary' in attrs.tags %}badge-primary{% else %}badge-neutral{% endif %}"
+      {% if attrs.title %}title="{{ attrs.title }}"{% endif %}>
   {% slot %}
   {% endslot %}
-</c-ui.badge>
+</span>
 {%- endraw %}

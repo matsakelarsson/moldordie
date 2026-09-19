@@ -15,34 +15,30 @@
     {% if htmx_fragment %}
       {% include "base.html#messages" %}
     {% endif %}
-    <c-ui.card id="user-profile">
-      <c-slot name="header">
-        <h1>{{ user.display_name }}</h1>
-      </c-slot>
-      <form method="post"
-            action="{% url 'users:update' %}"
-            hx-post="{% url 'users:update' %}"
-            hx-target="#user-profile"
-            hx-swap="outerHTML"
-            hx-push-url="true">
-        {% csrf_token %}
-        {{ form }}
-        <div class="ui-actions">
-          <c-ui.button type="submit">
-            {% translate "Update" %}
-          </c-ui.button>
-          <c-ui.link href="{{ user.get_absolute_url }}"
-                     appearance="button"
-                     variant="secondary"
-                     hx-get="{{ user.get_absolute_url }}"
-                     hx-target="#user-profile"
-                     hx-swap="outerHTML"
-                     hx-push-url="true">
-            {% translate "Cancel" %}
-          </c-ui.link>
-        </div>
-      </form>
-    </c-ui.card>
+    <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
+      <div class="card-body">
+        <h1 class="card-title text-2xl">{{ user.display_name }}</h1>
+        <form class="flex max-w-md flex-col gap-2"
+              method="post"
+              action="{% url 'users:update' %}"
+              hx-post="{% url 'users:update' %}"
+              hx-target="#user-profile"
+              hx-swap="outerHTML"
+              hx-push-url="true">
+          {% csrf_token %}
+          {{ form }}
+          <div class="card-actions mt-2">
+            <button class="btn btn-primary" type="submit">{% translate "Update" %}</button>
+            <a class="btn btn-ghost"
+               href="{{ user.get_absolute_url }}"
+               hx-get="{{ user.get_absolute_url }}"
+               hx-target="#user-profile"
+               hx-swap="outerHTML"
+               hx-push-url="true">{% translate "Cancel" %}</a>
+          </div>
+        </form>
+      </div>
+    </article>
   {% endpartialdef profile %}
 {% endblock content %}
 {%- endraw %}

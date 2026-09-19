@@ -38,6 +38,18 @@ To fix this, you can either:
 .. _rm: https://docs.docker.com/engine/reference/commandline/volume_rm/
 .. _prune: https://docs.docker.com/v17.09/engine/reference/commandline/system_prune/
 
+The pages have no styles, or ``Missing staticfiles manifest entry for 'css/tailwind.css'``
+------------------------------------------------------------------------------------------
+
+The stylesheet has not been built. ``<project_slug>/static/css/tailwind.css`` is not in the repository: the Tailwind CLI builds it. In development, start the watcher (``python manage.py tailwind watch``, or the ``tailwind`` service with Docker). In a deployment without Docker, run ``python manage.py tailwind build`` before ``collectstatic``; the production image does so when it is built. Under a manifest storage the wrong order does not fail ``collectstatic``: it fails the first page that renders.
+
+A class that has no effect is a class the build has not seen: the watcher is not running, or the name is assembled in the template (``alert-{{ level }}``) instead of written whole. The watcher prints no errors; ``python manage.py tailwind build`` does.
+
+The Tailwind CLI cannot be downloaded
+-------------------------------------
+
+The first ``tailwind`` command downloads the release that ``TAILWIND_CLI_VERSION`` names from GitHub's releases into ``.django_tailwind_cli/``. Behind a proxy that blocks it, download the asset for your platform by hand and point ``TAILWIND_CLI_PATH`` at it, or mirror the release and name the mirror in ``TAILWIND_CLI_SRC_REPO``. The built stylesheet is the same on every platform, so a deployment can also be given a file built elsewhere.
+
 Static files return a 403 in production
 ---------------------------------------
 

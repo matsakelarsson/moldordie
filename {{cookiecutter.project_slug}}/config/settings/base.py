@@ -149,14 +149,10 @@ THIRD_PARTY_APPS = [
     # Tailwind CSS and daisyUI without Node.js: the tailwind management command
     # and the tailwind_css template tag
     "django_tailwind_cli",
-    # Cotton components; this config leaves TEMPLATES as written below
-    "django_cotton.apps.SimpleAppConfig",
 ]
 
 LOCAL_APPS = [
     "{{ cookiecutter.project_slug }}.users",
-    # The UI library: attribute helpers, palettes and the theme stylesheet
-    "{{ cookiecutter.project_slug }}.ui",
 {%- if headless %}
     "{{ cookiecutter.project_slug }}.identity",
 {%- endif %}
@@ -262,28 +258,10 @@ TEMPLATES = [
         # https://docs.djangoproject.com/en/dev/ref/settings/#dirs
         "DIRS": [str(APPS_DIR / "templates")],
         # https://docs.djangoproject.com/en/dev/ref/settings/#app-dirs
-        # Off because the loaders are listed; the app directories loader is one
-        "APP_DIRS": False,
+        # On, so the templates of the installed apps are found: allauth's, the
+        # admin's and the one the tailwind_css tag renders
+        "APP_DIRS": True,
         "OPTIONS": {
-            # https://docs.djangoproject.com/en/dev/ref/settings/#template-loaders
-            # Cotton compiles <c-...> components before Django parses a template,
-            # so its loader comes first; the cache wraps all three
-            "loaders": [
-                (
-                    "django.template.loaders.cached.Loader",
-                    [
-                        "django_cotton.cotton_loader.Loader",
-                        "django.template.loaders.filesystem.Loader",
-                        "django.template.loaders.app_directories.Loader",
-                    ],
-                ),
-            ],
-            # https://docs.djangoproject.com/en/dev/ref/settings/#template-builtins
-            # Cotton's tags and the UI library's filters need no {% raw %}{% load %}{% endraw %}
-            "builtins": [
-                "django_cotton.templatetags.cotton",
-                "{{ cookiecutter.project_slug }}.ui.templatetags.ui",
-            ],
             # https://docs.djangoproject.com/en/dev/ref/settings/#template-context-processors
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -298,8 +276,6 @@ TEMPLATES = [
                 "django.template.context_processors.csp",
                 "django.contrib.messages.context_processors.messages",
                 "{{cookiecutter.project_slug}}.users.context_processors.allauth_settings",
-                # Exposes ui_theme, the request's palette and mode (docs/frontend.rst)
-                "{{cookiecutter.project_slug}}.ui.context_processors.theme",
             ],
         },
     },
@@ -325,26 +301,11 @@ TAILWIND_CLI_SRC_CSS = "{{ cookiecutter.project_slug }}/styles/main.css"
 # ignores, the production image builds and collectstatic collects
 TAILWIND_CLI_DIST_CSS = "css/tailwind.css"
 
-# UI
+# FORMS
 # ------------------------------------------------------------------------------
-# https://django-cotton.com/docs/components
-# A component sees its own inputs, the request and the context processors, never
-# the calling template's variables. The next Cotton release renames this setting
-# COTTON_ISOLATE_BY_DEFAULT; ui/tests/test_isolation.py says which one applies.
-COTTON_ENABLE_CONTEXT_ISOLATION = True
-# The colour palette and mode of the UI library: the palettes are in ui/palettes.py,
-# the modes are system, light and dark (docs/frontend.rst)
-UI_PALETTE = "blue"
-UI_MODE = "system"
-# The brand's colours over the palette, per set: each maps a token BRAND_TOKENS in
-# ui/palettes.py names, without its --ui- prefix, to a #RRGGBB colour. A token left out
-# keeps the palette's colour. The system checks refuse any other token or value and a
-# colour that breaks a contrast pair (docs/frontend.rst).
-UI_BRAND: dict[str, dict[str, str]] = {"light": {}, "dark": {}}
-
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
-# Every field of a form rendered by Django goes through templates/django/forms/field.html,
-# which hands it to the UI library's field component (docs/frontend.rst)
+# Forms render through the project's templates: templates/django/forms/field.html and
+# the widget templates beside it give every field its daisyUI classes (docs/frontend.rst)
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
 # SECURITY
@@ -362,13 +323,14 @@ X_FRAME_OPTIONS = "DENY"
 # on*= handlers are not allowed at all.
 SECURE_CSP: dict[str, list[str]] = {
     "default-src": [CSP.SELF],
-    # htmx, project.js, admin and allauth scripts come from
-    # this origin; the nonce is for inline code
+    # htmx, admin and allauth scripts come from this
+    # origin; the nonce is for inline code
     "script-src": [CSP.SELF, CSP.NONCE],
     # htmx's injected indicator stylesheet is disabled in
-    # base.html; its rules live in css/ui/components.css
+    # base.html; its rules live in styles/main.css
     "style-src": [CSP.SELF],
-    # django-allauth's TOTP activation page shows its QR code as an SVG data: URI
+    # django-allauth's TOTP activation page shows its QR code as an SVG data: URI,
+    # and daisyUI draws a few of its parts (the loading indicator) with them
     "img-src": [CSP.SELF, "data:"],
     "font-src": [CSP.SELF],
     # htmx requests and websockets go to this origin

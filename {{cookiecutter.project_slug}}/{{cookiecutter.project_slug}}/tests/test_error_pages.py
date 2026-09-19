@@ -1,4 +1,4 @@
-"""The error pages: cards on base.html that render without the database.
+"""The error pages: daisyUI heroes on base.html that render without the database.
 
 The tests carry no django_db mark, so a query while rendering fails them.
 """
@@ -15,6 +15,9 @@ from django.views.defaults import server_error
 if TYPE_CHECKING:
     from django.test import RequestFactory
 
+HERO = '<div class="hero py-16">'
+STYLESHEET = 'href="/static/css/tailwind.css"'
+
 
 def test_the_not_found_page(client: Client):
     response = client.get("/no-such-page/")
@@ -22,9 +25,9 @@ def test_the_not_found_page(client: Client):
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert "404.html" in [template.name for template in response.templates]
     html = response.content.decode()
-    assert '<article class="ui-card"' in html
-    assert "<h1>Page not found</h1>" in html
-    assert 'href="/ui/theme.css"' in html
+    assert HERO in html
+    assert '<h1 class="text-4xl font-bold">Page not found</h1>' in html
+    assert STYLESHEET in html
 
 
 def test_the_forbidden_page(rf: RequestFactory):
@@ -32,10 +35,10 @@ def test_the_forbidden_page(rf: RequestFactory):
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     html = response.content.decode()
-    assert '<article class="ui-card"' in html
-    assert "<h1>Forbidden (403)</h1>" in html
+    assert HERO in html
+    assert '<h1 class="text-4xl font-bold">Forbidden (403)</h1>' in html
     assert "This room is locked." in html
-    assert 'href="/ui/theme.css"' in html
+    assert STYLESHEET in html
 
 
 def test_the_csrf_failure_page():
@@ -46,8 +49,8 @@ def test_the_csrf_failure_page():
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert "403_csrf.html" in [template.name for template in response.templates]
     html = response.content.decode()
-    assert '<article class="ui-card"' in html
-    assert "<h1>Forbidden (403)</h1>" in html
+    assert HERO in html
+    assert '<h1 class="text-4xl font-bold">Forbidden (403)</h1>' in html
 
 
 def test_the_server_error_page_renders_without_a_request_context(rf: RequestFactory):
@@ -55,6 +58,6 @@ def test_the_server_error_page_renders_without_a_request_context(rf: RequestFact
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     html = response.content.decode()
-    assert '<article class="ui-card"' in html
-    assert "<h1>Ooops!!! 500</h1>" in html
-    assert 'href="/ui/theme.css"' in html
+    assert HERO in html
+    assert '<h1 class="text-4xl font-bold">Ooops!!! 500</h1>' in html
+    assert STYLESHEET in html

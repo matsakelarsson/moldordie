@@ -1,0 +1,24 @@
+{% raw %}{# A file input that may hold a file already: the file, the box that clears it, then the input #}
+{% if widget.is_initial %}
+  <p>
+    {{ widget.initial_text }}: <a class="link" href="{{ widget.value.url }}">{{ widget.value }}</a>
+  </p>
+  {% if not widget.required %}
+    <label class="label text-base-content whitespace-normal"
+           for="{{ widget.checkbox_id }}">
+      <input type="checkbox"
+             class="checkbox checkbox-sm"
+             name="{{ widget.checkbox_name }}"
+             id="{{ widget.checkbox_id }}"
+             {% if widget.attrs.disabled %}disabled{% endif %}
+             {% if widget.attrs.checked %}checked{% endif %} />
+      {{ widget.clear_checkbox_label }}
+    </label>
+  {% endif %}
+  <p>{{ widget.input_text }}:</p>
+{% endif %}
+<input type="{{ widget.type }}"
+       name="{{ widget.name }}"
+       class="file-input aria-invalid:file-input-error w-full{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}"
+       {% include "django/forms/widgets/attrs_without_class.html" %} />
+{%- endraw %}

@@ -1,0 +1,11 @@
+{% raw %}{# One option of a radio or checkbox group: the input inside its label, as Django writes it #}
+{% if widget.wrap_label %}
+  <label class="label text-base-content whitespace-normal"
+         {% if widget.attrs.id %}for="{{ widget.attrs.id }}"{% endif %}>
+    {% include "django/forms/widgets/input.html" %}
+    {{ widget.label }}
+  </label>
+{% else %}
+  {% include "django/forms/widgets/input.html" %}
+{% endif %}
+{%- endraw %}

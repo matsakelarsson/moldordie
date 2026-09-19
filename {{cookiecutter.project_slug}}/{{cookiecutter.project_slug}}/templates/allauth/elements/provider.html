@@ -1,10 +1,7 @@
-{% raw %}{# One identity provider of allauth's list: a link drawn as a secondary button #}
+{% raw %}{# One identity provider of allauth's list: a link drawn as a full-width button #}
 <li>
-  <c-ui.link :href="attrs.href"
-             appearance="button"
-             variant="secondary"
-             :title="attrs.name">
-    {{ attrs.name }}
-  </c-ui.link>
+  <a class="btn btn-block"
+     href="{{ attrs.href }}"
+     title="{{ attrs.name }}">{{ attrs.name }}</a>
 </li>
 {%- endraw %}

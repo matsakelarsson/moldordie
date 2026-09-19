@@ -1,0 +1,3 @@
+{% raw %}<textarea name="{{ widget.name }}" class="textarea aria-invalid:textarea-error w-full{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}" {% include "django/forms/widgets/attrs_without_class.html" %}>
+{% if widget.value %}{{ widget.value }}{% endif %}</textarea>
+{%- endraw %}

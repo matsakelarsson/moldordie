@@ -1,0 +1,15 @@
+{% raw %}{% load allauth %}
+
+{# allauth's details element as daisyUI's collapse, which needs no script on a details element #}
+<details class="collapse collapse-arrow border-base-300 bg-base-100 border"
+         {% if attrs.open %}open{% endif %}>
+  <summary class="collapse-title font-semibold">
+    {% slot summary %}
+    {% endslot %}
+  </summary>
+  <div class="collapse-content">
+    {% slot body %}
+    {% endslot %}
+  </div>
+</details>
+{%- endraw %}

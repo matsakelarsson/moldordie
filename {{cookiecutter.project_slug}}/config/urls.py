@@ -30,8 +30,6 @@ urlpatterns = [
     # User management
     path("users/", include("{{ cookiecutter.project_slug }}.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
-    # The UI library: the theme stylesheet (docs/frontend.rst)
-    path("ui/", include("{{ cookiecutter.project_slug }}.ui.urls", namespace="ui")),
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
     # The single-page application's login: allauth's headless API, app client only
     path("_allauth/", include("allauth.headless.urls")),
@@ -89,11 +87,6 @@ if settings.DEBUG:
             kwargs={"exception": Exception("Page not Found")},
         ),
         path("500/", default_views.server_error),
-        # The UI library's showcase and its theme preview (docs/frontend.rst)
-        path(
-            "ui/components/",
-            include("{{ cookiecutter.project_slug }}.ui.showcase_urls", namespace="showcase"),
-        ),
     ]
     if "debug_toolbar" in settings.INSTALLED_APPS:
         import debug_toolbar
