@@ -1,0 +1,7 @@
+{% raw %}{% comment %}
+Django's widgets/attrs.html without the class attribute, which the widget templates here write
+themselves, merged with daisyUI's. Django's own attrs.html stays as it is: the admin's widgets and
+third-party ones include it and expect the class from it.
+{% endcomment %}
+{% for name, value in widget.attrs.items %}{% if name != "class" and value is not False %} {{ name }}{% if value is not True %}="{{ value|stringformat:'s' }}"{% endif %}{% endif %}{% endfor %}
+{%- endraw %}

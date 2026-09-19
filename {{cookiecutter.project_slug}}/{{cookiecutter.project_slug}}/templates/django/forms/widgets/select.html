@@ -1,0 +1,12 @@
+{% raw %}<select name="{{ widget.name }}"
+        class="select aria-invalid:select-error w-full{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}"
+        {% include "django/forms/widgets/attrs_without_class.html" %}>
+  {% for group_name, group_choices, group_index in widget.optgroups %}
+    {% if group_name %}<optgroup label="{{ group_name }}">{% endif %}
+    {% for option in group_choices %}
+      {% include option.template_name with widget=option %}
+    {% endfor %}
+    {% if group_name %}</optgroup>{% endif %}
+  {% endfor %}
+</select>
+{%- endraw %}

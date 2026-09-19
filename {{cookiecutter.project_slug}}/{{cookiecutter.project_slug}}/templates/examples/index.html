@@ -1,0 +1,140 @@
+{% raw %}{% extends "base.html" %}
+
+{% block title %}
+  Examples
+{% endblock title %}
+{% block content %}
+  {% comment %}
+  The examples page (examples/views.py), routed in every environment until the project deletes it.
+  Each example is a template under examples/, rendered live and shown as written by the "source"
+  partial. The partials named after the htmx demos are the fragments their requests receive. The copy
+  is plain English on purpose: it is starter content, and an example shown as written reads better
+  without translation tags (docs/frontend.rst).
+  {% endcomment %}
+  {% partialdef source %}
+    <details class="collapse collapse-arrow border-base-300 bg-base-100 border">
+      <summary class="collapse-title text-sm font-semibold">{{ name }}</summary>
+      <div class="collapse-content">
+        <pre class="bg-neutral text-neutral-content rounded-box overflow-x-auto p-4 text-sm"><code>{{ source }}</code></pre>
+      </div>
+    </details>
+  {% endpartialdef source %}
+  {# The notices demo answers with the messages alone, which htmx swaps in out of band #}
+  {% partialdef notices %}
+    {% include "base.html#messages" %}
+  {% endpartialdef notices %}
+  <header class="flex flex-col gap-2">
+    <h1 class="text-4xl font-bold">Examples</h1>
+    <p class="text-lg">
+      daisyUI components and htmx patterns as this project writes them, each rendered from the template shown beneath it.
+      Change the look in <code>styles/theme.css</code> and watch this page follow.
+    </p>
+  </header>
+  {% for example in static_examples %}
+    <section class="mt-10 flex flex-col gap-4" id="example-{{ example.name }}">
+      <h2 class="text-2xl font-bold">{{ example.title }}</h2>
+      {% include example.template_name %}
+      {% with name=example.template_name source=example.source %}
+        {% partial source %}
+      {% endwith %}
+    </section>
+  {% endfor %}
+  <section class="mt-10 flex flex-col gap-4" id="example-form">
+    <h2 class="text-2xl font-bold">A form validated on the server</h2>
+    <p>
+      With htmx the form posts into its own container and gets it back, with its errors or with the result and a message
+      swapped in out of band; while the request runs the button is disabled and the indicator shows. Without JavaScript
+      it posts to the same view and gets the whole page.
+    </p>
+    {% partialdef form inline %}
+      {% if htmx_fragment %}
+        {% include "base.html#messages" %}
+      {% endif %}
+      {% include "examples/form.html" %}
+    {% endpartialdef form %}
+    {% with name="examples/form.html" source=sources.form %}
+      {% partial source %}
+    {% endwith %}
+  </section>
+  <section class="mt-10 flex flex-col gap-4" id="example-results">
+    <h2 class="text-2xl font-bold">A filtered table with pagination</h2>
+    <p>
+      The filter and the page links replace the container below and push the address, so a result can be bookmarked and
+      the back button works. The filter sits outside the container: typing never loses its focus.
+    </p>
+    {% include "examples/filter.html" %}
+    {% partialdef results inline %}
+      {% if htmx_fragment %}
+        {% include "base.html#messages" %}
+      {% endif %}
+      {% include "examples/results.html" %}
+    {% endpartialdef results %}
+    {% with name="examples/filter.html" source=sources.filter %}
+      {% partial source %}
+    {% endwith %}
+    {% with name="examples/results.html" source=sources.results %}
+      {% partial source %}
+    {% endwith %}
+  </section>
+  <section class="mt-10 flex flex-col gap-4" id="example-toggle">
+    <h2 class="text-2xl font-bold">A toggle that tells the server</h2>
+    <p>
+      The toggle posts its state as it changes and is swapped for what the server made of it. The state lives in a cookie
+      of yours: the page keeps nothing on the server.
+    </p>
+    {% partialdef toggle inline %}
+      {% if htmx_fragment %}
+        {% include "base.html#messages" %}
+      {% endif %}
+      {% include "examples/toggle.html" %}
+    {% endpartialdef toggle %}
+    {% with name="examples/toggle.html" source=sources.toggle %}
+      {% partial source %}
+    {% endwith %}
+  </section>
+  <section class="mt-10 flex flex-col gap-4" id="example-tabs">
+    <h2 class="text-2xl font-bold">Tabs fetched when they are chosen</h2>
+    <p>Each tab is a link. With htmx only the panel comes from the server, and the indicator shows while it does.</p>
+    {% partialdef tabs inline %}
+      {% include "examples/tabs.html" %}
+    {% endpartialdef tabs %}
+    {% with name="examples/tabs.html" source=sources.tabs %}
+      {% partial source %}
+    {% endwith %}
+  </section>
+  <section class="mt-10 flex flex-col gap-4" id="example-modal">
+    <h2 class="text-2xl font-bold">A dialog from the server</h2>
+    <p>
+      The button fetches the dialog into the container at the end of the page, and the dialog's answer empties it again.
+      It is held open by a class, not by a script, so it has no Escape key: give it a button that closes it.
+    </p>
+    {% include "examples/modal.html" with modal_open=False %}
+    {% with name="examples/modal.html" source=sources.modal %}
+      {% partial source %}
+    {% endwith %}
+  </section>
+  <section class="mt-10 flex flex-col gap-4" id="example-notices">
+    <h2 class="text-2xl font-bold">Messages out of band</h2>
+    <p>
+      A view that adds a message during an htmx request includes the messages in its answer, and htmx swaps them into
+      the page wherever they are.
+    </p>
+    {% include "examples/notices.html" %}
+    {% with name="examples/notices.html" source=sources.notices %}
+      {% partial source %}
+    {% endwith %}
+  </section>
+{% endblock content %}
+{% block modal %}
+  <div id="modal">
+    {% partialdef modal inline %}
+      {% if htmx_fragment %}
+        {% include "base.html#messages" %}
+      {% endif %}
+      {% if modal_open %}
+        {% include "examples/modal.html" %}
+      {% endif %}
+    {% endpartialdef modal %}
+  </div>
+{% endblock modal %}
+{%- endraw %}

@@ -1,0 +1,5 @@
+{% raw %}{# The TOTP QR code is a dark path on a transparent background, which a dark theme would swallow: it gets a white one, and a size #}
+<img class="rounded-box w-64 bg-white p-2"
+     src="{{ attrs.src }}"
+     {% if attrs.alt %}alt="{{ attrs.alt }}"{% endif %} />
+{%- endraw %}

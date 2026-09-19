@@ -54,15 +54,33 @@ To run the tests, check your test coverage, and generate an HTML coverage report
 ### Frontend
 
 The frontend is server-rendered Django templates enhanced with [htmx](https://htmx.org) (via
-[django-htmx](https://django-htmx.readthedocs.io)) and built from the UI library:
-[django-cotton](https://django-cotton.com) components under
-`{{cookiecutter.project_slug}}/templates/cotton/ui/`, the stylesheets under
-`{{cookiecutter.project_slug}}/static/css/ui/` and the `ui` app with the colour palettes, the
-theme stylesheet and, under `DEBUG`, the component showcase at `/ui/components/`. There is no
-Node.js toolchain: htmx ships with django-htmx and nothing is built.
-htmx fragments are Django template partials, and every response carries a nonce-based Content
-Security Policy, so templates must not contain inline scripts or styles. The library's contract is
-in `docs/frontend.rst`; see also the
+[django-htmx](https://django-htmx.readthedocs.io)) and styled with
+[Tailwind CSS](https://tailwindcss.com) and [daisyUI](https://daisyui.com) through
+[django-tailwind-cli](https://django-tailwind-cli.readthedocs.io), which runs Tailwind's
+standalone CLI: there is no Node.js toolchain, and the project ships no JavaScript of its own.
+
+The stylesheet the pages load, `{{cookiecutter.project_slug}}/static/css/tailwind.css`, is built
+from `{{cookiecutter.project_slug}}/styles/main.css` and from the class names in the templates,
+and is not committed: a page without styles means it has not been built yet. Keep the watcher
+running while you work,
+{%- if cookiecutter.use_docker == 'y' %} which the `tailwind` service of `docker-compose.local.yml` does once the stack is up
+(`just logs tailwind` follows it; `just manage tailwind build` builds once).
+{%- else %} in a second terminal next to the server:
+
+    uv run python manage.py tailwind watch
+
+`uv run python manage.py tailwind build` builds it once, minified, which a deployment does before
+`collectstatic`.
+{%- endif %} The first run downloads the Tailwind CLI into `.django_tailwind_cli/`.
+
+To change the look, edit the project's own theme in
+`{{cookiecutter.project_slug}}/styles/theme.css`: every colour, radius and size daisyUI reads is
+written out there. Every theme daisyUI ships is enabled as well, and the navigation's theme picker
+keeps a visitor's choice in a cookie, through htmx and without a script. The examples page, `/examples/`,
+shows the components and the htmx patterns at work, each with its template as written: it is starter
+content, and `docs/frontend.rst` says how to delete it. htmx fragments are Django template partials, and every response carries a
+nonce-based Content Security Policy, so templates must not contain inline scripts or styles.
+`docs/frontend.rst` has the details; see also the
 [frontend guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/frontend.rst).
 
 ### Background tasks

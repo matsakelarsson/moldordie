@@ -124,87 +124,66 @@ to the tests: the reader asserts nothing, makes no existence check and validates
 
 ---
 
-The vocabulary of the generated project's frontend: the UI library, its components and its
-theme. The terms of the generation flow above still apply; in particular "context" alone is
+The vocabulary of the generated project's server-rendered frontend: its stylesheets, its themes
+and its examples page. The terms of the generation flow above still apply; in particular "context" alone is
 the answers the hooks receive, and Django's is the **template context**.
 
-## Component
+## Source stylesheet
 
-A reusable piece of the generated UI library: a Cotton template under `templates/cotton/ui/`,
-invoked as `<c-ui.name>`. It declares the inputs it consumes, renders in an isolated template
-context, fills its slots with the caller's markup and forwards the attributes it does not
-declare to its documented element.
+The CSS a developer writes and the Tailwind CLI reads: `styles/main.css` in the project package,
+which imports Tailwind CSS, enables daisyUI and names the files whose class names count. It is
+committed, and sits outside the static directories.
 
-_Avoid_: element (allauth's unit), widget (Django's form control), partial.
+_Avoid_: input CSS, Tailwind config, main stylesheet.
 
-## Slot
+## Built stylesheet
 
-Markup a caller hands a component: its content as the default slot, or a named `<c-slot>`.
-Rendered in the caller's template context before the component sees it.
+What the Tailwind CLI writes from the source stylesheet and the class names it finds:
+`static/css/tailwind.css`. An artefact: never generated, never committed, rebuilt by the watcher
+in development and built into the production image.
 
-_Avoid_: block (template inheritance), child.
-
-## Forwarded attribute
-
-An attribute a component was given but did not declare, written onto its element by the
-`ui_attrs` filter under the attribute contract in `ui/attrs.py`.
-
-_Avoid_: passthrough, rest attributes.
-
-## Token
-
-A named design value of the UI library, a CSS custom property with the `--ui-` prefix. The
-colour tokens are owned by the palettes in Python and served by the theme stylesheet; the
-others live in `static/css/ui/tokens.css`.
-
-_Avoid_: variable.
-
-## Palette
-
-A named, complete set of colour token values in both the light and the dark set: `blue`,
-`teal` or `violet` in `ui/palettes.py`. Every palette meets the adjacency table, the pairs
-of tokens that meet on the page with the contrast ratio AA asks of each.
-
-_Avoid_: theme, scheme, skin.
-
-## Mode
-
-Which colour set applies: `system`, the browser's preference, or `light` or `dark` forced.
-
-_Avoid_: theme, dark mode as a palette.
-
-## Brand
-
-The overrides a deployment or a company gives the tokens a brand may change, per colour
-set, never the status tokens; `UI_BRAND` in the settings is the deployment's. A brand is
-valid only together with the palette beneath it, since the adjacency table checks the
-result.
-
-_Avoid_: custom theme, skin.
+_Avoid_: output CSS, bundle, compiled CSS.
 
 ## Theme
 
-Both resolved colour sets of one request, light and dark, plus the mode it asked for: the
-palette with the brand over it and, in development, the preview; computed by
-`resolve_theme` in `ui/themes.py` and served as `/ui/theme.css`. Python does not decide
-which set the browser shows when the mode is `system`.
+A daisyUI theme, by name: a complete set of the colours, radii, sizes and effects daisyUI reads,
+applied to everything under an element carrying `data-theme`. The ones daisyUI ships are enabled
+next to the own theme, and `THEMES` names those a visitor may choose.
 
-_Avoid_: palette, style.
+_Avoid_: skin, colour scheme, style; "dark mode" for a dark theme.
 
-## Preview
+## Own theme
 
-A palette, a mode and partial colour overrides chosen in the showcase, validated and kept
-in the development session. Resolved against the current palettes and brand on each
-request, never stored as a finished theme; one that no longer resolves is dropped.
+The project's daisyUI theme, `brand`: a theme block in the source stylesheet with every value
+daisyUI reads written out, and the default look. It is the style example: changing the
+project's look means editing it, not overriding daisyUI's classes.
 
-_Avoid_: draft, snapshot.
+_Avoid_: custom theme, default theme (any theme can be made the default), skin.
 
-## Showcase
+## Theme picker
 
-The development-only page at `/ui/components/` that renders every component and its states
-from example templates it also shows as written, with the sample form and the preview form.
+The control in the navigation for choosing a theme: a radio button per theme, which restyles
+the page through daisyUI's CSS as soon as it is checked, and an htmx request that keeps the
+choice in a cookie, from which the server writes `data-theme` on the next page.
 
-_Avoid_: style guide, storybook, demo.
+_Avoid_: theme switcher, theme toggle, dark mode switch.
+
+## Examples page
+
+The page, routed in every environment and linked from the navigation, that shows daisyUI
+components and htmx patterns as the project writes them: each example a template under
+`templates/examples/`, rendered live and shown as written. It is starter content, which a
+project deletes once it has pages of its own.
+
+_Avoid_: style guide, storybook, demo, component library.
+
+## Watcher
+
+The development process that rebuilds the built stylesheet whenever a scanned file changes:
+`manage.py tailwind watch`, a second terminal without Docker, the `tailwind` service with it. No
+deployed environment runs one.
+
+_Avoid_: dev server (Uvicorn is), build (the one-off `tailwind build`).
 
 ## Partial
 

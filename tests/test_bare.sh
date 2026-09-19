@@ -30,6 +30,10 @@ uv run mypy .
 # run the project's tests
 uv run pytest
 
+# build the stylesheet from the command line, as a deployment does before collectstatic
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py tailwind build
+test -s my_awesome_project/static/css/tailwind.css
+
 # return non-zero status code if there are migrations that have not been created
 uv run python manage.py makemigrations --check
 

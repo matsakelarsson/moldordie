@@ -1,0 +1,76 @@
+/* The stylesheet's source. "python manage.py tailwind build" compiles it, with the Tailwind CSS
+   and daisyUI it imports, into static/css/tailwind.css, the one stylesheet base.html loads
+   (docs/frontend.rst). It sits outside the static directories on purpose: collectstatic must
+   never collect it. Class names are collected from this package's templates and Python modules,
+   and from nowhere else, so the build is the same on every machine and in every image. A class
+   name is therefore always written whole, never assembled from parts. */
+@import "tailwindcss" source(none);
+@import "./theme.css";
+
+@source "../";
+@source not "../media";
+@source not "../static";
+
+/* prose, for running text such as templates/pages/about.html */
+@plugin "@tailwindcss/typography";
+
+/* daisyUI (https://daisyui.com), bundled in the CLI that TAILWIND_CLI_VERSION names, with every
+   theme it ships, for the picker in templates/partials/navigation.html. None of them is the
+   default: that is "brand", the project's own, in theme.css. "dark" answers a browser that
+   prefers a dark colour scheme until the visitor chooses. THEMES in themes.py mirrors this list
+   and tests/test_themes.py compares the two: drop a theme from both. */
+@plugin "daisyui" {
+  themes:
+    light,
+    dark --prefersdark,
+    cupcake,
+    bumblebee,
+    emerald,
+    corporate,
+    synthwave,
+    retro,
+    cyberpunk,
+    valentine,
+    halloween,
+    garden,
+    forest,
+    aqua,
+    lofi,
+    pastel,
+    fantasy,
+    wireframe,
+    black,
+    luxury,
+    dracula,
+    cmyk,
+    autumn,
+    business,
+    acid,
+    lemonade,
+    night,
+    coffee,
+    winter,
+    dim,
+    nord,
+    sunset,
+    caramellatte,
+    abyss,
+    silk;
+  logs: false;
+}
+
+/* htmx's request indicator (https://htmx.org/attributes/hx-indicator/): the htmx-config meta tag
+   in base.html stops htmx from injecting these rules, which the policy would block. */
+@layer components {
+  .htmx-indicator {
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+  }
+
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    visibility: visible;
+    opacity: 1;
+  }
+}

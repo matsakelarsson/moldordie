@@ -14,42 +14,34 @@
     {% if htmx_fragment %}
       {% include "base.html#messages" %}
     {% endif %}
-    <c-ui.card id="user-profile">
-      <c-slot name="header">
-        <h1>{{ object.display_name }}</h1>
+    <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
+      <div class="card-body">
+        <h1 class="card-title text-2xl">{{ object.display_name }}</h1>
         {%- endraw %}
         {%- if cookiecutter.username_type == "username" %}
         {%- raw %}
         {% if object.display_name != object.username %}
-          <p>{{ object.username }}</p>
+          <p class="text-base-content/70">{{ object.username }}</p>
         {% endif %}
         {%- endraw %}
         {%- endif %}
         {%- raw %}
-      </c-slot>
-      {% if object == request.user %}
-        <c-slot name="actions">
-          {# Works without JavaScript through href; htmx swaps the edit form into this card #}
-          <c-ui.link href="{% url 'users:update' %}"
-                     appearance="button"
-                     hx-get="{% url 'users:update' %}"
-                     hx-target="#user-profile"
-                     hx-swap="outerHTML"
-                     hx-push-url="true">
-            {% translate "My Info" %}
-          </c-ui.link>
-          <c-ui.link href="{% url 'account_email' %}"
-                     appearance="button"
-                     variant="secondary">
-            {% translate "E-Mail" %}
-          </c-ui.link>
-          <c-ui.link href="{% url 'mfa_index' %}" appearance="button" variant="secondary">
-            {% translate "MFA" %}
-          </c-ui.link>
-          {# Your Stuff: Custom user template urls #}
-        </c-slot>
-      {% endif %}
-    </c-ui.card>
+        {% if object == request.user %}
+          <div class="card-actions mt-4">
+            {# Works without JavaScript through href; htmx swaps the edit form into this card #}
+            <a class="btn btn-primary"
+               href="{% url 'users:update' %}"
+               hx-get="{% url 'users:update' %}"
+               hx-target="#user-profile"
+               hx-swap="outerHTML"
+               hx-push-url="true">{% translate "My Info" %}</a>
+            <a class="btn" href="{% url 'account_email' %}">{% translate "E-Mail" %}</a>
+            <a class="btn" href="{% url 'mfa_index' %}">{% translate "MFA" %}</a>
+            {# Your Stuff: Custom user template urls #}
+          </div>
+        {% endif %}
+      </div>
+    </article>
   {% endpartialdef profile %}
 {% endblock content %}
 {%- endraw %}

@@ -35,21 +35,6 @@ RE_INLINE_CODE = re.compile(
     r"<script\b(?![^>]*\b(?:src|nonce)=)[^>]*>|<style\b|\sstyle=[\"']|\son[a-z]+=[\"']|\s(?:data-)?hx-on[^\s=]*=[\"']",
     re.IGNORECASE,
 )
-# A component template writes a value into an attribute only through the library's filters
-# (docs/adr/0009): an attribute value, with the template tags it may hold; an interpolation;
-# the filter an attribute needs, ui_url under the local policy for an htmx destination,
-# ui_url for a navigation URL and ui_attr for anything else
-RE_TEMPLATE_VALUE = r"(?:{%.*?%}|{{.*?}}|[^\"'{]|{(?![{%]))"
-RE_START_TAG = re.compile(
-    rf"<[a-zA-Z](?:\"{RE_TEMPLATE_VALUE}*\"|'{RE_TEMPLATE_VALUE}*'|{{%.*?%}}|{{{{.*?}}}}|[^<>\"'{{]|{{(?![{{%]))*>",
-)
-RE_ATTRIBUTE = re.compile(rf"(?<![-\w:.])([a-zA-Z][-\w:.]*)\s*=\s*(\"{RE_TEMPLATE_VALUE}*\"|'{RE_TEMPLATE_VALUE}*')")
-RE_INTERPOLATION = re.compile(r"{{(.*?)}}")
-FILTER_FOR_HTMX_DESTINATIONS = re.compile(r"\|\s*ui_url:([\"'])local\1\s*$")
-FILTER_FOR_URLS = re.compile(r"\|\s*ui_url\s*$")
-FILTER_FOR_VALUES = re.compile(r"\|\s*ui_attr\s*$")
-HTMX_DESTINATIONS = {"hx-get", "hx-post", "hx-put", "hx-patch", "hx-delete", "hx-push-url", "hx-replace-url"}
-URL_ATTRIBUTES = {"href", "action", "formaction", "src"}
 
 # Paths that must never be generated any more (Node.js / asset pipeline leftovers)
 FRONTEND_TOOLCHAIN_PATHS = [
@@ -60,10 +45,8 @@ FRONTEND_TOOLCHAIN_PATHS = [
     "compose/local/node",
     "my_test_project/static/sass",
     "my_test_project/static/js/vendors.js",
+    "my_test_project/static/vendor",
 ]
-# Pico CSS, which the UI library replaced (docs/adr/0009), as a word: a generated secret is
-# a run of letters and digits, which can hold the letters but never the word
-RE_PICO = re.compile(r"\bpico\b", re.IGNORECASE)
 # Case-insensitive tokens that must not appear in any generated text file
 FRONTEND_TOOLCHAIN_TOKENS = [
     "bootstrap",
@@ -78,6 +61,74 @@ FRONTEND_TOOLCHAIN_TOKENS = [
     "cdnjs",
     "sass",
 ]
+
+# A value the post-generation hook drew: a run of letters and digits longer than any word.
+# Masked before a scan for forbidden words, which a random run could otherwise spell.
+RE_DRAWN_VALUE = re.compile(r"[A-Za-z0-9]{32,}")
+# The frontends this template removed, as no generated file may spell them any more: their
+# names, the component syntax, the filters, settings, attributes and custom properties, the
+# class prefix (case-sensitive and not after a hyphen: "swagger-ui-bundle" and "daisyui-"
+# pass), the routes and the files
+REMOVED_FRONTEND_PATTERNS = [
+    r"(?i:\bpico\b)",
+    r"(?i:cotton)",
+    r"</?c-[a-z]",
+    r"\bc-(?:vars|slot)\b",
+    r"\bui_(?:attrs?|url|label|theme)\b",
+    r"\bUI_(?:PALETTE|MODE|BRAND)\b",
+    r"\bdata-ui-",
+    r"--ui-",
+    r"(?<![\w-])ui-[a-z]",
+    r"\bui[:/]theme\b",
+    r"/ui/",
+    r"(?i:\bshowcase)",
+    r"\bproject\.(?:css|js)\b",
+]
+RE_REMOVED_FRONTEND = re.compile("|".join(REMOVED_FRONTEND_PATTERNS))
+# "alert-{{ level }}": a class name assembled around an interpolation, which Tailwind never sees whole
+RE_ASSEMBLED_CLASS = re.compile(r"""\bclass=(["'])(?:(?!\1).)*?(?:[\w-]\{\{|\}\}[\w-])""", re.DOTALL)
+
+# The themes daisyUI 5 ships, in its own order: the generated picker offers every one of them
+DAISYUI_THEMES = (
+    "light",
+    "dark",
+    "cupcake",
+    "bumblebee",
+    "emerald",
+    "corporate",
+    "synthwave",
+    "retro",
+    "cyberpunk",
+    "valentine",
+    "halloween",
+    "garden",
+    "forest",
+    "aqua",
+    "lofi",
+    "pastel",
+    "fantasy",
+    "wireframe",
+    "black",
+    "luxury",
+    "dracula",
+    "cmyk",
+    "autumn",
+    "business",
+    "acid",
+    "lemonade",
+    "night",
+    "coffee",
+    "winter",
+    "dim",
+    "nord",
+    "sunset",
+    "caramellatte",
+    "abyss",
+    "silk",
+)
+
+# The daisyUI plugin block of the source stylesheet, with its options
+RE_DAISYUI_PLUGIN = re.compile(r'@plugin\s+"daisyui"\s*\{(.*?)\}', re.DOTALL)
 
 # The style checks that a formatter run after generation would fix: ruff format, djlint's
 # formatter and django-upgrade. They take longer than the rest of the suite, so they run
@@ -372,10 +423,9 @@ def test_djlint_lint_passes(bake, context_override):
     project = bake(context_override)
 
     autofixable_rules = "H014,T001"
-    # The generated [tool.djlint] ignores, which --ignore replaces: H026 reads <c-vars class />,
-    # how a component declares the class it merges, as an empty class attribute
+    # The generated [tool.djlint] ignores, which --ignore replaces
     # TODO: remove T002 when fixed https://github.com/Riverside-Healthcare/djLint/issues/687
-    ignored_rules = "H006,H026,H030,H031,T002"
+    ignored_rules = "H006,H030,H031,T002"
     try:
         sh.djlint(
             "--lint",
@@ -965,20 +1015,11 @@ def test_docker_serves_asgi(bake, context, realtime):
 
 
 def test_frontend_stack(bake, context):
-    """Generated project uses django-htmx + the UI library and has no Node.js, asset pipeline or Pico leftovers."""
+    """The generated project loads htmx through django-htmx and generates none of a Node.js toolchain's files."""
     project = bake(context)
 
     for path in FRONTEND_TOOLCHAIN_PATHS:
         assert not (project.root / path).exists(), f"{path} should not be generated"
-
-    offenders = []
-    for path in project.files():
-        if is_binary(str(project.root / path)):
-            continue
-        content = project.text(path).lower()
-        offenders.extend(f"{path}: {token}" for token in FRONTEND_TOOLCHAIN_TOKENS if token in content)
-        offenders.extend(f"{path}: {match.group(0)}" for match in RE_PICO.finditer(content))
-    assert offenders == []
 
     base = project.settings("base")
     assert "django_htmx" in base.literal("INSTALLED_APPS")
@@ -1014,6 +1055,38 @@ def test_no_inline_code_in_templates(bake, context):
     assert offenders == []
 
 
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_no_trace_of_a_removed_frontend(bake, context_override):
+    """No generated file, whatever the answers, names a frontend or a toolchain this template removed.
+
+    Every combination is scanned: the default answers prune the agent guide, the Compose files
+    and the CI configuration, which a scan of the default project would never read.
+    """
+    project = bake(context_override)
+
+    offenders = [f"{path}: its path" for path in project.files() if RE_REMOVED_FRONTEND.search(f"/{path}")]
+    for path in project.files():
+        if is_binary(str(project.root / path)):
+            continue
+        content = RE_DRAWN_VALUE.sub("", project.text(path))
+        offenders.extend(f"{path}: {token}" for token in FRONTEND_TOOLCHAIN_TOKENS if token in content.lower())
+        offenders.extend(f"{path}: {match.group(0)}" for match in RE_REMOVED_FRONTEND.finditer(content))
+    assert offenders == []
+
+
+def test_class_names_are_written_whole(bake, context):
+    """No class attribute glues an interpolation to part of a name: Tailwind generates a class only
+    where it finds the whole name. It does not prove that every class used is in the built stylesheet."""
+    project = bake(context)
+
+    offenders = []
+    for path in project.files():
+        if path.suffix != ".html":
+            continue
+        offenders.extend(f"{path}: {match.group(0)}" for match in RE_ASSEMBLED_CLASS.finditer(project.text(path)))
+    assert offenders == []
+
+
 def test_template_partials(bake, context):
     """htmx fragments are Django template partials selected by HtmxTemplateMixin."""
     project = bake(context)
@@ -1041,134 +1114,158 @@ def test_template_partials(bake, context):
     assert offenders == []
 
 
-def test_ui_library(bake, context):
-    """django-cotton is wired and isolated; the UI library's filters, palettes, theme and showcase are in place."""
+def test_tailwind_and_daisyui(bake, context):
+    """django-tailwind-cli builds the stylesheet from a source outside the static directories, and the
+    built file is never generated. Nothing here runs the Tailwind CLI: the integration scripts do."""
     project = bake(context)
     slug = context["project_slug"]
 
-    assert "django-cotton" in pinned(project)
+    # A runtime dependency: the production image builds the stylesheet without the dev group
+    assert "django-tailwind-cli" in {pin.name for pin in project.pins["dependencies"]}
     base = project.settings("base")
-    apps = base.literal("INSTALLED_APPS")
-    assert "django_cotton.apps.SimpleAppConfig" in apps
-    assert "django_cotton" not in apps
-    assert f"{slug}.ui" in apps
+    assert "django_tailwind_cli" in base.literal("INSTALLED_APPS")
+    assert base.literal("TAILWIND_CLI_USE_DAISY_UI") is True
+    # A release of tailwind-cli-extra, never "latest": it fixes Tailwind CSS and daisyUI together
+    assert re.fullmatch(r"\d+\.\d+\.\d+", base.literal("TAILWIND_CLI_VERSION"))
+    # Outside the static directories: a manifest storage cannot resolve the source's @import "tailwindcss"
+    assert base.literal("TAILWIND_CLI_SRC_CSS") == f"{slug}/styles/main.css"
+    assert base.value("STATICFILES_DIRS") == [Expression("str(APPS_DIR / 'static')")]
+    assert base.literal("TAILWIND_CLI_DIST_CSS") == "css/tailwind.css"
+    # The production image builds under the test settings, so no other module may say otherwise
+    for environment in ("local", "test", "production"):
+        assert "TAILWIND_CLI" not in project.settings(environment).source
+
+    # Explicit sources: the scan is the same with and without the .gitignore that Docker leaves out
+    css = project.text(f"{slug}/styles/main.css")
+    assert '@import "tailwindcss" source(none);' in css
+    assert '@source "../";' in css
+    assert RE_DAISYUI_PLUGIN.search(css)
+
+    ignored = project.text(".gitignore").splitlines()
+    assert f"{slug}/static/css/tailwind.css" in ignored
+    assert ".django_tailwind_cli/" in ignored
+    assert not (project.root / slug / "static" / "css" / "tailwind.css").exists()
+    assert not (project.root / ".django_tailwind_cli").exists()
+
+    # Django's own template loading again, and its form renderer on the project's overrides
     templates = base.value("TEMPLATES")[0]
-    assert templates["APP_DIRS"] is False
-    assert templates["OPTIONS"]["loaders"] == [
-        (
-            "django.template.loaders.cached.Loader",
-            [
-                "django_cotton.cotton_loader.Loader",
-                "django.template.loaders.filesystem.Loader",
-                "django.template.loaders.app_directories.Loader",
-            ],
-        ),
-    ]
-    assert templates["OPTIONS"]["builtins"] == ["django_cotton.templatetags.cotton", f"{slug}.ui.templatetags.ui"]
-    assert templates["OPTIONS"]["context_processors"][-1] == f"{slug}.ui.context_processors.theme"
-    assert base.literal("COTTON_ENABLE_CONTEXT_ISOLATION") is True
-    assert base.literal("UI_PALETTE") == "blue"
-    assert base.literal("UI_MODE") == "system"
-    assert base.literal("UI_BRAND") == {"light": {}, "dark": {}}
+    assert templates["APP_DIRS"] is True
+    assert set(templates["OPTIONS"]) == {"context_processors"}
+    assert base.literal("FORM_RENDERER") == "django.forms.renderers.TemplatesSetting"
+    forms = project.root / slug / "templates" / "django" / "forms"
+    for name in ("field.html", "errors/list/ul.html", "widgets/input.html", "widgets/attrs_without_class.html"):
+        assert (forms / name).is_file()
+    # Django's attrs.html stays Django's: the admin's widgets and third-party ones include it
+    assert not (forms / "widgets" / "attrs.html").exists()
 
-    assert f'include("{slug}.ui.urls", namespace="ui")' in project.text("config/urls.py")
-    modules = ["apps", "attrs", "checks", "context_processors", "contrast", "forms", "links", "palettes", "showcase"]
-    for module in [*modules, "showcase_urls", "themes", "urls", "views"]:
-        assert (project.root / slug / "ui" / f"{module}.py").is_file()
-    for library in ("ui", "showcase"):
-        assert (project.root / slug / "ui" / "templatetags" / f"{library}.py").is_file()
-    assert (project.root / slug / "static" / "css" / "ui" / "tokens.css").is_file()
-
-    components = project.root / slug / "templates" / "cotton" / "ui"
-    assert sorted(path.name for path in components.iterdir()) == [
-        "alert.html",
-        "badge.html",
-        "button.html",
-        "card.html",
-        "empty_state.html",
-        "field.html",
-        "link.html",
-        "pagination.html",
-        "table.html",
-    ]
-    assert project.template("django/forms/field.html").rstrip().endswith('<c-ui.field :field="field" />')
-    for name in ("tokens", "base", "components"):
-        assert (project.root / slug / "static" / "css" / "ui" / f"{name}.css").is_file()
-    assert not (project.root / slug / "static" / "vendor").exists()
-    assert (project.root / slug / "tests" / "test_staticfiles.py").is_file()
-    assert (project.root / slug / "tests" / "test_error_pages.py").is_file()
-
-    # The showcase renders an example per component, and only the development routes reach it
-    showcase = project.root / slug / "templates" / "ui"
-    assert (showcase / "showcase.html").is_file()
-    assert sorted(path.name for path in (showcase / "examples").iterdir()) == [
-        "alert.html",
-        "badge.html",
-        "button.html",
-        "card.html",
-        "empty_state.html",
-        "field.html",
-        "form.html",
-        "link.html",
-        "pagination.html",
-        "table.html",
-    ]
-    debug_routes = project.text("config/urls.py").rsplit("if settings.DEBUG:", 1)[1]
-    assert f'include("{slug}.ui.showcase_urls", namespace="showcase")' in debug_routes
-    assert "{% url 'showcase:index' as showcase_url %}" in project.template("partials/navigation.html")
-
+    # The built stylesheet is the only one a page loads, and the project ships no script of its own
     base_html = project.template("base.html")
-    # The library's stylesheets in their order, the theme after them, the project's last
-    assert re.findall(r'<link href="([^"]+)" rel="stylesheet" />', base_html) == [
-        "{% static 'css/ui/tokens.css' %}",
-        "{% static 'css/ui/base.css' %}",
-        "{% static 'css/ui/components.css' %}",
-        "{% url 'ui:theme' %}",
-        "{% static 'css/project.css' %}",
-    ]
-    assert 'data-ui-mode="{{ ui_theme.forced_mode }}"' in base_html
-    assert "<c-ui.alert" in base_html
+    assert "{% tailwind_css %}" in base_html
+    assert re.findall(r'<link\b[^>]*\brel="stylesheet"', base_html) == []
+    assert "<script" not in base_html
     assert "inline_javascript" not in base_html
+    assert not [path for path in project.files() if path.suffix == ".js"]
+    # htmx injects no indicator rules under the policy, so the source stylesheet holds them
+    assert ".htmx-indicator" in css
+    # The project's own theme is the default look, and the style example a developer edits
+    assert '@import "./theme.css";' in css
+    theme = project.text(f"{slug}/styles/theme.css")
+    assert '@plugin "daisyui/theme"' in theme
+    assert 'name: "brand";' in theme
+    assert theme.count("default: true;") == 1
+
+    for name in ("test_staticfiles.py", "test_error_pages.py", "test_forms.py", "test_allauth.py", "test_pages.py"):
+        assert (project.root / slug / "tests" / name).is_file()
     assert "   frontend\n" in project.text("docs/index.rst")
 
 
-def required_filter(attribute: str) -> re.Pattern[str]:
-    """The filter an interpolation inside ``attribute`` must end with."""
-    name = attribute.lower()
-    if name.startswith("data-hx-"):
-        name = name.removeprefix("data-")
-    if name in HTMX_DESTINATIONS:
-        return FILTER_FOR_HTMX_DESTINATIONS
-    if name in URL_ATTRIBUTES:
-        return FILTER_FOR_URLS
-    return FILTER_FOR_VALUES
-
-
-def test_components_write_attributes_through_the_filters(bake, context):
-    """A component's start tags interpolate attribute values through their filters, or the forwarded attributes."""
+def test_themes(bake, context):
+    """Every daisyUI theme is enabled next to the project's own, and the picker's choice is kept by a view
+    that is always routed. That the stylesheet and ``THEMES`` agree is the generated suite's to check."""
     project = bake(context)
+    slug = context["project_slug"]
 
-    offenders = []
-    for path in project.files():
-        if path.suffix != ".html" or "cotton" not in path.parts:
-            continue
-        source = project.text(path)
-        offenders.extend(f"{path}: {tag}" for tag in ("<script", "<style", "<link") if tag in source.lower())
-        for tag in RE_START_TAG.finditer(source):
-            for attribute in RE_ATTRIBUTE.finditer(tag.group(0)):
-                name, value = attribute.group(1), attribute.group(2)[1:-1]
-                offenders.extend(
-                    f"{path}: {name}={interpolation.group(0)}"
-                    for interpolation in RE_INTERPOLATION.finditer(value)
-                    if not required_filter(name).search(interpolation.group(1))
-                )
-            bare = RE_ATTRIBUTE.sub("", tag.group(0))
-            offenders.extend(
-                f"{path}: {interpolation.group(0)} outside an attribute value"
-                for interpolation in RE_INTERPOLATION.finditer(bare)
-                if interpolation.group(1).strip() != "attrs|ui_attrs"
-            )
-    assert offenders == []
+    themes = project.module(f"{slug}/themes.py").literal("THEMES")
+    own = re.search(r'name: "([^"]+)";', project.text(f"{slug}/styles/theme.css")).group(1)
+    assert themes == (own, *DAISYUI_THEMES)
+    # Listed one by one: "all" would make daisyUI's light the default, next to the project's own
+    enabled = RE_DAISYUI_PLUGIN.search(project.text(f"{slug}/styles/main.css")).group(1)
+    assert re.findall(r"^\s+([a-z]+)(?: --prefersdark)?[,;]$", enabled, re.MULTILINE) == list(DAISYUI_THEMES)
+    assert "--default" not in enabled
+
+    base = project.settings("base")
+    assert base.value("TEMPLATES")[0]["OPTIONS"]["context_processors"][-1] == f"{slug}.themes.theme"
+    routed = project.text("config/urls.py").partition("if settings.DEBUG:")[0]
+    assert 'path("theme/", set_theme, name="set_theme")' in routed
+
+    # The page is served in the chosen theme, and a checked theme-controller restyles it in CSS alone
+    base_html = project.template("base.html")
+    assert '{% if current_theme %}data-theme="{{ current_theme }}"{% endif %}' in base_html
+    assert "hx-history-elt" in base_html
+    navigation = project.template("partials/navigation.html")
+    assert "theme-controller" in navigation
+    assert "hx-post=\"{% url 'set_theme' %}\"" in navigation
+    assert (project.root / slug / "tests" / "test_themes.py").is_file()
+
+
+def test_examples_page(bake, context):
+    """The examples page is routed in every environment, and a project that deletes it needs no other edit."""
+    project = bake(context)
+    slug = context["project_slug"]
+
+    for name in ("__init__", "content", "forms", "urls", "views"):
+        assert (project.root / slug / "examples" / f"{name}.py").is_file()
+    # Not an installed app: it has no models, no template tags and no templates of its own
+    assert f"{slug}.examples" not in project.settings("base").literal("INSTALLED_APPS")
+    templates = project.root / slug / "templates" / "examples"
+    names = sorted(path.stem for path in templates.iterdir())
+    content = project.module(f"{slug}/examples/content.py")
+    static = ["theme", "buttons", "alerts", "badges", "card"]
+    assert names == sorted(["index", *static, *content.literal("HTMX_EXAMPLES")])
+
+    # Outside the DEBUG block, unlike the error page previews
+    routed, _, debug_only = project.text("config/urls.py").partition("if settings.DEBUG:")
+    include = f'include("{slug}.examples.urls", namespace="examples")'
+    assert include in routed
+    assert include not in debug_only
+    # The link asks for the route first, so deleting the page leaves the navigation working
+    navigation = project.template("partials/navigation.html")
+    assert "{% url 'examples:index' as examples_url %}" in navigation
+    assert "{% if examples_url %}" in navigation
+    # Where an htmx request puts a dialog
+    assert '<div id="modal"></div>' in project.template("base.html")
+    # The page keeps nothing on the server: its views open no transaction
+    assert "transaction.non_atomic_requests" in project.text(f"{slug}/examples/views.py")
+
+
+def test_docker_builds_and_watches_the_stylesheet(bake, context):
+    """The production image builds the stylesheet in its build stage; only the local stack runs the watcher."""
+    project = bake({**context, "use_docker": "y"})
+    slug = context["project_slug"]
+
+    build_stage, run_stage = project.text("compose/production/django/Dockerfile").split("AS python-run-stage")
+    assert "manage.py tailwind build --skip-checks" in build_stage
+    # The CLI lives in a build cache, so no layer and no image holds it
+    assert "--mount=type=cache,target=/app/.django_tailwind_cli" in build_stage
+    assert "tailwind" not in run_stage
+    # A container collects what the image holds, and builds nothing
+    start = project.text("compose/production/django/start")
+    assert "collectstatic" in start
+    assert "tailwind" not in start
+
+    ignored = project.text(".dockerignore").splitlines()
+    assert ".django_tailwind_cli/" in ignored
+    assert f"{slug}/static/css/tailwind.css" in ignored
+
+    services = project.compose("local")["services"]
+    watcher = services["tailwind"]
+    assert watcher["command"] == "python manage.py tailwind watch"
+    # Tailwind's CLI stops watching once its standard input closes
+    assert watcher["tty"] is True
+    assert watcher["ports"] == []
+    assert f"{slug}_local_tailwind_cli:/app/.django_tailwind_cli" in services["django"]["volumes"]
+    for environment in DEPLOYED_ENVIRONMENTS:
+        assert "tailwind" not in project.compose(environment)["services"]
 
 
 @pytest.mark.parametrize("rest_api", ["None", "DRF", "Django Ninja"])

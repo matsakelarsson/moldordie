@@ -125,7 +125,7 @@ class TestUserUpdateView:
         assert str(_("Information successfully updated")).encode() in response.content
         # The message arrives after the page loaded: announced, and dismissible
         assert b'role="status"' in response.content
-        assert b"data-ui-dismiss" in response.content
+        assert b'aria-label="Dismiss"' in response.content
 
     def test_not_authenticated(self, client: Client):
         url = reverse("users:update")
@@ -220,7 +220,8 @@ class TestUserDetailView:
         response = client.get(nameless.get_absolute_url())
 
         assert response.status_code == HTTPStatus.OK
-        assert f"<h1>{nameless.display_name}</h1>".encode() in response.content
+        heading = f'<h1 class="card-title text-2xl">{nameless.display_name}</h1>'
+        assert heading.encode() in response.content
         assert b"hidden@example.com" not in response.content
     {%- if cookiecutter.username_type == "username" %}
 
@@ -230,8 +231,9 @@ class TestUserDetailView:
 
         response = client.get(user.get_absolute_url())
 
-        assert b"<h1>Ann Lee</h1>" in response.content
-        assert f"<p>{user.username}</p>".encode() in response.content
+        assert b'<h1 class="card-title text-2xl">Ann Lee</h1>' in response.content
+        sub_line = f'<p class="text-base-content/70">{user.username}</p>'
+        assert sub_line.encode() in response.content
 
     def test_nameless_user_shows_the_username_once(self, client: Client):
         user = UserFactory.create(name="")
@@ -239,6 +241,7 @@ class TestUserDetailView:
 
         response = client.get(user.get_absolute_url())
 
-        assert f"<h1>{user.username}</h1>".encode() in response.content
-        assert f"<p>{user.username}</p>".encode() not in response.content
+        heading = f'<h1 class="card-title text-2xl">{user.username}</h1>'
+        assert heading.encode() in response.content
+        assert f">{user.username}</p>".encode() not in response.content
     {%- endif %}

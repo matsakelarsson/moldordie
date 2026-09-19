@@ -71,13 +71,17 @@ Make sure to have the following on your host:
 
     uv run python manage.py migrate
 
+#. Start the Tailwind watcher in a second terminal, with the same environment, and leave it running: ::
+
+    uv run python manage.py tailwind watch
+
+   The pages are styled by ``<project_slug>/static/css/tailwind.css``, which is not in the repository: the Tailwind CLI builds it from ``<project_slug>/styles/main.css`` and from the class names in the project's templates, and the watcher rebuilds it whenever one of them changes. The first run downloads the CLI, a standalone binary with daisyUI bundled, into ``.django_tailwind_cli/``; no Node.js is involved. Until a first build has run the pages have no styles. The watcher prints nothing as it rebuilds, errors included: ``uv run python manage.py tailwind build``, which builds once and minified as a deployment does before ``collectstatic``, reports them. See the :ref:`frontend guide <frontend-guide>` for details.
+
 #. See the application being served through Uvicorn, the ASGI server used in development and production: ::
 
     uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
 
-   Django's ``runserver`` still works for plain HTTP, but it does not serve websockets.
-
-   There is no frontend build step: htmx and the UI library's stylesheets are served as static files. See the :ref:`frontend guide <frontend-guide>` for details.
+   Django's ``runserver`` still works for plain HTTP, but it does not serve websockets; ``uv run python manage.py tailwind runserver`` starts it and the watcher together.
 
 .. _PostgreSQL: https://www.postgresql.org/download/
 .. _Redis: https://redis.io/download

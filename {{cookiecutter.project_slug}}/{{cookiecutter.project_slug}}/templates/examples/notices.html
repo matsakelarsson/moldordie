@@ -1,0 +1,19 @@
+{% raw %}{# hx-swap="none": the answer holds nothing but the messages, which htmx still swaps in out of band #}
+<form class="flex flex-wrap gap-2"
+      method="post"
+      action="{% url 'examples:notices' %}"
+      hx-post="{% url 'examples:notices' %}"
+      hx-swap="none">
+  {% csrf_token %}
+  <button class="btn btn-info btn-sm" type="submit" name="level" value="info">Info</button>
+  <button class="btn btn-success btn-sm"
+          type="submit"
+          name="level"
+          value="success">Success</button>
+  <button class="btn btn-warning btn-sm"
+          type="submit"
+          name="level"
+          value="warning">Warning</button>
+  <button class="btn btn-error btn-sm" type="submit" name="level" value="error">Error</button>
+</form>
+{%- endraw %}

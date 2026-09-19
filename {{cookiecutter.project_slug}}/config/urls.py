@@ -13,7 +13,10 @@ from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
-{%- elif cookiecutter.rest_api == 'Django Ninja' %}
+{%- endif %}
+
+from {{ cookiecutter.project_slug }}.themes import set_theme
+{%- if cookiecutter.rest_api == 'Django Ninja' %}
 
 from .api import api
 {%- endif %}
@@ -30,8 +33,14 @@ urlpatterns = [
     # User management
     path("users/", include("{{ cookiecutter.project_slug }}.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
-    # The UI library: the theme stylesheet (docs/frontend.rst)
-    path("ui/", include("{{ cookiecutter.project_slug }}.ui.urls", namespace="ui")),
+    # The theme picker of the navigation posts the visitor's choice here
+    path("theme/", set_theme, name="set_theme"),
+    # The examples page, in every environment until the project deletes it:
+    # this line, the examples package and templates/examples/ (docs/frontend.rst)
+    path(
+        "examples/",
+        include("{{ cookiecutter.project_slug }}.examples.urls", namespace="examples"),
+    ),
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
     # The single-page application's login: allauth's headless API, app client only
     path("_allauth/", include("allauth.headless.urls")),
@@ -89,11 +98,6 @@ if settings.DEBUG:
             kwargs={"exception": Exception("Page not Found")},
         ),
         path("500/", default_views.server_error),
-        # The UI library's showcase and its theme preview (docs/frontend.rst)
-        path(
-            "ui/components/",
-            include("{{ cookiecutter.project_slug }}.ui.showcase_urls", namespace="showcase"),
-        ),
     ]
     if "debug_toolbar" in settings.INSTALLED_APPS:
         import debug_toolbar

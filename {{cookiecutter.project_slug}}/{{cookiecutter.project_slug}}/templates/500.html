@@ -1,15 +1,21 @@
 {% raw %}{% extends "base.html" %}
 
-{% block title %}Server Error{% endblock title %}
+{% load i18n %}
+
+{% block title %}
+  {% translate "Server Error" %}
+{% endblock title %}
 {% block content %}
-  <c-ui.card>
-    <c-slot name="header">
-      <h1>Ooops!!! 500</h1>
-      <p>Looks like something went wrong!</p>
-    </c-slot>
-    <p>
-      We track these errors automatically, but if the problem persists feel free to contact us. In the meantime, try refreshing.
-    </p>
-  </c-ui.card>
+  <div class="hero py-16">
+    <div class="hero-content text-center">
+      <div class="max-w-md">
+        <h1 class="text-4xl font-bold">{% translate "Ooops!!! 500" %}</h1>
+        <p class="pt-6 text-lg">{% translate "Looks like something went wrong!" %}</p>
+        <p class="py-6">
+          {% translate "We track these errors automatically, but if the problem persists feel free to contact us. In the meantime, try refreshing." %}
+        </p>
+      </div>
+    </div>
+  </div>
 {% endblock content %}
 {%- endraw %}

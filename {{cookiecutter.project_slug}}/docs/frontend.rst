@@ -2,334 +2,254 @@
 ========
 
 The frontend is server rendered: Django templates, `htmx`_ for partial page updates, and
-the UI library, which is `django-cotton`_ for reusable components, project-owned CSS and
-a colour theme served for each request. Every asset comes from this origin and nothing is
-built: there is no bundler and no package manager for the frontend. Every response carries
-a nonce-based Content Security Policy, so templates hold no inline scripts, styles or event
-handlers; the rules below keep the library within it.
+`Tailwind CSS`_ with `daisyUI`_'s components for the look. `django-tailwind-cli`_ runs
+Tailwind's standalone CLI from ``manage.py``, so there is no Node.js toolchain, and the
+project ships no JavaScript of its own: what involves the server is an htmx request, and
+what does not is one of daisyUI's CSS-only mechanisms. Every response carries a nonce-based
+Content Security Policy, so templates hold no inline scripts, styles or event handlers;
+the rules at the end of this page keep a template within it.
+
+Two commands matter from day to day::
+
+    python manage.py tailwind watch    # rebuild the stylesheet whenever a file changes
+    python manage.py tailwind build    # build it once, minified, as a deployment does
 
 .. _htmx: https://htmx.org
-.. _django-cotton: https://django-cotton.com
+.. _Tailwind CSS: https://tailwindcss.com
+.. _daisyUI: https://daisyui.com
+.. _django-tailwind-cli: https://django-tailwind-cli.readthedocs.io
 
-Cotton
-------
+The stylesheet
+--------------
 
-django-cotton compiles the ``<c-name>`` tags of a template into Django template tags before
-Django parses it, through a template loader. ``config/settings/base.py`` configures it
-explicitly rather than through Cotton's default app config, so the configuration is in the
-settings where it can be read:
+There are two stylesheets, and only one of them is yours to edit.
 
-- ``django_cotton.apps.SimpleAppConfig`` is installed. Cotton's default config rewrites
-  ``TEMPLATES`` at startup; this one leaves the settings as written. Both patch Django's
-  template lexer globally at startup, so that a component's attributes may hold template
-  syntax; that patch is Cotton's way of working and is not opted out of.
-- ``APP_DIRS`` is off and the loaders are listed: Django's cached loader around Cotton's
-  loader, then the filesystem and app directories loaders. Cotton's loader comes first so
-  that every template is compiled before it is parsed, and its own directories cover the
-  project's ``templates/`` and every installed app's.
-- ``builtins`` lists Cotton's tag library and the UI library's filters, so no template
-  loads them.
-- ``COTTON_ENABLE_CONTEXT_ISOLATION = True``: a component renders with its own inputs,
-  the request and the context processors, and never sees the calling template's variables.
-  What a component needs, it is given. The next Cotton release renames the setting
-  ``COTTON_ISOLATE_BY_DEFAULT`` and keeps the old name with a deprecation warning;
-  ``ui/tests/test_isolation.py`` shows which name the installed release honours.
+The **source stylesheet** is ``<project_slug>/styles/main.css``, with the project's theme
+beside it in ``theme.css``. It imports Tailwind CSS, enables daisyUI, names the files whose
+class names count, and holds the few rules no class can say, such as htmx's request
+indicator. It is committed. It sits outside the static directories on purpose: under a
+manifest storage ``collectstatic`` would try to resolve its ``@import "tailwindcss"`` as a
+file and fail.
 
-A component is a template under ``templates/cotton/``: ``<c-ui.button>`` is
-``templates/cotton/ui/button.html``, dots naming directories and hyphens becoming
-underscores (``<c-ui.empty-state>`` is ``empty_state.html``). The library's components are
-listed under `Components`_ below. It declares the inputs it consumes with ``<c-vars>``; every other attribute
-it is given reaches it as ``attrs``. Its content is the default slot, ``{{ slot }}``, and
-a ``<c-slot name="header">`` inside it a named slot, ``{{ header }}``; slots are rendered
-in the caller's template context before the component sees them.
+The **built stylesheet** is ``<project_slug>/static/css/tailwind.css``, the one stylesheet
+``base.html`` loads, through the ``{% tailwind_css %}`` tag. The Tailwind CLI writes it
+from the source stylesheet and from the class names it finds in the project. It is an
+artefact: generation does not write it, ``.gitignore`` keeps it out of version control,
+and a fresh checkout has none until the watcher or a build has run. A page without styles
+means exactly that.
 
-Under ``DEBUG`` an error raised while a component renders can surface as a ``TypeError``
-from Django's debug lexer rather than as the error itself, because Cotton's compiled tags
-carry no source position. Read the underlying error in the traceback, or reproduce it in a
-test, where the tests run with ``DEBUG`` off.
+The CLI itself is a standalone binary with daisyUI bundled, ``tailwindcss-extra``.
+django-tailwind-cli downloads the release that ``TAILWIND_CLI_VERSION`` names into
+``.django_tailwind_cli/`` the first time a command needs it, about 80 to 110 MB depending
+on the platform, and git ignores that directory too. Every ``TAILWIND_CLI_*`` setting is
+in ``config/settings/base.py`` and in no other settings module, because the production
+image builds the stylesheet under the test settings: an override elsewhere would build
+one file and ask for another.
 
-Writing attributes and URLs
----------------------------
+Keep the watcher running while you work. It prints nothing as it rebuilds, errors
+included, so when a change to the source stylesheet seems to have no effect, run
+``tailwind build``, which reports them. Uvicorn serves the rebuilt file on the next
+request without restarting.
 
-Three filters, builtins of every template, are the only way a component writes a value
-into an attribute. They live in ``ui/templatetags/ui.py``; the rules are in
-``ui/attrs.py`` and ``ui/links.py``.
+Which class names count
+~~~~~~~~~~~~~~~~~~~~~~~
 
-``{{ attrs|ui_attrs }}``
-    The attributes the component did not declare, written onto its element. Forwarding is
-    a developer interface: values come from the templates that call the component, not
-    from users. The filter refuses, with ``ValueError``, a name that is not an attribute
-    name, ``class`` (a component declares it and merges it once), ``style``, ``on*``,
-    ``hx-on*`` and ``data-hx-on*`` (the policy forbids inline code), a name given twice in
-    any letter case, a boolean where text is expected and text where a boolean is, and an
-    htmx destination that leaves this origin. It refuses a dict, a list or any other
-    structured value with ``TypeError`` rather than writing its Python representation.
+Tailwind generates a rule only for a class name it has seen. The source stylesheet turns
+automatic detection off and names its sources itself::
 
-    ``None`` writes nothing. ``True`` and ``False`` write HTML's boolean attributes such
-    as ``disabled`` or ``required`` as present or absent; ``hidden`` also takes
-    ``"until-found"``; ``aria-``, ``data-`` and ``hx-`` attributes take the words
-    ``true`` and ``false``. Text is escaped. A marked-safe string keeps its entities and
-    has its literal double quotes encoded, so it can never end the attribute. The htmx
-    destinations ``hx-get``, ``hx-post``, ``hx-put``, ``hx-patch`` and ``hx-delete``, and
-    ``hx-push-url`` or ``hx-replace-url`` when they carry a URL rather than a word, must
-    be local: a relative reference with no scheme and no host. The ``data-hx-`` spellings
-    follow the same rules.
+    @import "tailwindcss" source(none);
+    @source "../";
+    @source not "../media";
+    @source not "../static";
 
-``{{ value|ui_attr }}``
-    One declared input in an attribute position, with the same encoding: escaped, or a
-    marked-safe string with its double quotes encoded. Use it for every interpolation
-    inside an attribute of a component, never a bare ``{{ value }}``.
+so the scan covers this package, its templates and its Python modules (a class given to a
+widget in a form counts), and is the same on every machine and in the production image,
+where there is no ``.gitignore`` to steer it. Templates of an app you keep outside the
+package need an ``@source`` line of their own.
 
-``{{ url|ui_url }}`` and ``{{ url|ui_url:"local" }}``
-    A URL, validated as the browser will receive it and then encoded. The ``navigation``
-    policy, the default, accepts a relative reference or an absolute ``http`` or
-    ``https`` URL with a hostname; the ``local`` policy, for htmx destinations, accepts a
-    relative reference only. Both refuse an empty value, surrounding whitespace, control
-    characters, backslashes and protocol-relative ``//host`` forms. A marked-safe value,
-    the output of ``{% url %}`` for one, is decoded once before validation so an entity
-    cannot hide a scheme; ordinary text is validated as written and escaped, so
-    ``javascript&#58;`` stays the harmless literal it is. Other schemes, ``mailto:`` or
-    ``tel:`` say, are written as plain HTML by the calling template, not through a
-    component.
+The scan reads text, not templates, which gives the one rule to remember: **write class
+names whole**. ``alert-{{ level }}`` never produces ``alert-success``, because that name
+appears nowhere. Choose between whole names instead, as the messages in ``base.html`` do:
 
-Tokens and palettes
+.. code-block:: html+django
+
+    <div class="alert {% if message.level_tag == 'success' %}alert-success{% else %}alert-info{% endif %}">
+
+A name that exists only in data, in the database for one, is declared in the source
+stylesheet with ``@source inline("alert-success alert-error");``.
+
+The project's theme
 -------------------
 
-A token is a design value the components read, a CSS custom property with the ``--ui-``
-prefix. The tokens that are not colours are in ``static/css/ui/tokens.css``: the font
-stacks, the type sizes, the spacing scale, the radii, the shadows, the focus ring's width
-and offset, the container width, and ``color-scheme``. The colour tokens are owned by
-Python, in ``ui/palettes.py``, and served by the theme stylesheet described below.
+``styles/theme.css`` is the project's own daisyUI theme, ``brand``, and the default look.
+Every value daisyUI reads is written out in it: the surfaces and the text on them, the
+brand's colours each with the colour of what is written on it, the status colours, the
+corner radii, the sizes, the border width and the depth effects. **Restyling the site is
+editing that block**, not overriding daisyUI's classes: change ``--color-primary`` and
+every primary button, link and focus ring follows; change ``--radius-field`` and every
+input and button does. The `theme generator`_ edits the same values visually and hands
+back a block to paste.
 
-There are 26 colour tokens. Ten may be overridden by a brand:
+The colours start from daisyUI's ``light`` theme. Secondary, accent and the status
+colours are darker than daisyUI's, so that each has a contrast of at least 4.5:1 both as
+text on the base colours and beneath its ``-content`` colour. Nothing checks that for the
+values you put there: when you change a colour, check the pairs you use.
 
-- ``bg`` and ``surface``, the page and the raised surfaces on it;
-- ``fg`` and ``fg-muted``, the text and the secondary text;
-- ``border``, the decorative border of cards and dividers, and ``border-control``, the
-  boundary of inputs and buttons;
-- ``accent``, ``accent-hover`` and ``accent-fg``, the brand colour of links and primary
-  buttons, its hover state and the text on it;
-- ``focus``, the focus ring.
+A browser that prefers a dark colour scheme gets daisyUI's ``dark``, because ``main.css``
+enables it with ``--prefersdark``. For a dark counterpart of your own, add a second block
+named ``brand-dark`` with ``prefersdark: true`` and ``color-scheme: dark``, start it from
+the values of daisyUI's ``dark``, and take ``--prefersdark`` off ``dark`` in ``main.css``:
+only one theme can answer a dark colour scheme.
 
-Sixteen belong to the palette, four for each status ``info``, ``success``, ``warning`` and
-``error``: the solid ``<status>`` for badges and indicators, ``<status>-fg`` for text on
-the solid, ``<status>-text`` for text on the page and inside a tinted alert, and
-``<status>-tint``, the alert's background. Inside a tinted alert, body text, links and the
-dismiss control all use ``<status>-text``, and links are underlined.
+.. _theme generator: https://daisyui.com/theme-generator/
 
-A palette is a complete set of all 26 tokens in both a light and a dark set. Three are
-built in, ``blue``, ``teal`` and ``violet``, and every one meets WCAG AA in every pair of
-tokens that meet on the page, the adjacency table ``PAIRS`` in ``ui/palettes.py``: 4.5:1
-for text (``fg`` and ``fg-muted`` on ``bg`` and ``surface``; ``accent`` and
-``accent-hover`` on both as links; ``accent-fg`` on ``accent`` and ``accent-hover``; each
-``<status>-text`` on ``bg``, ``surface`` and its tint; each ``<status>-fg`` on its solid)
-and 3:1 for what is not text (``border-control`` on ``bg`` and ``surface``; ``focus`` on
-``bg``, ``surface`` and every tint; each solid status on ``bg``, ``surface`` and its
-tint). The focus ring is drawn outward with an offset, so the colour next to it is the
-page, the surface or the tint, which the table checks. Hover states either switch between
-checked pairs, the primary button from ``accent`` to ``accent-hover`` for one, or change
-decoration only, so no unchecked colour appears. ``ui/tests/test_palettes.py`` checks
-every palette against the table with the arithmetic in ``ui/contrast.py``, whose own tests
-pin the reference ratios; a palette edit that breaks a pair fails there. To add a palette,
-add its two sets to ``PALETTES``.
+Themes and the picker
+---------------------
 
-The theme
----------
+Next to ``brand``, ``main.css`` enables every theme daisyUI ships, and the navigation
+offers them all in the theme picker, with "System" for no choice at all. The picker
+involves no script:
 
-A theme is both resolved colour sets, light and dark, plus the mode the page asked for.
-Three settings configure it:
+- It is a form of radio buttons of daisyUI's ``theme-controller`` class. daisyUI applies
+  the theme of a checked one in CSS alone, so the page is restyled the moment a visitor
+  picks.
+- The form posts the change to ``set_theme``, in ``<project_slug>/themes.py``, through
+  htmx (``hx-trigger="change"``, ``hx-swap="none"``). The view keeps the name in the
+  ``theme`` cookie for a year and answers 204: there is nothing to swap.
+- The ``theme`` context processor reads the cookie back, and ``base.html`` writes it as
+  ``data-theme`` on the root element, so every later page arrives in the chosen theme.
+  Only a name in ``THEMES`` reaches the cookie, and only a cookie naming one reaches the
+  attribute.
+- "System" deletes the cookie, and the view answers it with ``HX-Refresh``, because
+  nothing on the page can undo the ``data-theme`` it was served with. ``base.html`` then
+  writes no attribute at all, never an empty one: daisyUI's rule for a dark colour scheme
+  applies to a root element without it.
+- Without JavaScript the radio still restyles the page, and the "Apply" button of the
+  form's ``noscript`` element posts it; the view redirects back to the page.
 
-.. code-block:: python
+The choice belongs to the browser, not to the account. ``500.html`` is rendered without a
+request, so it is always in the default theme and has no picker. ``<main>`` carries
+``hx-history-elt``, so htmx's history saves and restores the content and leaves the
+navigation alone; without it, going back would bring back the picker as it was, and its
+checked radio would outweigh the theme the page was served in.
 
-    UI_PALETTE = "blue"  # blue, teal or violet
-    UI_MODE = "system"  # system, light or dark
-    UI_BRAND: dict[str, dict[str, str]] = {"light": {}, "dark": {}}
+``THEMES`` in ``themes.py`` and the ``themes:`` list in ``main.css`` say the same thing in
+two languages, and ``tests/test_themes.py`` in the package compares them. To offer fewer
+themes, delete the same names from both; the built stylesheet shrinks by about a
+kilobyte for each. To add a theme of your own to the picker, add its block to
+``theme.css`` and its name to ``THEMES`` after ``OWN_THEME``.
 
-``system`` leaves the choice between the sets to the browser's preference; ``light`` or
-``dark`` forces one, through the ``data-ui-mode`` attribute that ``base.html`` puts on the
-root element and a matching ``color-scheme``, so native controls agree with the page. An
-unknown palette or mode is reported by the system checks (``ui.E001``, ``ui.E002``).
+Building pages
+--------------
 
-``UI_BRAND`` is the deployment's brand: for each set, colours for the ten tokens a brand
-may override, named without the ``--ui-`` prefix, each a ``#RRGGBB`` colour. A set or a
-token left out keeps the palette's colour:
+A page extends ``base.html`` and fills ``content``; ``title``, ``css``, ``javascript``,
+``bodyclass``, ``main`` (the width-limited column around ``content``), ``body`` and
+``modal`` are there to be overridden as well. Markup is daisyUI's component classes
+(``btn``, ``card``, ``alert``, ``badge``, ``table``, ``navbar``, ``menu`` and the rest,
+documented at daisyui.com) with Tailwind's utilities for layout and spacing, written in
+the template where they apply. There is no component layer of the project's own between a
+template and daisyUI: a piece of markup used twice is a Django ``{% include %}`` or a
+``partialdef`` partial rendered with ``{% partial %}``, as the navigation's links are.
 
-.. code-block:: python
+Tailwind's preflight removes the browser's default look from bare elements, headings and
+lists included, so an element is styled by its classes or not at all. Running text is the
+exception worth a tool: ``prose``, from Tailwind's typography plugin, styles whatever it
+wraps, as ``templates/pages/about.html`` shows.
 
-    UI_BRAND = {
-        "light": {"accent": "#0b57d0", "accent-hover": "#0842a0", "focus": "#0842a0"},
-        "dark": {"accent": "#a8c7fa", "accent-hover": "#d3e3fd", "focus": "#d3e3fd"},
-    }
-
-The status tokens belong to the palette, so a brand never changes what an error looks
-like; it can still change the surfaces a status colour sits on, so the palette with the
-brand over it is checked against the whole adjacency table. The system checks report a
-``UI_BRAND`` that is not such a mapping, a token a brand may not override and a value that
-is not a ``#RRGGBB`` colour (``ui.E003``), and every pair the result no longer meets
-(``ui.E004``).
-
-The theme is served as a stylesheet, ``/ui/theme.css``, that ``base.html`` loads after
-``tokens.css``: the light set on ``:root``, the dark set under
-``prefers-color-scheme: dark`` unless light is forced, and again under
-``[data-ui-mode="dark"]``. Its selectors and property names are fixed and its values are
-validated colours; nothing else is interpolated. The response is ``Cache-Control:
-private, no-store`` because it can depend on the request. It opens no database transaction
-and, without ``DEBUG``, when no session preview is read, needs no database at all, so an
-error page keeps its colours. It is a route, not a static file: it is not collected and not
-hashed.
-
-``ui/themes.py`` holds the pure functions: ``resolve`` applies overrides to a palette,
-``validate`` says what keeps a theme from being served, ``override_problems`` what keeps an
-override from applying, ``servable_theme`` runs them and raises ``InvalidThemeError`` with
-every problem found, ``preview_theme`` resolves a preview, and ``render_stylesheet`` writes
-the CSS. ``configured_theme()`` resolves the settings; a configured theme that cannot be
-served is a configuration error, raised rather than served. ``resolve_theme(request)``
-resolves a request's theme once, for the ``ui_theme`` context processor and the stylesheet
-view alike: the configured theme or, under ``DEBUG``, the preview the showcase keeps in the
-session (see `The showcase`_). A preview that can no longer be served, because a palette or
-``UI_BRAND`` changed beneath it, is logged as a warning, removed from the session and
-replaced by the configured theme. ``resolve_theme`` is also where an application resolves
-its own source of colours; see `From a preview to a company's colours`_.
-
-Stylesheets
------------
-
-``base.html`` loads the stylesheets in this order, and nothing else does:
-
-#. ``css/ui/tokens.css``: the tokens that are not colours.
-#. ``css/ui/base.css``: a small reset, the typography, the focus ring, the page header and
-   navigation, the layout helpers (``ui-container``, ``ui-main``, ``ui-stack``,
-   ``ui-actions``, ``ui-actions-vertical``, ``ui-muted``, ``ui-visually-hidden``) and the
-   reduced-motion rule.
-#. ``css/ui/components.css``: the components' rules, the form controls inside the field
-   component's wrappers, and htmx's ``htmx-indicator`` rules, which htmx would otherwise
-   inject as an inline stylesheet the policy forbids.
-#. ``/ui/theme.css``: the colours, resolved for the request.
-#. ``css/project.css``: the project's own rules, empty to begin with. Override a token
-   there to change every component that reads it, or add rules of your own.
-
-Every class the library writes starts with ``ui-`` and every token with ``--ui-``. Two
-classes it styles are written by other code: Django's ``errorlist``, on a field and as
-``errorlist nonfield`` on a form, and htmx's ``htmx-indicator``. Form controls are styled
-only inside the field component's wrappers, so the admin and other pages with their own
-styles are untouched. Expandable content is the browser's
-``<details>`` element, which ``base.css`` styles; there is no component for it.
-
-Components
-----------
-
-Every component follows the same rules. It declares the inputs it consumes with
-``<c-vars>``; ``class`` is one of them, merged once into the element's own classes, so an
-element never carries two ``class`` attributes. A variant it does not know gets the
-default. Every other attribute it is given is forwarded to its documented element through
-``ui_attrs``, under the contract above: an id, ``data-`` and ``aria-`` attributes, and the
-htmx attributes that stay on this origin. Text in a slot is the caller's markup, escaped
-by Django as usual; a label is translated where the component writes it. A component
-queries no model, decides no permission, embeds no URL and invents no id.
-
-``<c-ui.button>``
-    A native ``<button>``. ``type`` defaults to ``button``; pass ``type="submit"`` for the
-    button that submits a form. ``variant`` is ``primary`` (the default), ``secondary``,
-    ``danger`` or ``quiet``; ``size`` is ``normal`` or ``small``. ``disabled`` is the native
-    attribute, forwarded. The content is the label.
-
-``<c-ui.link>``
-    A native ``<a>``; ``href`` is required and validated under the navigation policy.
-    ``appearance`` is ``plain`` (the default, an underlined link) or ``button``, which
-    takes the button's ``variant`` and ``size``. A link is never disabled and never
-    ``role="button"``: leave it out instead. A caller that has to show a control as
-    unavailable marks it ``aria-disabled="true"``, which ``components.css`` styles on a
-    button; the pagination component marks its unavailable previous and next that way.
-
-``<c-ui.card>``
-    An ``<article>`` on a raised surface. The content is the body, when there is any; the
-    ``header`` slot holds the caller's heading markup and the ``actions`` slot the controls
-    that act on the card, laid out as an action group. The caller gives it an ``id`` when
-    something targets it.
-
-``<c-ui.alert>``
-    A notice. ``level`` is ``info`` (the default, which Django's ``debug`` also gets),
-    ``success``, ``warning`` or ``error``; ``title`` is a leading line. ``dismissible``
-    adds a button marked ``data-ui-dismiss`` that ``project.js`` answers by removing the
-    root, marked ``data-ui-alert``. ``announce`` is for a message that arrives after the
-    page loaded: it adds ``role="status"`` for info and success and ``role="alert"`` for
-    warning and error. The messages partial passes both; a notice that is in the page from
-    the start passes neither.
-
-``<c-ui.badge>``
-    A short label whose meaning is in its text. ``level`` is ``neutral`` (the default),
-    ``info``, ``success``, ``warning`` or ``error``.
-
-``<c-ui.field>``
-    One field of a form, given a bound field: ``<c-ui.field :field="form.name" />``. It
-    writes the label, the widget as Django renders it, the errors and the help text, in
-    that order, and keeps Django's associations: ``aria-invalid`` and ``aria-describedby``
-    on the widget, the ``<id>_error`` id on the error list and ``<id>_helptext`` on the
-    help text. A hidden field is its widget alone; a widget that asks for a fieldset,
-    radio buttons or a checkbox group, gets one with a ``<legend>``; a checkbox sits inside
-    its label. See `Forms`_.
-
-``<c-ui.table>``
-    A native ``<table>`` in a container that scrolls sideways on narrow screens.
-    ``caption`` names it; the ``head`` slot holds the header row, wrapped in ``<thead>``;
-    the content is the body rows, wrapped in ``<tbody>``. There is no client-side sorting.
-
-``<c-ui.pagination>``
-    Navigation between the pages of a Django page object, ``:page="page_obj"``. The view
-    supplies the URLs: ``previous_url``, ``next_url`` and optionally ``page_urls``, pairs
-    of a page number and its URL, in which a pair with an empty URL is an ellipsis; without
-    ``page_urls`` the page's position is written as text. The current page carries
-    ``aria-current="page"``; a previous or next page that does not exist is text, not a
-    link. ``target``, a CSS selector, makes every link also an htmx request: ``hx-get`` to
-    the same URL under the local policy, ``hx-target`` to the selector,
-    ``hx-swap="outerHTML"`` and ``hx-push-url="true"``. The target must then contain both
-    the results and the component, and the fragment the view returns must reproduce it
-    with its id. ``label`` names the navigation for assistive technology, "Pagination" by
-    default.
-
-``<c-ui.empty-state>``
-    What a card or a results area shows when there is nothing to list: ``title``, the
-    content as the explanation, and an ``actions`` slot with what the reader can do.
-
-A page uses them like this:
-
-.. code-block:: django
-
-    <c-ui.card id="user-profile">
-      <c-slot name="header">
-        <h1>{{ object.display_name }}</h1>
-      </c-slot>
-      <c-slot name="actions">
-        <c-ui.link href="{% url 'users:update' %}"
-                   appearance="button"
-                   hx-get="{% url 'users:update' %}"
-                   hx-target="#user-profile"
-                   hx-swap="outerHTML"
-                   hx-push-url="true">{% translate "My Info" %}</c-ui.link>
-      </c-slot>
-    </c-ui.card>
-
-The tests in ``ui/tests/test_components.py`` render every component from a page under
-``ui/tests/templates/tests/``, so Cotton's compiler and loader run on them, and read the
-result with the parser in ``ui/tests/markup.py``. In development, every component is also
-on `The showcase`_, rendered from an example shown beside it as written.
+daisyUI's interactive components work without a script, and those are the variants to
+use under the policy: a ``dropdown`` opens while it holds the focus (the navigation's
+menu), a ``collapse`` rides on ``<details>``, and tabs, drawers and swaps ride on radio
+buttons and checkboxes. Its documentation shows some components with a ``style``
+attribute for a value, ``radial-progress`` and ``countdown`` among them; write that value
+as an arbitrary property class instead, ``[--value:70]``, which the policy allows.
 
 Forms
 -----
 
-``FORM_RENDERER`` is Django's ``TemplatesSetting`` renderer, and
-``templates/django/forms/field.html`` is one line: ``<c-ui.field :field="field" />``. So
-``{{ form }}``, ``form.as_div`` and ``field.as_field_group`` all render every field
-through the component, non-field errors and hidden fields staying as Django writes them,
-and a field placed by hand with ``<c-ui.field>`` looks the same. The component renders the
-widget itself, ``{{ field }}``, never the field group, so nothing recurses.
+``FORM_RENDERER`` is Django's ``TemplatesSetting`` renderer, so ``{{ form }}``,
+``form.as_div`` and ``field.as_field_group`` render through the project's templates under
+``templates/django/forms/``, and a form needs no classes set in Python to look right:
 
-The label comes from ``ui_label``, a filter of the library: ``{{ field|ui_label }}`` is
-Django's ``label_tag`` with the library's class and without the form's label suffix,
-``{{ field|ui_label:"legend" }}`` the same as a ``<legend>``. Django writes no tag for a
-field without an id (``auto_id=False``), and the filter then wraps the text in a
-``<span>`` of the same class. A widget with an id of its own keeps it, and a label set on
-the bound field is the one shown. ``ui/tests/test_field.py`` covers each of these.
+- ``field.html`` writes each field: daisyUI's ``fieldset`` wrapper, the label, the widget,
+  the errors, the help text, in that order. It keeps Django's associations: the label
+  names the widget, the widget names its help text and its error list in
+  ``aria-describedby``, and an invalid widget carries ``aria-invalid``. A radio or
+  checkbox group is a real ``<fieldset>`` with a ``<legend>``, which carries the
+  ``aria-describedby``; a checkbox sits inside its label; a hidden field is its widget
+  alone; a form without ids (``auto_id=False``) gets a ``<span>`` for a label.
+- ``widgets/input.html``, ``select.html``, ``textarea.html`` and
+  ``clearable_file_input.html`` give each control daisyUI's class for its kind, ``input``,
+  ``checkbox``, ``radio``, ``file-input``, ``range``, ``select`` or ``textarea``, and merge
+  a class of the widget's own into the same attribute. A checkbox whose widget asks for
+  ``toggle``, ``forms.CheckboxInput(attrs={"class": "toggle"})``, is a toggle.
+  ``widgets/input_option.html`` and ``multiple_input.html`` lay out the options of a group.
+- The error colour of a control comes from ``aria-invalid``, which Django sets: the class
+  is ``aria-invalid:input-error`` and its siblings, so no view or form adds a class to an
+  invalid field. daisyUI's ``validator`` class, which colours a control from the browser's
+  own validation as the user types, is available per widget the same way as ``toggle``.
+- ``errors/list/ul.html`` is Django's error list with its ``errorlist`` class, the id the
+  widget names, and the error colour.
+
+``widgets/attrs_without_class.html`` is Django's ``attrs.html`` minus the ``class``
+attribute, which the widget templates write themselves. Django's own ``attrs.html`` is
+deliberately not overridden: the admin's widgets and third-party ones include it and
+expect the class from it. The renderer is global, so the admin's fields come through these
+templates too. That is harmless: the admin never loads the built stylesheet, its own
+classes (``vTextField`` and the rest) are merged in like any widget's, and the templates
+use none of the few utility names the admin's stylesheets define (``hidden``, ``small``,
+``inline``): keep it that way when you edit them. ``tests/test_forms.py`` in the package
+covers each of these points.
+
+django-allauth
+--------------
+
+allauth's pages are its own templates, built from elements it renders through
+``templates/allauth/elements/``. Every element is overridden there, because under
+Tailwind's preflight an element without classes has no look:
+
+- ``button`` is a link drawn as a button when it has an ``href``, else a button that
+  submits, as allauth's own does. Its tags choose the look: ``danger`` or ``delete``,
+  ``link`` (daisyUI's ghost button), ``secondary`` (the plain button: allauth means a
+  lesser action, not daisyUI's secondary colour), ``outline`` and ``prominent`` (full
+  width). The ``form``, ``id``, ``name`` and ``value`` it names are written when given,
+  even empty.
+- ``alert`` is an alert without a role, since it is in the page from the start; ``badge``
+  maps the tags ``success``, ``warning``, ``danger`` and ``primary`` onto daisyUI's
+  colours; ``panel`` is a card with a second-level heading and its actions at the end;
+  ``button_group`` is a row, or a column when allauth asks for ``vertical``;
+  ``provider_list`` and ``provider`` are a column of full-width button links; ``table``
+  is daisyUI's table around allauth's own rows and cells.
+- ``field``, for the inputs allauth writes outside a Django form, is written by hand with
+  the classes and the associations of ``django/forms/field.html``. ``fields`` renders the
+  form through Django, so through that template.
+- ``h1``, ``h2``, ``hr``, ``details`` (a ``collapse``), ``form`` and ``img`` get their
+  classes; ``img`` also gets a white background, because the QR code of the authenticator
+  setup is a dark drawing on a transparent one. ``p`` and the table's rows and cells stay
+  allauth's own: the layouts space the paragraphs, and daisyUI's table styles the cells.
+
+The entrance layout (sign in, sign up, ...) and the password pages are one card; the
+management pages stack their panels. allauth writes the links in its running text bare,
+so the two layouts underline every link that is not a button. The opt-in email and phone
+change pages carry an inline ``style`` attribute in allauth's templates and are not
+overridden: override them before enabling those flows. ``tests/test_allauth.py`` in the
+package renders the elements and the pages.
+
+Messages
+--------
+
+``base.html`` renders Django's messages inside ``<div id="messages">`` from the partial
+``messages``, one daisyUI alert per message. The level tag chooses between whole class
+names, and the role: ``alert`` for a warning or an error, ``status`` otherwise, so a
+message that arrives later is announced. The container sticks to the top of the viewport,
+which keeps a message in view on a page that has been scrolled.
+
+A message is dismissed without a script: its close control is a visually hidden checkbox
+inside a label, and the alert carries ``has-[:checked]:hidden``, so checking the box
+hides it. A screen reader announces the control as a checkbox named "Dismiss".
+
+A fragment includes ``base.html#messages`` when ``htmx_fragment`` is set, and the
+container is then marked ``hx-swap-oob="true"``, so messages added during an htmx request
+are swapped into the page out of band.
 
 htmx
 ----
@@ -341,15 +261,17 @@ django-htmx's debug extension, which shows Django's error page for a failed htmx
 The ``htmx-config`` meta tag in ``base.html`` sets ``allowEval``, ``allowScriptTags`` and
 ``includeIndicatorStyles`` to false, because the policy allows no inline code and no
 injected stylesheet. That also switches off ``hx-on*`` attributes, ``js:`` prefixes in
-``hx-vals`` and ``hx-headers``, and event filters such as ``click[ctrlKey]``; behaviour
-belongs in ``static/js/project.js``.
+``hx-vals`` and ``hx-headers``, and event filters such as ``click[ctrlKey]``: what they
+would do becomes a request to the server or a CSS-only mechanism. The rules of
+``htmx-indicator``, which htmx would otherwise inject, are in ``styles/main.css``; put the
+class on daisyUI's ``loading`` element to show a spinner while a request runs.
 
 Django's CSRF token rides on the ``<body>`` element in ``hx-headers``, so htmx sends it
 with every request, not only with form submissions, and ``CsrfViewMiddleware`` stays on.
 The navigation is deliberately not boosted: a boosted page swap would keep the body's
 attribute, and with it a token that signing in has rotated.
 
-A view answers an htmx request with one fragment of its own template. The fragment is a
+The examples page shows the patterns below at work. A view answers an htmx request with one fragment of its own template. The fragment is a
 ``{% partialdef name inline %}`` block, and the view names it:
 
 .. code-block:: python
@@ -373,174 +295,130 @@ template that reads the request varies by the header on every page that includes
 ``base.html`` is included by all of them.
 
 htmx swaps a 2xx or 3xx response and nothing else, so a view that answers an invalid form
-over htmx answers 200 with the form re-rendered, the way the showcase's sample form does.
-When a session has expired, ``HtmxLoginRedirectMiddleware`` (listed after
-``HtmxMiddleware``) turns the redirect to the login page into django-htmx's
-``HttpResponseClientRedirect``, a 200 carrying ``HX-Redirect``, so the browser leaves the
-page instead of swapping the login form into it. Every other redirect is left alone.
+over htmx answers 200 with the form re-rendered. When a session has expired,
+``HtmxLoginRedirectMiddleware`` (listed after ``HtmxMiddleware``) turns the redirect to
+the login page into django-htmx's ``HttpResponseClientRedirect``, a 200 carrying
+``HX-Redirect``, so the browser leaves the page instead of swapping the login form into
+it. Every other redirect is left alone.
 
 The profile pages are the worked example: the edit link loads the form into the profile
 card with ``hx-get``, ``hx-target`` and ``hx-push-url``, the form posts with ``hx-post``,
-and the saved card is swapped back with its message beside it. The showcase's sample form,
-paged results and theme preview are three more.
+and the saved card is swapped back with its message beside it. A fragment holds no
+``<script>``, ``<style>`` or ``<link>``; the profile views' tests check theirs for them.
 
-Messages and scripts
---------------------
+The examples page
+-----------------
 
-``base.html`` renders Django's messages inside ``<div id="messages">`` from the partial
-``messages``, one ``<c-ui.alert>`` per message with ``dismissible`` and ``announce``, its
-level from the message's level tag. A fragment includes ``base.html#messages`` when
-``htmx_fragment`` is set, and the container is then marked ``hx-swap-oob="true"``, so
-messages added during an htmx request are swapped into the page out of band.
+``/examples/`` shows daisyUI components and htmx patterns as this project writes them, and
+the navigation links to it. Each example is a small template under
+``templates/examples/``, rendered live and shown beneath as it is written: the view reads
+the template's source, of the examples ``examples/content.py`` names and of no other
+template, so an example cannot show one thing and render another. Its first section shows
+the colours of the theme in use, which makes it the page to keep open while you edit
+``styles/theme.css``.
 
-Behaviour lives in ``static/js/project.js`` and in files like it, loaded by ``base.html``:
-the policy allows no inline code, and a component or a fragment holds no ``<script>``,
-``<style>`` or ``<link>`` at all; the profile views' tests check their fragments for them.
-``project.js`` listens on the document, so markup htmx swaps in later needs no new
-listeners; it dismisses an alert from its ``data-ui-dismiss`` button by removing the
-``data-ui-alert`` root.
+The htmx demos are the patterns worth copying:
 
-django-allauth
---------------
+- **A form validated on the server** posts into its own container with ``hx-post`` and gets
+  it back with its errors, or with the result and a message swapped in out of band.
+  ``hx-disabled-elt`` keeps a second click from posting twice, and daisyUI's ``loading``
+  element carries ``htmx-indicator``.
+- **A filtered table with pagination** replaces its container and pushes the address
+  (``hx-push-url``), so a result can be bookmarked and the back button works. The filter's
+  ``hx-trigger`` names events only (``input changed delay:300ms``), because the policy turns
+  htmx's bracketed event filters off, and the page links are built with
+  ``{% querystring %}``, which keeps the filter.
+- **A toggle** posts its state on ``change`` and is swapped for what the server made of it.
+- **Tabs** fetch their panel when they are chosen; each is a link, so without htmx it loads
+  the page with that tab. Under ``DEBUG`` the view answers a little late, so the indicator
+  shows on a developer's machine.
+- **A dialog** is fetched into ``<div id="modal">``, which ``base.html`` provides, and
+  emptied again by the dialog's answer. daisyUI's ``modal-open`` class holds it open
+  without a script, which also means it has no Escape key and no focus trap: a dialog
+  that needs them is the place for the project's first script and ``<dialog>``.
+- **Notices** answer with the messages alone, which htmx swaps in out of band even though
+  the form asked for no swap of its own.
 
-allauth's pages are its own templates, built from elements it renders through
-``templates/allauth/elements/``. The overrides there bridge its elements onto the
-components:
+Every demo works without JavaScript: a plain request gets the whole page in the state it
+asked for, or a redirect to it. Every view is ``HtmxTemplateMixin`` on
+``examples/index.html`` naming one of its partials.
 
-- ``button`` is a link drawn as a button when it has an ``href``, else a button that
-  submits, as allauth's own does; its tags choose the variant, ``danger`` or ``delete``,
-  ``link`` (quiet) and ``secondary``, and the ``form``, ``id``, ``name`` and ``value`` it
-  names are forwarded when given, even empty.
-- ``alert`` is an alert without ``announce``; ``badge`` maps the tags ``success``,
-  ``warning``, ``danger`` (error) and ``primary`` (info) onto the levels; ``panel`` is a
-  card with a second-level heading; ``button_group`` is an action group, stacked when
-  allauth asks for ``vertical``; ``provider_list`` and ``provider`` are a list of secondary
-  button-links.
-- ``table`` gets the table component's markup by hand, because allauth's content carries
-  its own ``<thead>`` and ``<tbody>``.
-- ``field``, for the inputs allauth writes outside a Django form, is written by hand with
-  the field component's classes and associations. ``fields`` renders the form through
-  Django, so through the component.
-- ``form``, the headings, ``p``, ``hr``, ``img``, ``details`` and the table cells stay
-  allauth's own.
+The page is routed in every environment, so it keeps nothing on the server: no table, no
+session, only the query string, the posted form and one cookie for the toggle. Its views
+open no transaction, and their tests run without database access to hold them to it. The
+copy is plain English rather than translated, which keeps the examples readable as
+written.
 
-The entrance layout (sign in, sign up, ...) and the password pages are one card; the
-management pages stack their panels. The opt-in email and phone change pages carry an
-inline ``style`` attribute in allauth's templates and are not overridden: override them
-before enabling those flows. ``ui/tests/test_allauth.py`` renders the elements and the
-pages.
+It is starter content. To delete it, remove ``<project_slug>/examples/`` (its tests go
+with it), ``<project_slug>/templates/examples/`` and the ``examples/`` line in
+``config/urls.py``. The navigation asks for the route before it links to it, so nothing
+else changes; ``examples/tests/test_views.py`` renders the home page without the route
+to keep that true.
 
 Error pages
 -----------
 
-``403.html``, ``404.html`` and ``500.html`` are cards on ``base.html``, and
+``400.html``, ``403.html``, ``404.html`` and ``500.html`` are daisyUI heroes on ``base.html``
+(Django hands ``400.html`` no exception, so that it says nothing about the request), and
 ``403_csrf.html``, the page a rejected CSRF token reaches, extends ``403.html``. They read
-nothing from the database. ``500.html`` is rendered without a request, so without the context
-processors: the theme stylesheet is still linked, but a mode forced by ``UI_MODE`` does not
-reach the page's root element, and the browser's preference decides. The package's
-``tests/test_error_pages.py`` renders them with database access blocked.
+nothing from the database. ``500.html`` is rendered without a request, so without the
+context processors: it is in the default theme and has no theme picker. The package's ``tests/test_error_pages.py`` renders them with database
+access blocked.
 
-Static files
-------------
+Static files and deployment
+---------------------------
 
-The package's ``tests/test_staticfiles.py`` collects the static files into a temporary
-directory under a manifest storage, Django's, or WhiteNoise's when the project was generated with it, and
-checks that the library's files were hashed: a reference that does not resolve fails
-there. The deployment's storage, S3 for one, is not exercised. The theme stylesheet is a
-route, not a static file, and is not collected.
+Build, then collect::
 
-The showcase
-------------
+    python manage.py tailwind build
+    python manage.py collectstatic --noinput
 
-Under ``DEBUG``, ``config/urls.py`` registers the showcase at ``/ui/components/``, next to
-the error page previews, and the navigation links to it; without ``DEBUG`` the routes do not
-exist. For every component it shows the contract its template opens with, its example
-rendered live in the page's theme, and the example as written. An example is a template
-under ``templates/ui/examples/``, so what the page shows and what it renders cannot drift
-apart. The ``showcase`` tag library, which ``templates/ui/showcase.html`` loads, reads them:
-``example_source`` writes an example's source, escaped, and ``component_contract`` a
-component's opening comment as one paragraph. Both read only the examples and components
-``ui/showcase.py`` names, from the template files as written rather than as Cotton compiles
-them. To show a new component, add its example template, name the example in ``EXAMPLES``
-and the component in ``COMPONENTS``, and give it a section in ``templates/ui/showcase.html``.
+The order matters, and the wrong order fails late: ``collectstatic`` succeeds without the
+built stylesheet, and under a manifest storage the first page that renders then fails
+with ``Missing staticfiles manifest entry for 'css/tailwind.css'``.
+{%- endraw %}{% if cookiecutter.use_docker == 'y' %}{% raw %} The production image
+runs the build in its build stage, with the CLI in a build cache so that the image never
+holds it; a container only collects when it starts. The build downloads the CLI from
+GitHub's releases when that cache is cold.{% endraw %}{% endif %}{% raw %}
 
-Three parts of the page are working examples of the patterns above:
+The package's ``tests/test_staticfiles.py`` does both in temporary directories: it builds
+the stylesheet, which leaves the working tree as it was, collects everything under a
+manifest storage, Django's, or WhiteNoise's when the project was generated with it, and
+checks that every file was hashed and that the built stylesheet holds the rules the
+templates rely on. Its first run downloads the CLI. The deployment's own storage, S3 for
+one, is not exercised.
+{%- endraw %}{% if cookiecutter.cloud_provider == 'AWS' and cookiecutter.use_whitenoise == 'n' %}{% raw %}
 
-- The sample form, ``SampleForm`` in ``ui/forms.py``, validates on the server and has
-  nothing behind it. With htmx it posts into its own container, ``#showcase-sample``, which
-  the ``sample`` partial reproduces. An invalid submission answers ``200`` with the errors,
-  because htmx's default configuration swaps no error response; a valid one shows the
-  result, with a message swapped in out of band. While the request runs, htmx disables the
-  submit button (``hx-disabled-elt``) and shows the ``htmx-indicator``. Without JavaScript
-  the same form posts to the same view and gets the whole page. A copy of the form bound to
-  wrong answers shows the field component's error, choice, checkbox and disabled states.
-- The results page through sample tasks: the ``results`` partial holds the table and the
-  pagination inside ``#showcase-results``, the target of every page link and of the filter,
-  and a filter that matches nothing shows an empty state in the same place. The page links
-  keep the filter's query.
-- The theme preview takes a palette, a mode and, for each set, colours for the brand's
-  tokens, a blank one keeping the colour beneath it, which its placeholder shows. A valid
-  submission is kept in the session and the view redirects to the showcase, whose next load
-  fetches ``/ui/theme.css`` again; an invalid one, a colour that is not ``#RRGGBB`` or a
-  result that breaks a pair over the palette and ``UI_BRAND``, shows the form's errors and
-  leaves the theme as it was. The reset button removes the preview. A preview applies to the
-  session that made it, and only under ``DEBUG``.
+Static files on S3 keep their names, and ``AWS_S3_OBJECT_PARAMETERS`` lets a browser
+cache them for a week. A stylesheet built from the class names in use changes with most
+deployments, so a returning visitor can get new markup with the stylesheet of the
+deployment before: shorten that cache for the stylesheet, or serve the static files with
+hashed names, before the first visitors arrive.{% endraw %}{% endif %}{% raw %}
 
-``ui/tests/test_showcase.py`` renders the page through ``ui/tests/urls.py``, the project's
-URLs with the showcase added as ``config/urls.py`` adds it under ``DEBUG``, since the tests
-run without it, and checks that the project's own URLs have no showcase.
+The policy's rules for templates
+--------------------------------
 
-From a preview to a company's colours
--------------------------------------
+- No inline ``<script>`` and no ``<style>`` block; no ``style`` attribute; no ``on*``
+  handler and no ``hx-on*``. ``tests/test_csp.py`` checks the policy the pages send.
+- Styling is classes in the markup. What classes cannot say goes into ``styles/main.css``.
+- A script, if the project ever needs one, is a static file loaded with ``defer`` in the
+  ``javascript`` block of ``base.html``. The one that truly must be inline carries
+  ``nonce="{{ csp_nonce }}"``.
+- Every asset comes from this origin: no stylesheet, script or font from another host.
+- ``img-src`` allows ``data:`` URIs, which allauth's QR code and a few of daisyUI's parts
+  (the loading indicator among them) are drawn with.
 
-A preview already has the shape a company's colours take: a palette, a mode and the colours
-given for each set, never a resolved theme, so it follows later changes to the palettes and
-to ``UI_BRAND``. An application that lets each company choose its colours keeps the same data
-on its own model and resolves it where the preview is resolved:
+Upgrading Tailwind CSS and daisyUI
+----------------------------------
 
-#. Store the palette, the mode and the ``light`` and ``dark`` colours on the company, the
-   colours in a ``JSONField`` for one, and validate them when they are saved:
-   ``servable_theme(palette, mode, settings.UI_BRAND, colours)`` raises
-   ``InvalidThemeError`` with every problem, which a form turns into its errors the way
-   ``PreviewForm`` does.
-#. Resolve the request's company in ``resolve_theme``, before the configured theme. Saved
-   colours can still stop being servable when a palette or ``UI_BRAND`` changes: catch
-   ``InvalidThemeError`` only, log which company failed, and fall back to the configured
-   theme, leaving the record for its owner to correct.
-#. Nothing else changes: components and templates read colours only through the theme
-   stylesheet, which is private and uncached. Keep it that way, since its content now depends
-   on the user, and note that finding the company reads the database, which the stylesheet
-   otherwise does not.
+``TAILWIND_CLI_VERSION`` in ``config/settings/base.py`` names a release of
+`tailwind-cli-extra`_, whose number is its own: its release notes say which Tailwind CSS
+and which daisyUI it bundles. Nothing bumps it for you, since it is neither a package nor
+an image. Change the setting and the comment above it; a running watcher restarts and
+downloads the new CLI beside the old one, and ``tailwind build`` does the same. Look the
+pages over, commit, and delete the old binary from ``.django_tailwind_cli/`` when you
+like. A new major version of Tailwind CSS or of daisyUI renames classes: read its upgrade
+guide first.
 
-With a ``company`` relation on the user, for example:
-
-.. code-block:: python
-
-    def resolve_theme(request: HttpRequest) -> Theme:
-        theme = _resolved.get(request)
-        if theme is None:
-            theme = (
-                _previewed_theme(request)
-                or _company_theme(request)
-                or configured_theme()
-            )
-            _resolved[request] = theme
-        return theme
-
-
-    def _company_theme(request: HttpRequest) -> Theme | None:
-        company = getattr(request.user, "company", None)
-        if company is None:
-            return None
-        try:
-            theme = servable_theme(
-                company.palette,
-                company.mode,
-                settings.UI_BRAND,
-                company.colours,
-            )
-        except InvalidThemeError as error:
-            logger.warning("The colours of company %s cannot be served: %s", company.pk, error)
-            return None
-        return theme
+.. _tailwind-cli-extra: https://github.com/dobicinaitis/tailwind-cli-extra/releases
 {%- endraw %}

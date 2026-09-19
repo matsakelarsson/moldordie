@@ -1,0 +1,25 @@
+{% raw %}<div class="flex flex-col gap-4" id="example-form-container">
+  {% if result %}
+    <div class="alert alert-success alert-soft">
+      <span>{{ result }}</span>
+    </div>
+  {% endif %}
+  {# novalidate, so that the server's validation shows; hx-disabled-elt keeps a second click from posting twice #}
+  <form class="flex max-w-md flex-col gap-2"
+        method="post"
+        action="{% url 'examples:form' %}#example-form"
+        hx-post="{% url 'examples:form' %}"
+        hx-target="#example-form-container"
+        hx-swap="outerHTML"
+        hx-disabled-elt="find button"
+        novalidate>
+    {% csrf_token %}
+    {{ example_form }}
+    <div class="mt-2 flex items-center gap-3">
+      <button class="btn btn-primary" type="submit">Send</button>
+      <span class="loading loading-spinner loading-sm htmx-indicator"
+            aria-hidden="true"></span>
+    </div>
+  </form>
+</div>
+{%- endraw %}

@@ -60,7 +60,9 @@ The same can be done from the console, under the bucket's **Permissions** tab: f
 
 The policy applies to objects already in the bucket, so there is no need to re-run ``collectstatic``.
 
-.. note:: Requests for a key that does not exist return ``403 Forbidden`` rather than ``404 Not Found``, because anonymous callers lack ``s3:ListBucket``. If static files still 403 after this, check the object is really there with ``aws s3api head-object --bucket $BUCKET --key static/css/project.css``.
+.. note:: Requests for a key that does not exist return ``403 Forbidden`` rather than ``404 Not Found``, because anonymous callers lack ``s3:ListBucket``. If static files still 403 after this, check the object is really there with ``aws s3api head-object --bucket $BUCKET --key static/css/tailwind.css``.
+
+.. note:: Static files keep their names on S3, and ``AWS_S3_OBJECT_PARAMETERS`` lets browsers cache them for a week. The stylesheet is built from the class names in use, so it changes with most deployments, and a returning visitor can be served new markup with the stylesheet of the deployment before. Shorten that cache, or serve the static files with hashed names (WhiteNoise does, and so does a manifest storage on S3), before the first visitors arrive.
 
 Keeping media private
 ---------------------

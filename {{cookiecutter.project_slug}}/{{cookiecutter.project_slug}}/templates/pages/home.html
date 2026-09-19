@@ -1,1 +1,46 @@
-{% raw %}{% extends "base.html" %}{% endraw %}
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block content %}
+  <section class="hero bg-base-100 rounded-box py-12 shadow-sm">
+    <div class="hero-content text-center">
+      <div class="max-w-xl">
+        <h1 class="text-4xl font-bold">{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</h1>
+        <p class="py-6 text-lg">{% endraw %}{{ cookiecutter.description | e }}{% raw %}</p>
+        <div class="flex flex-wrap justify-center gap-2">
+          {% if request.user.is_authenticated %}
+            <a class="btn btn-primary" href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
+          {% else %}
+            {% if ACCOUNT_ALLOW_REGISTRATION %}
+              <a class="btn btn-primary" href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
+            {% endif %}
+            <a class="btn" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+          {% endif %}
+          <a class="btn btn-ghost" href="{% url 'about' %}">{% translate "About" %}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="mt-8 grid gap-4 md:grid-cols-3">
+    <article class="card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">{% translate "Server-rendered" %}</h2>
+        <p>{% translate "Django templates, with htmx for the parts of a page that change." %}</p>
+      </div>
+    </article>
+    <article class="card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">{% translate "Styled in code" %}</h2>
+        <p>{% translate "Tailwind CSS and daisyUI: edit the project's own theme and every page follows." %}</p>
+      </div>
+    </article>
+    <article class="card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">{% translate "Accounts included" %}</h2>
+        <p>{% translate "Sign-up, sign-in and two-factor authentication through django-allauth." %}</p>
+      </div>
+    </article>
+  </section>
+{% endblock content %}
+{%- endraw %}

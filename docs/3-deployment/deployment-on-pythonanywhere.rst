@@ -15,7 +15,7 @@ Full instructions follow, but here's a high-level view.
 
 2. Set your config variables in the *postactivate* script
 
-3. Run the *manage.py* ``migrate`` and ``collectstatic`` commands
+3. Run the *manage.py* ``migrate``, ``tailwind build`` and ``collectstatic`` commands
 
 4. Add an entry to the PythonAnywhere *Web tab*
 
@@ -88,16 +88,19 @@ Now go back to the ``.env`` file and set the ``DATABASE_URL`` environment variab
 
     DATABASE_URL='postgres://<postgres-username>:<postgres-password>@<postgres-address>:<postgres-port>/<database-name>'
 
-Now run the migration, and collectstatic:
+Now run the migration, build the stylesheet and collect the static files:
 
 .. code-block:: bash
 
     export UV_ENV_FILE=.env
     export UV_NO_DEV=1
     uv run python manage.py migrate
+    uv run python manage.py tailwind build
     uv run python manage.py collectstatic
     # and, optionally
     uv run python manage.py createsuperuser
+
+The stylesheet, ``<project_slug>/static/css/tailwind.css``, is not in the repository: ``tailwind build`` builds it, and ``collectstatic`` collects only what is there, so the build comes first on every deployment. In the wrong order ``collectstatic`` still succeeds; with WhiteNoise every page then fails with ``Missing staticfiles manifest entry for 'css/tailwind.css'``. The first build downloads the Tailwind CLI, about 110 MB, from GitHub's releases into ``.django_tailwind_cli/``. If the server cannot reach them, or has no room for it, build on your own machine and copy the file over: it is the same on every platform.
 
 
 Redis
@@ -156,6 +159,7 @@ For subsequent deployments, the procedure is much simpler.  In a Bash console:
     cd project-directory
     git pull
     uv run python manage.py migrate
+    uv run python manage.py tailwind build
     uv run python manage.py collectstatic
 
 And then go to the Web tab and hit **Reload**

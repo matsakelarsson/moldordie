@@ -1,0 +1,14 @@
+{% raw %}{# The trigger names events only: the policy turns htmx's bracketed event filters off #}
+<form class="flex max-w-md items-end gap-2"
+      method="get"
+      action="{% url 'examples:index' %}#example-results"
+      hx-get="{% url 'examples:index' %}"
+      hx-trigger="input changed delay:300ms from:find input, submit"
+      hx-target="#example-results-container"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+      role="search">
+  <div class="grow">{{ filter_form }}</div>
+  <button class="btn mb-1" type="submit">Filter</button>
+</form>
+{%- endraw %}

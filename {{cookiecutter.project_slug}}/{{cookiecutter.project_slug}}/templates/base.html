@@ -1,10 +1,10 @@
-{% raw %}{% load static i18n django_htmx %}
+{% raw %}{% load static i18n django_htmx tailwind_cli %}
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
-{# data-ui-mode forces a colour scheme; without it the browser's preference decides (docs/frontend.rst) #}
+{# data-theme is the daisyUI theme the visitor chose (themes.py); without it the browser's colour scheme decides #}
 <html lang="{{ LANGUAGE_CODE }}"
-      {% if ui_theme.forced_mode %}data-ui-mode="{{ ui_theme.forced_mode }}"{% endif %}>
+      {% if current_theme %}data-theme="{{ current_theme }}"{% endif %}>
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
@@ -17,65 +17,69 @@
     <meta name="description" content="{% endraw %}{{ cookiecutter.description | e }}{% raw %}" />
     <meta name="author" content="{% endraw %}{{ cookiecutter.author_name | e }}{% raw %}" />
     {# htmx under the nonce-based Content Security Policy (SECURE_CSP in config/settings/base.py): no eval, #}
-    {# no script tags from swapped fragments and no injected indicator stylesheet (its rules are in css/ui/components.css) #}
+    {# no script tags from swapped fragments and no injected indicator stylesheet (its rules are in styles/main.css) #}
     {# djlint:off H008 #}
     <meta name="htmx-config"
           content='{"allowEval": false, "allowScriptTags": false, "includeIndicatorStyles": false}' />
     {# djlint:on #}
     <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
     {% block css %}
-      {# The UI library: its tokens, foundation and components, then its colours resolved for this request (docs/frontend.rst) #}
-      <link href="{% static 'css/ui/tokens.css' %}" rel="stylesheet" />
-      <link href="{% static 'css/ui/base.css' %}" rel="stylesheet" />
-      <link href="{% static 'css/ui/components.css' %}" rel="stylesheet" />
-      <link href="{% url 'ui:theme' %}" rel="stylesheet" />
+      {# Tailwind CSS and daisyUI, built from styles/main.css by "manage.py tailwind build" (docs/frontend.rst) #}
+      {% tailwind_css %}
       {# Your stuff: third-party CSS libraries go here #}
-      {# This file stores project-specific CSS #}
-      <link href="{% static 'css/project.css' %}" rel="stylesheet" />
     {% endblock css %}
     {# Placed at the top of the document so pages load faster with defer #}
     {% block javascript %}
       {# htmx, bundled with django-htmx and tagged with the CSP nonce; the django-htmx debug extension is added when DEBUG is on #}
       {% endraw %}{% if cookiecutter.realtime == 'channels' %}{% raw %}{# The hx-ws extension provides hx-ext="ws" for Django Channels, see the realtime guide #}
       {% htmx_script extensions="hx-ws" %}{% endraw %}{% else %}{% raw %}{% htmx_script %}{% endraw %}{% endif %}{% raw %}
-      {# Your stuff: third-party javascript libraries go here #}
-      {# Place project specific Javascript in this file; the policy allows no inline code #}
-      <script defer src="{% static 'js/project.js' %}"></script>
+      {# Your stuff: a script is a static file loaded with defer, never inline code, which the policy forbids #}
     {% endblock javascript %}
   </head>
   {# htmx sends Django's CSRF token with every request: https://django-htmx.readthedocs.io/en/latest/tips.html #}
   {# djlint:off H008 #}
-  <body class="{% block bodyclass %}{% endblock bodyclass %}"
+  <body class="bg-base-200 text-base-content flex min-h-screen flex-col {% block bodyclass %}{% endblock bodyclass %}"
         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {# djlint:on #}
     {% block body %}
-      <header class="ui-header">
-        <div class="ui-container">{% include "partials/navigation.html" %}</div>
-      </header>
-      <main class="ui-container ui-main">
+      {% include "partials/navigation.html" %}
+      {# htmx snapshots and restores this element alone, so going back never restores a theme picker of the past #}
+      <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6" hx-history-elt>
         {# Rendered on every page. Fragments include "base.html#messages" so new messages #}
         {# are swapped out-of-band; htmx_fragment comes from HtmxTemplateMixin. #}
         {% partialdef messages inline %}
-          <div class="ui-messages"
+          <div class="sticky top-2 z-40"
                id="messages"
                {% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
             {% for message in messages %}
-              <c-ui.alert level="{{ message.level_tag }}" dismissible announce>
-                {{ message }}
-              </c-ui.alert>
+              <div class="alert {% if message.level_tag == 'success' %}alert-success{% elif message.level_tag == 'warning' %}alert-warning{% elif message.level_tag == 'error' %}alert-error{% else %}alert-info{% endif %} mb-4 has-[:checked]:hidden"
+                   role="{% if message.level_tag == 'warning' or message.level_tag == 'error' %}alert{% else %}status{% endif %}">
+                <span>{{ message }}</span>
+                {# Dismissed without JavaScript: checking the box hides the alert (has-[:checked]:hidden) #}
+                <label class="btn btn-ghost btn-sm btn-circle relative justify-self-end">
+                  <input type="checkbox"
+                         class="sr-only"
+                         autocomplete="off"
+                         aria-label="{% translate 'Dismiss' %}" />
+                  <span aria-hidden="true">✕</span>
+                </label>
+              </div>
             {% endfor %}
           </div>
         {% endpartialdef messages %}
         {% block main %}
-          <div class="ui-stack">
-            {% block content %}
-              <p>Use this document as a way to quick start any new project.</p>
-            {% endblock content %}
-          </div>
+          {% block content %}
+            <p>Use this document as a way to quick start any new project.</p>
+          {% endblock content %}
         {% endblock main %}
       </main>
+      <footer class="footer footer-center text-base-content/70 p-6 text-sm">
+        <p>{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</p>
+      </footer>
     {% endblock body %}
     {% block modal %}
+      {# Where an htmx request puts a dialog: daisyUI's modal, held open by its modal-open class #}
+      <div id="modal"></div>
     {% endblock modal %}
   </body>
 </html>

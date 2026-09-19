@@ -1,49 +1,108 @@
 {% raw %}{% load i18n %}
 
-<nav class="ui-nav" aria-label="{% translate 'Main navigation' %}">
-  <a class="ui-nav-brand" href="{% url 'home' %}">{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</a>
-  <ul class="ui-nav-links">
+{# The page links, written once and rendered twice: in the menu of small screens and in the bar of large ones #}
+{% partialdef links %}
+  <li>
+    <a href="{% url 'home' %}"
+       {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>{% translate "Home" %}</a>
+  </li>
+  <li>
+    <a href="{% url 'about' %}"
+       {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>{% translate "About" %}</a>
+  </li>
+  {# The examples page, until the project deletes it: without its route there is no link (docs/frontend.rst) #}
+  {% url 'examples:index' as examples_url %}
+  {% if examples_url %}
     <li>
-      <a class="ui-nav-link"
-         href="{% url 'home' %}"
-         {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>{% translate "Home" %}</a>
+      <a href="{{ examples_url }}"
+         {% if request.resolver_match.namespace == 'examples' %}aria-current="page"{% endif %}>{% translate "Examples" %}</a>
     </li>
-    <li>
-      <a class="ui-nav-link"
-         href="{% url 'about' %}"
-         {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>{% translate "About" %}</a>
-    </li>
-    {# The showcase, whose routes config/urls.py registers only under DEBUG #}
-    {% url 'showcase:index' as showcase_url %}
-    {% if showcase_url %}
-      <li>
-        <a class="ui-nav-link"
-           href="{{ showcase_url }}"
-           {% if request.resolver_match.namespace == 'showcase' %}aria-current="page"{% endif %}>{% translate "Components" %}</a>
-      </li>
+  {% endif %}
+{% endpartialdef links %}
+<nav class="navbar bg-base-100 shadow-sm"
+     aria-label="{% translate 'Main navigation' %}">
+  <div class="flex min-w-0 flex-1 items-center">
+    {# daisyUI's dropdown opens while it holds the focus, so the menu needs no JavaScript #}
+    <div class="dropdown lg:hidden">
+      <div tabindex="0"
+           role="button"
+           class="btn btn-ghost btn-square"
+           aria-label="{% translate 'Menu' %}">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="size-5"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor"
+             aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </div>
+      <ul tabindex="-1"
+          class="menu dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+        {% partial links %}
+      </ul>
+    </div>
+    <a class="btn btn-ghost truncate text-xl" href="{% url 'home' %}">{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</a>
+    <ul class="menu menu-horizontal hidden px-1 lg:flex">
+      {% partial links %}
+    </ul>
+  </div>
+  <div class="flex flex-none items-center gap-1">
+    {% if themes %}
+      {# A checked theme-controller radio restyles the page at once, in CSS alone; htmx posts the choice, and themes.py keeps it in a cookie #}
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm">{% translate "Theme" %}</div>
+        <form tabindex="-1"
+              class="dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow"
+              method="post"
+              action="{% url 'set_theme' %}"
+              autocomplete="off"
+              hx-post="{% url 'set_theme' %}"
+              hx-trigger="change"
+              hx-swap="none"
+              hx-sync="this:replace">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+          <fieldset class="flex max-h-80 flex-col gap-1 overflow-y-auto">
+            <legend class="sr-only">{% translate "Theme" %}</legend>
+            <input type="radio"
+                   name="theme"
+                   value="system"
+                   class="btn btn-ghost btn-sm btn-block justify-start"
+                   aria-label="{% translate 'System' %}"
+                   {% if not current_theme %}checked{% endif %} />
+            {% for name in themes %}
+              <input type="radio"
+                     name="theme"
+                     value="{{ name }}"
+                     class="theme-controller btn btn-ghost btn-sm btn-block justify-start"
+                     aria-label="{{ name|capfirst }}"
+                     {% if name == current_theme %}checked{% endif %} />
+            {% endfor %}
+          </fieldset>
+          <noscript>
+            <button type="submit" class="btn btn-primary btn-sm btn-block mt-2">{% translate "Apply" %}</button>
+          </noscript>
+        </form>
+      </div>
     {% endif %}
     {% if request.user.is_authenticated %}
-      <li>
-        <a class="ui-nav-link" href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
-      </li>
-      <li>
-        {# URL provided by django-allauth/account/urls.py #}
-        <a class="ui-nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
-      </li>
+      <a class="btn btn-ghost btn-sm"
+         href="{{ request.user.get_absolute_url }}">{% translate "My Profile" %}</a>
+      {# URL provided by django-allauth/account/urls.py #}
+      <a class="btn btn-ghost btn-sm" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
     {% else %}
       {% if ACCOUNT_ALLOW_REGISTRATION %}
-        <li>
-          {# URL provided by django-allauth/account/urls.py #}
-          <a class="ui-nav-link"
-             id="sign-up-link"
-             href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
-        </li>
-      {% endif %}
-      <li>
         {# URL provided by django-allauth/account/urls.py #}
-        <a class="ui-nav-link" id="log-in-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
-      </li>
+        <a class="btn btn-ghost btn-sm hidden sm:inline-flex"
+           id="sign-up-link"
+           href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
+      {% endif %}
+      {# URL provided by django-allauth/account/urls.py #}
+      <a class="btn btn-primary btn-sm"
+         id="log-in-link"
+         href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
     {% endif %}
-  </ul>
+  </div>
 </nav>
 {%- endraw %}
