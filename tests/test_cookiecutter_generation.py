@@ -13,6 +13,7 @@ from binaryornot.check import is_binary
 from cookiecutter.exceptions import FailedHookException
 
 from local_extensions import FLAG
+from local_extensions import LIST
 from local_extensions import OPTIONS
 from local_extensions import option_names
 from tests.generated_project import NO_DEFAULT
@@ -175,6 +176,19 @@ PAIRED_COMBINATIONS = [
     {"mail_catcher": "Mailpit", "use_docker": "y"},
     {"mail_catcher": "Mailtrap Local", "use_docker": "y"},
     *HEADLESS_COMBINATIONS,
+    # The agent guide describes the tree that was generated, so every arm of it needs an
+    # agent to write it for: between them these two reach all of them.
+    {
+        "coding_agent": "codex",
+        "use_docker": "y",
+        "use_celery": "y",
+        "realtime": "channels",
+        "rest_api": "Django Ninja",
+        "identity_provider": "entra",
+        "use_sentry": "y",
+        "ci_tool": "Github",
+    },
+    {"coding_agent": "cursor", "rest_api": "DRF", "ci_tool": "Gitlab"},
 ]
 
 DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
@@ -225,6 +239,15 @@ def _fixture_id_of_first(value):
 GROUPED_COMBINATIONS = [
     pytest.param(row, id=_fixture_id(row), marks=pytest.mark.xdist_group(_fixture_id(row)))
     for row in SUPPORTED_COMBINATIONS
+]
+
+
+# The combinations that write an agent guide: the others answered ``coding_agent`` with
+# ``none``, and the tests of the guide's contents have nothing to read.
+GUIDE_COMBINATIONS = [
+    param
+    for param, row in zip(GROUPED_COMBINATIONS, SUPPORTED_COMBINATIONS, strict=True)
+    if {**DEFAULT_ANSWERS, **row}["coding_agent"] != "none"
 ]
 
 
@@ -1632,3 +1655,75 @@ def test_sentry_wiring(bake, context, use_sentry):
         assert reads["SENTRY_DSN"].default is NO_DEFAULT
         assert reads["SENTRY_ENVIRONMENT"].default == "production"
         assert "sentry_sdk.init(" in project.text(package / "sentry" / "apps.py")
+
+
+# The agent guide: where each coding agent reads its instructions, as the agent's own
+# convention names the file, written from the options page rather than from the hook's table.
+AGENT_FILES = {
+    "none": None,
+    "claude": "CLAUDE.md",
+    "codex": "AGENTS.md",
+    "cursor": "AGENTS.md",
+    "copilot": ".github/copilot-instructions.md",
+}
+# A row of a guide table: the first cell in backticks, the rest of the row after it.
+RE_GUIDE_ROW = re.compile(r"\|\s*`([^`]+)`\s*\|(.*)\|")
+RE_ANSWER_CELL = re.compile(r"\s*`([^`]*)`\s*")
+
+
+def guide_section(guide, heading):
+    """The lines of the guide's section under ``heading``, up to the next one."""
+    _, marker, rest = guide.partition(f"\n## {heading}\n")
+    assert marker, f"the guide has no {heading!r} section"
+    return rest.partition("\n## ")[0].splitlines()
+
+
+def guide_rows(guide, heading):
+    """The table rows of the guide's ``heading`` section: first cell to the rest of the row."""
+    rows = (RE_GUIDE_ROW.fullmatch(line) for line in guide_section(guide, heading))
+    return {row.group(1): row.group(2) for row in rows if row is not None}
+
+
+def agent_guide(project, answers):
+    """The text of the guide the ``answers`` placed, or ``None`` when no agent was chosen."""
+    file = AGENT_FILES[answers["coding_agent"]]
+    return None if file is None else project.text(file)
+
+
+def test_agent_files_cover_every_coding_agent():
+    """A choice this file does not know would go unchecked below."""
+    assert set(AGENT_FILES) == set(OPTIONS["coding_agent"].choices)
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_agent_guide_is_placed_where_the_chosen_agent_reads_it(bake, context_override):
+    """One guide, under the name its agent reads, and no file for any other agent."""
+    project = bake(context_override)
+
+    expected = AGENT_FILES[{**DEFAULT_ANSWERS, **context_override}["coding_agent"]]
+    for file in {file for file in AGENT_FILES.values() if file is not None}:
+        assert (project.root / file).exists() is (file == expected), file
+
+
+@pytest.mark.parametrize("context_override", GUIDE_COMBINATIONS)
+def test_agent_guide_records_the_answers_the_project_was_generated_from(bake, context_override):
+    """The choices table holds every list and flag option, with the answer as given."""
+    answers = {**DEFAULT_ANSWERS, **context_override}
+    guide = agent_guide(bake(context_override), answers)
+
+    recorded = guide_rows(guide, "Generation choices")
+    assert list(recorded) == list(option_names(LIST, FLAG))
+    for name, cell in recorded.items():
+        assert RE_ANSWER_CELL.fullmatch(cell).group(1) == answers[name], name
+
+
+@pytest.mark.parametrize("context_override", GUIDE_COMBINATIONS)
+def test_agent_guide_lays_out_the_tree_that_was_generated(bake, context_override):
+    """Every path the layout table names is in the project, whatever the answers pruned."""
+    project = bake(context_override)
+    guide = agent_guide(project, {**DEFAULT_ANSWERS, **context_override})
+
+    paths = guide_rows(guide, "Layout")
+    assert paths
+    for path in paths:
+        assert (project.root / path).exists(), path

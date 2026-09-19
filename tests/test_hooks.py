@@ -8,10 +8,13 @@ from typing import ClassVar
 
 import pytest
 
+from hooks.post_gen_project import AGENT_FILES
+from hooks.post_gen_project import AGENT_GUIDE
 from hooks.post_gen_project import ALPHANUMERIC
 from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import SECRETS
 from hooks.post_gen_project import fill_secrets
+from hooks.post_gen_project import place_agent_guide
 from hooks.post_gen_project import prune
 from hooks.post_gen_project import random_string
 from hooks.post_gen_project import remove_channels_tests
@@ -382,9 +385,11 @@ NOT_ENTRA = {f"{PKG}/users/providers.py", f"{PKG}/users/tests/test_providers.py"
 # The app behind the single-page application's login and the calling services: Django
 # Ninja with a provider only
 NO_IDENTITY_APP = {f"{PKG}/identity"}
+# No coding agent, so no guide for one; every other answer moves it where that agent reads it.
+NO_AGENT_GUIDE = {AGENT_GUIDE}
 
 # cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
-# no CI, no REST API, no identity provider, no Channels, no Sentry.
+# no CI, no REST API, no identity provider, no Channels, no Sentry, no coding agent.
 DEFAULTS = (
     NOT_GPL
     | USERNAME_LOGIN
@@ -397,6 +402,7 @@ DEFAULTS = (
     | NO_IDENTITY_APP
     | NO_CHANNELS
     | NO_SENTRY
+    | NO_AGENT_GUIDE
 )
 # Docker on, everything else at its default: the helper scripts and the Celery images go instead of compose.
 WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES
@@ -465,6 +471,13 @@ def test_prune_docker_and_celery(unpruned_project, use_docker, use_celery, expec
 def test_prune_keeps_only_the_chosen_ci_config(unpruned_project, ci_tool):
     other_configs = {path for tool, path in CI_CONFIGS.items() if tool != ci_tool}
     assert_prunes(unpruned_project, (DEFAULTS - NO_CI) | other_configs, ci_tool=ci_tool)
+
+
+@pytest.mark.parametrize("coding_agent", list(OPTIONS["coding_agent"].choices))
+def test_prune_keeps_the_agent_guide_for_every_agent(unpruned_project, coding_agent):
+    """Only ``none`` drops the guide; the others keep it for ``place_agent_guide`` to move."""
+    kept = DEFAULTS - NO_AGENT_GUIDE if coding_agent != "none" else DEFAULTS
+    assert_prunes(unpruned_project, kept, coding_agent=coding_agent)
 
 
 @pytest.mark.parametrize(
@@ -547,6 +560,7 @@ REMOVAL_OPTIONS = (
     "identity_provider",
     "realtime",
     "use_sentry",
+    "coding_agent",
 )
 
 
@@ -622,3 +636,54 @@ def test_removal_rules_list_paths_of_the_template():
         if not (TEMPLATE / path.format(project_slug=SLUG_PLACEHOLDER)).exists()
     ]
     assert not missing
+
+
+# ``place_agent_guide`` on a hand-written guide: the template renders it once, and the hook
+# moves it to the file the chosen coding agent reads (docs/adr/0015).
+
+GUIDE_TEXT = "# My Test Project\n\nInstructions for AI coding agents.\n"
+
+
+@pytest.fixture
+def generated_guide(tmp_path):
+    """A project holding the guide where the template rendered it."""
+    (tmp_path / AGENT_GUIDE).write_text(GUIDE_TEXT)
+    return tmp_path
+
+
+def test_agent_files_name_a_file_for_every_agent():
+    """Every answer but ``none``, whose guide the removal rule deleted, reads the guide somewhere."""
+    assert set(AGENT_FILES) | {"none"} == set(OPTIONS["coding_agent"].choices)
+
+
+@pytest.mark.parametrize("coding_agent", list(AGENT_FILES))
+def test_place_agent_guide_leaves_the_guide_where_its_agent_reads_it(generated_guide, coding_agent):
+    place_agent_guide({**default_context(), "coding_agent": coding_agent}, generated_guide)
+
+    target = AGENT_FILES[coding_agent]
+    assert (generated_guide / target).read_text() == GUIDE_TEXT
+    assert [path.relative_to(generated_guide).as_posix() for path in generated_guide.rglob("*") if path.is_file()] == [
+        target,
+    ]
+
+
+def test_place_agent_guide_creates_the_directory_its_agent_reads_from(generated_guide):
+    """Without GitHub Actions the answers dropped ``.github``, which Copilot's guide still needs."""
+    assert not (generated_guide / ".github").exists()
+
+    place_agent_guide({**default_context(), "coding_agent": "copilot"}, generated_guide)
+
+    assert (generated_guide / ".github" / "copilot-instructions.md").read_text() == GUIDE_TEXT
+
+
+def test_place_agent_guide_moves_nothing_without_an_agent(tmp_path):
+    """The removal rule deleted the guide, so there is nothing left to place."""
+    place_agent_guide({**default_context(), "coding_agent": "none"}, tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_place_agent_guide_runs_after_pruning():
+    """Beforehand, pruning would delete the directory Copilot's guide was moved into."""
+    body = (REPO / "hooks" / "post_gen_project.py").read_text().partition("def main(context):")[2]
+    assert body.index("prune(context, root)") < body.index("place_agent_guide(context, root)")

@@ -27,6 +27,7 @@
   "use_sentry": "n",
   "use_whitenoise": "n",
   "ci_tool": ["None", "Gitlab", "Github"],
+  "coding_agent": ["none", "claude", "codex", "cursor", "copilot"],
   "debug": "n",
   "_extensions": ["local_extensions.OptionsExtension", "local_extensions.StringEscapeExtension"]
 }

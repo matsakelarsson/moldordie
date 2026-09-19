@@ -52,9 +52,9 @@ def load_options(path: Path = OPTIONS_PATH) -> dict[str, Option]:
 OPTIONS = load_options()
 
 
-def option_names(kind: str) -> tuple[str, ...]:
-    """The names of the options of ``kind``, in declaration order."""
-    return tuple(option.name for option in OPTIONS.values() if option.kind == kind)
+def option_names(*kinds: str) -> tuple[str, ...]:
+    """The names of the options of any of ``kinds``, in declaration order."""
+    return tuple(option.name for option in OPTIONS.values() if option.kind in kinds)
 
 
 class OptionsExtension(Extension):
