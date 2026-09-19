@@ -12,48 +12,167 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+#: {{cookiecutter.project_slug}}/templates/400.html:6
+#: {{cookiecutter.project_slug}}/templates/400.html:13
+msgid "Bad Request (400)"
+msgstr "Requête incorrecte (400)"
+
+#: {{cookiecutter.project_slug}}/templates/400.html:14
+msgid "The server could not understand the request."
+msgstr "Le serveur n'a pas pu comprendre la requête."
+
+#: {{cookiecutter.project_slug}}/templates/403.html:6
+#: {{cookiecutter.project_slug}}/templates/403.html:12
+msgid "Forbidden (403)"
+msgstr "Accès interdit (403)"
+
+#: {{cookiecutter.project_slug}}/templates/403.html:17
+msgid "You're not allowed to access this page."
+msgstr "Vous n'êtes pas autorisé à accéder à cette page."
+
+#: {{cookiecutter.project_slug}}/templates/400.html:15
+#: {{cookiecutter.project_slug}}/templates/403.html:20
+#: {{cookiecutter.project_slug}}/templates/404.html:20
+msgid "Back to the home page"
+msgstr "Retour à la page d'accueil"
+
+#: {{cookiecutter.project_slug}}/templates/404.html:6
+#: {{cookiecutter.project_slug}}/templates/404.html:12
+msgid "Page not found"
+msgstr "Page introuvable"
+
+#: {{cookiecutter.project_slug}}/templates/404.html:17
+msgid "This is not the page you were looking for."
+msgstr "Ce n'est pas la page que vous cherchiez."
+
+#: {{cookiecutter.project_slug}}/templates/500.html:6
+msgid "Server Error"
+msgstr "Erreur du serveur"
+
+#: {{cookiecutter.project_slug}}/templates/500.html:12
+msgid "Ooops!!! 500"
+msgstr "Oups !!! 500"
+
+#: {{cookiecutter.project_slug}}/templates/500.html:13
+msgid "Looks like something went wrong!"
+msgstr "Il semble qu'un problème soit survenu !"
+
+#: {{cookiecutter.project_slug}}/templates/500.html:15
+msgid ""
+"We track these errors automatically, but if the problem persists feel free "
+"to contact us. In the meantime, try refreshing."
+msgstr ""
+"Nous suivons ces erreurs automatiquement, mais si le problème persiste, "
+"n'hésitez pas à nous contacter. En attendant, essayez d'actualiser la page."
+
 #: {{cookiecutter.project_slug}}/templates/allauth/layouts/entrance.html:7
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:35
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:18
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:104
 msgid "Sign In"
 msgstr "S'identifier"
 
-#: {{cookiecutter.project_slug}}/templates/base.html:60
+#: {{cookiecutter.project_slug}}/templates/base.html:62
 msgid "Dismiss"
 msgstr "Fermer"
 
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:3
-msgid "Main navigation"
-msgstr "Navigation principale"
-
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:12
-msgid "Home"
-msgstr "Accueil"
-
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:16
+#: {{cookiecutter.project_slug}}/templates/pages/about.html:6
+#: {{cookiecutter.project_slug}}/templates/pages/about.html:11
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:20
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:11
 msgid "About"
 msgstr "À propos"
 
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:20
+#: {{cookiecutter.project_slug}}/templates/pages/about.html:13
+msgid ""
+"This page is a placeholder: replace it with what your visitors should know "
+"about you."
+msgstr ""
+"Cette page est provisoire : remplacez-la par ce que vos visiteurs doivent "
+"savoir sur vous."
+
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:13
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:91
 msgid "My Profile"
 msgstr "Mon Profil"
 
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:24
-msgid "Sign Out"
-msgstr "Se déconnecter"
-
-#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:30
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:16
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:99
 msgid "Sign Up"
 msgstr "S'inscrire"
 
-#: {{cookiecutter.project_slug}}/templates/users/user_detail.html:33
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:28
+msgid "Server-rendered"
+msgstr "Rendu côté serveur"
+
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:29
+msgid "Django templates, with htmx for the parts of a page that change."
+msgstr ""
+"Des gabarits Django, avec htmx pour les parties d'une page qui changent."
+
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:34
+msgid "Styled in code"
+msgstr "Stylé dans le code"
+
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:35
+msgid ""
+"Tailwind CSS and daisyUI: edit the project's own theme and every page "
+"follows."
+msgstr ""
+"Tailwind CSS et daisyUI : modifiez le thème du projet et toutes les pages "
+"suivent."
+
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:40
+msgid "Accounts included"
+msgstr "Comptes inclus"
+
+#: {{cookiecutter.project_slug}}/templates/pages/home.html:41
+msgid "Sign-up, sign-in and two-factor authentication through django-allauth."
+msgstr ""
+"Inscription, connexion et authentification à deux facteurs grâce à django-"
+"allauth."
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:7
+msgid "Home"
+msgstr "Accueil"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:18
+msgid "Examples"
+msgstr "Exemples"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:23
+msgid "Main navigation"
+msgstr "Navigation principale"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:30
+msgid "Menu"
+msgstr "Menu"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:54
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:67
+msgid "Theme"
+msgstr "Thème"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:72
+msgid "System"
+msgstr "Système"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:84
+msgid "Apply"
+msgstr "Appliquer"
+
+#: {{cookiecutter.project_slug}}/templates/partials/navigation.html:93
+msgid "Sign Out"
+msgstr "Se déconnecter"
+
+#: {{cookiecutter.project_slug}}/templates/users/user_detail.html:29
 msgid "My Info"
 msgstr "Mes informations"
 
-#: {{cookiecutter.project_slug}}/templates/users/user_detail.html:34
+#: {{cookiecutter.project_slug}}/templates/users/user_detail.html:30
 msgid "E-Mail"
 msgstr "E-mail"
 
-#: {{cookiecutter.project_slug}}/templates/users/user_detail.html:35
+#: {{cookiecutter.project_slug}}/templates/users/user_detail.html:31
 msgid "MFA"
 msgstr "Authentification multifacteur"
 
@@ -61,50 +180,49 @@ msgstr "Authentification multifacteur"
 msgid "Update"
 msgstr "Mettre à jour"
 
-#: {{cookiecutter.project_slug}}/templates/users/user_form.html:39
+#: {{cookiecutter.project_slug}}/templates/users/user_form.html:38
 msgid "Cancel"
 msgstr "Annuler"
 
-#: {{cookiecutter.project_slug}}/users/admin.py:24
+#: {{cookiecutter.project_slug}}/users/admin.py:16
 msgid "Personal info"
 msgstr "Personal info"
 
-#: {{cookiecutter.project_slug}}/users/admin.py:26
+#: {{cookiecutter.project_slug}}/users/admin.py:18
 msgid "Permissions"
 msgstr "Permissions"
 
-#: {{cookiecutter.project_slug}}/users/admin.py:37
+#: {{cookiecutter.project_slug}}/users/admin.py:29
 msgid "Important dates"
 msgstr "Dates importantes"
 
-#: {{cookiecutter.project_slug}}/users/apps.py:7
+#: {{cookiecutter.project_slug}}/users/apps.py:9
 msgid "Users"
 msgstr "Utilisateurs"
-
-#: {{cookiecutter.project_slug}}/users/forms.py:18
-#: {{cookiecutter.project_slug}}/users/tests/test_forms.py:41
-msgid "This username has already been taken."
-msgstr "Ce nom d'utilisateur est déjà pris."
-
-#: {{cookiecutter.project_slug}}/users/models.py:15
-msgid "Name of User"
-msgstr "Nom de l'utilisateur"
-
-#: {{cookiecutter.project_slug}}/users/models.py:50
-msgid "User"
-msgstr "Utilisateur"
-
-#: {{cookiecutter.project_slug}}/users/tests/test_views.py:98
-#: {{cookiecutter.project_slug}}/users/tests/test_views.py:170
-#: {{cookiecutter.project_slug}}/users/views.py:45
-msgid "Information successfully updated"
-msgstr "Informations mises à jour avec succès"
 
 #: {{cookiecutter.project_slug}}/users/forms.py:22
 #: {{cookiecutter.project_slug}}/users/tests/test_forms.py:41
 msgid "This email has already been taken."
 msgstr "Cet e-mail est déjà utilisé."
 
+#: {{cookiecutter.project_slug}}/users/models.py:20
+msgid "Name of User"
+msgstr "Nom de l'utilisateur"
+
 #: {{cookiecutter.project_slug}}/users/models.py:23
 msgid "email address"
 msgstr "adresse e-mail"
+
+#: {{cookiecutter.project_slug}}/users/models.py:50
+msgid "User"
+msgstr "Utilisateur"
+
+#: {{cookiecutter.project_slug}}/users/tests/test_views.py:125
+#: {{cookiecutter.project_slug}}/users/views.py:42
+msgid "Information successfully updated"
+msgstr "Informations mises à jour avec succès"
+
+#: {{cookiecutter.project_slug}}/users/forms.py:18
+#: {{cookiecutter.project_slug}}/users/tests/test_forms.py:41
+msgid "This username has already been taken."
+msgstr "Ce nom d'utilisateur est déjà pris."

@@ -190,6 +190,20 @@ class TestUserDetailView:
         assert b"hx-swap-oob" not in response.content
         assert response.content.count(b'id="messages"') == 1
 
+    def test_history_restore_gets_the_full_page(self, user: User, client: Client):
+        # htmx asks for a page its history cache no longer holds, with HX-Request
+        # set as well, and puts the answer where the whole page was
+        client.force_login(user)
+
+        headers = {**HTMX_HEADERS, "HX-History-Restore-Request": "true"}
+        response = client.get(user.get_absolute_url(), headers=headers)
+
+        assert response.status_code == HTTPStatus.OK
+        assert template_names(response)[0] == "users/user_detail.html"
+        assert b"<html" in response.content
+        assert b"hx-swap-oob" not in response.content
+        assert "HX-History-Restore-Request" in response["Vary"]
+
     def test_not_authenticated(self, user: User, client: Client):
         url = user.get_absolute_url()
 

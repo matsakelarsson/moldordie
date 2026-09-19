@@ -1,0 +1,20 @@
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {% translate "Bad Request (400)" %}
+{% endblock title %}
+{% block content %}
+  {# Django passes no exception to this page, so that nothing about the request is disclosed #}
+  <div class="hero py-16">
+    <div class="hero-content text-center">
+      <div class="max-w-md">
+        <h1 class="text-4xl font-bold">{% translate "Bad Request (400)" %}</h1>
+        <p class="py-6">{% translate "The server could not understand the request." %}</p>
+        <a class="btn btn-primary" href="{% url 'home' %}">{% translate "Back to the home page" %}</a>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+{%- endraw %}

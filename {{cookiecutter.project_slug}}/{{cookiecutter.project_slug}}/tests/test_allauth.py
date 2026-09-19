@@ -86,7 +86,7 @@ def test_the_structural_elements(html):
         "action": "/send/",
     }
     assert element(html, "img") == {
-        "class": "rounded-box bg-white p-2",
+        "class": "rounded-box w-64 bg-white p-2",
         "src": "/qr.svg",
         "alt": "QR code",
     }

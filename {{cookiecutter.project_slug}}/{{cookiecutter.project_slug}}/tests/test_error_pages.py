@@ -9,6 +9,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from django.test import Client
+from django.views.defaults import bad_request
 from django.views.defaults import permission_denied
 from django.views.defaults import server_error
 
@@ -27,6 +28,17 @@ def test_the_not_found_page(client: Client):
     html = response.content.decode()
     assert HERO in html
     assert '<h1 class="text-4xl font-bold">Page not found</h1>' in html
+    assert STYLESHEET in html
+
+
+def test_the_bad_request_page_says_nothing_about_the_request(rf: RequestFactory):
+    response = bad_request(rf.get("/"), Exception("The header was forged."))
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    html = response.content.decode()
+    assert HERO in html
+    assert '<h1 class="text-4xl font-bold">Bad Request (400)</h1>' in html
+    assert "The header was forged." not in html
     assert STYLESHEET in html
 
 

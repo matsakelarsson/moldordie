@@ -163,6 +163,17 @@ def test_a_filter_that_matches_nothing_says_so(client: Client):
     assert element(html, "a")["hx-get"] == url
 
 
+def test_a_page_htmx_restores_is_whole(client: Client):
+    # The back button on a page htmx's history no longer holds: HX-Request is set, and
+    # htmx puts the answer where the page was, so a fragment would be all that is left
+    headers = {**HTMX, "HX-History-Restore-Request": "true"}
+
+    html = page(client.get(reverse("examples:index"), {"page": "2"}, headers=headers))
+
+    assert "hx-swap-oob" not in html
+    assert rows(html)[0] == "Order the domain name"
+
+
 def test_the_filter_works_without_htmx(client: Client):
     html = page(client.get(reverse("examples:index"), {"q": "celebrate"}))
 

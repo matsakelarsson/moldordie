@@ -48,8 +48,10 @@ class HtmxTemplateMixin(_TemplateViewBase):
     ``"<template>#<htmx_partial>"``, that is only the partial, while every
     other request renders the whole template, so the page keeps working
     without htmx. Boosted requests (``hx-boost``) expect a whole page and get
-    the full template. Every response gets ``Vary: HX-Request`` because its
-    body depends on that header.
+    the full template, and so does the request htmx sends to restore a page its
+    history no longer holds, which carries ``HX-Request`` as well: htmx puts the
+    answer where the whole page was. Every response varies on the headers its
+    body depends on.
 
     The context flag ``htmx_fragment`` tells templates which of the two is
     being rendered, so the messages block can be marked for an out-of-band
@@ -60,9 +62,11 @@ class HtmxTemplateMixin(_TemplateViewBase):
 
     Function-based views do the same thing directly::
 
-        @vary_on_headers("HX-Request")
+        @vary_on_headers("HX-Request", "HX-History-Restore-Request")
         def profile(request):
-            fragment = bool(request.htmx) and not request.htmx.boosted
+            htmx = request.htmx
+            whole_page = htmx.boosted or htmx.history_restore_request
+            fragment = bool(htmx) and not whole_page
             template_name = "users/user_detail.html"
             if fragment:
                 template_name += "#profile"
@@ -73,7 +77,7 @@ class HtmxTemplateMixin(_TemplateViewBase):
     htmx_partial: str | None = None
     request: HtmxHttpRequest
 
-    @method_decorator(vary_on_headers("HX-Request"))
+    @method_decorator(vary_on_headers("HX-Request", "HX-History-Restore-Request"))
     def dispatch(
         self,
         request: HttpRequest,
@@ -85,7 +89,11 @@ class HtmxTemplateMixin(_TemplateViewBase):
     def renders_htmx_fragment(self) -> bool:
         """Does this response carry the partial rather than the whole template?"""
         htmx = self.request.htmx
-        return bool(self.htmx_partial and htmx and not htmx.boosted)
+        if not self.htmx_partial or not htmx:
+            return False
+        # Both expect a whole page: a boosted navigation, and the restoring of a page
+        # that htmx's history cache no longer holds
+        return not (htmx.boosted or htmx.history_restore_request)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
