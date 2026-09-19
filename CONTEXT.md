@@ -125,7 +125,7 @@ to the tests: the reader asserts nothing, makes no existence check and validates
 ---
 
 The vocabulary of the generated project's server-rendered frontend: its stylesheets and its
-theme. The terms of the generation flow above still apply; in particular "context" alone is
+themes. The terms of the generation flow above still apply; in particular "context" alone is
 the answers the hooks receive, and Django's is the **template context**.
 
 ## Source stylesheet
@@ -144,6 +144,14 @@ in development and built into the production image.
 
 _Avoid_: output CSS, bundle, compiled CSS.
 
+## Theme
+
+A daisyUI theme, by name: a complete set of the colours, radii, sizes and effects daisyUI reads,
+applied to everything under an element carrying `data-theme`. The ones daisyUI ships are enabled
+next to the own theme, and `THEMES` names those a visitor may choose.
+
+_Avoid_: skin, colour scheme, style; "dark mode" for a dark theme.
+
 ## Own theme
 
 The project's daisyUI theme, `brand`: a theme block in the source stylesheet with every value
@@ -151,6 +159,14 @@ daisyUI reads written out, and the default look. It is the style example: changi
 project's look means editing it, not overriding daisyUI's classes.
 
 _Avoid_: custom theme, default theme (any theme can be made the default), skin.
+
+## Theme picker
+
+The control in the navigation for choosing a theme: a radio button per theme, which restyles
+the page through daisyUI's CSS as soon as it is checked, and an htmx request that keeps the
+choice in a cookie, from which the server writes `data-theme` on the next page.
+
+_Avoid_: theme switcher, theme toggle, dark mode switch.
 
 ## Watcher
 

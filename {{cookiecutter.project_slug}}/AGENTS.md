@@ -37,7 +37,8 @@ already there.
   daisyUI through django-tailwind-cli, which runs Tailwind's standalone CLI: no Node.js, no
   CDN and no JavaScript of the project's own. `{{ cookiecutter.project_slug }}/styles/` holds
   the source stylesheet and the project's own theme, the look to edit;
-  `static/css/tailwind.css` is built from them and never committed
+  `static/css/tailwind.css` is built from them and never committed. Every daisyUI theme is
+  enabled, and the navigation's theme picker keeps a visitor's choice in a cookie through htmx
 - A nonce-based Content Security Policy on every response, configured by `SECURE_CSP` in
   `config/settings/base.py`
 - Background work through Django's Tasks framework: run immediately in development and tests,
@@ -162,7 +163,7 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | Path | What lives there |
 | ---- | ---------------- |
 | `config/settings/` | The four settings modules; each setting is rendered from one block |
-| `config/urls.py` | URL routing; under `DEBUG` also the error-page previews |
+| `config/urls.py` | URL routing, with the theme picker's view; under `DEBUG` also the error-page previews |
 | `config/asgi.py` | The ASGI entry point |
 {%- if cookiecutter.rest_api == 'DRF' %}
 | `config/api_router.py` | The REST API's routes |
@@ -185,6 +186,7 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `{{ cookiecutter.project_slug }}/templates/` | Pages, the form and widget overrides under `django/forms/` and the allauth overrides |
 | `{{ cookiecutter.project_slug }}/static/` | Images and fonts; `css/tailwind.css` is built into it and never committed |
 | `{{ cookiecutter.project_slug }}/styles/` | The source stylesheet `main.css` and the project's own daisyUI theme, `theme.css` |
+| `{{ cookiecutter.project_slug }}/themes.py` | The themes a visitor may choose, the cookie that keeps the choice and the view the picker posts to |
 | `{{ cookiecutter.project_slug }}/htmx.py` | The htmx mixin and the login-redirect middleware |
 | `{{ cookiecutter.project_slug }}/typedefs.py` | The shared request types the views annotate against |
 | `{{ cookiecutter.project_slug }}/tests/` | Tests that belong to no single app, such as the policy and the error pages |

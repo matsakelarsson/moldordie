@@ -61,3 +61,6 @@ def test_the_server_error_page_renders_without_a_request_context(rf: RequestFact
     assert HERO in html
     assert '<h1 class="text-4xl font-bold">Ooops!!! 500</h1>' in html
     assert STYLESHEET in html
+    # No context processor ran: the page is in the default theme and has no picker
+    assert "data-theme" not in html
+    assert 'name="theme"' not in html

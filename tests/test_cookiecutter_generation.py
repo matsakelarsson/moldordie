@@ -88,6 +88,45 @@ RE_REMOVED_FRONTEND = re.compile("|".join(REMOVED_FRONTEND_PATTERNS))
 # "alert-{{ level }}": a class name assembled around an interpolation, which Tailwind never sees whole
 RE_ASSEMBLED_CLASS = re.compile(r"""\bclass=(["'])(?:(?!\1).)*?(?:[\w-]\{\{|\}\}[\w-])""", re.DOTALL)
 
+# The themes daisyUI 5 ships, in its own order: the generated picker offers every one of them
+DAISYUI_THEMES = (
+    "light",
+    "dark",
+    "cupcake",
+    "bumblebee",
+    "emerald",
+    "corporate",
+    "synthwave",
+    "retro",
+    "cyberpunk",
+    "valentine",
+    "halloween",
+    "garden",
+    "forest",
+    "aqua",
+    "lofi",
+    "pastel",
+    "fantasy",
+    "wireframe",
+    "black",
+    "luxury",
+    "dracula",
+    "cmyk",
+    "autumn",
+    "business",
+    "acid",
+    "lemonade",
+    "night",
+    "coffee",
+    "winter",
+    "dim",
+    "nord",
+    "sunset",
+    "caramellatte",
+    "abyss",
+    "silk",
+)
+
 # The daisyUI plugin block of the source stylesheet, with its options
 RE_DAISYUI_PLUGIN = re.compile(r'@plugin\s+"daisyui"\s*\{(.*?)\}', re.DOTALL)
 
@@ -1138,6 +1177,35 @@ def test_tailwind_and_daisyui(bake, context):
     for name in ("test_staticfiles.py", "test_error_pages.py", "test_forms.py", "test_allauth.py", "test_pages.py"):
         assert (project.root / slug / "tests" / name).is_file()
     assert "   frontend\n" in project.text("docs/index.rst")
+
+
+def test_themes(bake, context):
+    """Every daisyUI theme is enabled next to the project's own, and the picker's choice is kept by a view
+    that is always routed. That the stylesheet and ``THEMES`` agree is the generated suite's to check."""
+    project = bake(context)
+    slug = context["project_slug"]
+
+    themes = project.module(f"{slug}/themes.py").literal("THEMES")
+    own = re.search(r'name: "([^"]+)";', project.text(f"{slug}/styles/theme.css")).group(1)
+    assert themes == (own, *DAISYUI_THEMES)
+    # Listed one by one: "all" would make daisyUI's light the default, next to the project's own
+    enabled = RE_DAISYUI_PLUGIN.search(project.text(f"{slug}/styles/main.css")).group(1)
+    assert re.findall(r"^\s+([a-z]+)(?: --prefersdark)?[,;]$", enabled, re.MULTILINE) == list(DAISYUI_THEMES)
+    assert "--default" not in enabled
+
+    base = project.settings("base")
+    assert base.value("TEMPLATES")[0]["OPTIONS"]["context_processors"][-1] == f"{slug}.themes.theme"
+    routed = project.text("config/urls.py").partition("if settings.DEBUG:")[0]
+    assert 'path("theme/", set_theme, name="set_theme")' in routed
+
+    # The page is served in the chosen theme, and a checked theme-controller restyles it in CSS alone
+    base_html = project.template("base.html")
+    assert '{% if current_theme %}data-theme="{{ current_theme }}"{% endif %}' in base_html
+    assert "hx-history-elt" in base_html
+    navigation = project.template("partials/navigation.html")
+    assert "theme-controller" in navigation
+    assert "hx-post=\"{% url 'set_theme' %}\"" in navigation
+    assert (project.root / slug / "tests" / "test_themes.py").is_file()
 
 
 def test_docker_builds_and_watches_the_stylesheet(bake, context):

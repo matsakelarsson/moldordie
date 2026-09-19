@@ -13,7 +13,10 @@ from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
-{%- elif cookiecutter.rest_api == 'Django Ninja' %}
+{%- endif %}
+
+from {{ cookiecutter.project_slug }}.themes import set_theme
+{%- if cookiecutter.rest_api == 'Django Ninja' %}
 
 from .api import api
 {%- endif %}
@@ -30,6 +33,8 @@ urlpatterns = [
     # User management
     path("users/", include("{{ cookiecutter.project_slug }}.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
+    # The theme picker of the navigation posts the visitor's choice here
+    path("theme/", set_theme, name="set_theme"),
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
     # The single-page application's login: allauth's headless API, app client only
     path("_allauth/", include("allauth.headless.urls")),
