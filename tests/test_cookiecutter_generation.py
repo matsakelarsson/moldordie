@@ -79,6 +79,9 @@ FRONTEND_TOOLCHAIN_TOKENS = [
     "sass",
 ]
 
+# The daisyUI plugin block of the source stylesheet, with its options
+RE_DAISYUI_PLUGIN = re.compile(r'@plugin\s+"daisyui"\s*\{(.*?)\}', re.DOTALL)
+
 # The style checks that a formatter run after generation would fix: ruff format, djlint's
 # formatter and django-upgrade. They take longer than the rest of the suite, so they run
 # only with AUTOFIXABLE_STYLES=1; CI runs just them in its own job, selected by the marker.
@@ -1039,6 +1042,70 @@ def test_template_partials(bake, context):
         if path.is_relative_to(templates) and path.suffix == ".html" and "request.htmx" in project.text(path)
     ]
     assert offenders == []
+
+
+def test_tailwind_and_daisyui(bake, context):
+    """django-tailwind-cli builds the stylesheet from a source outside the static directories, and the
+    built file is never generated. Nothing here runs the Tailwind CLI: the integration scripts do."""
+    project = bake(context)
+    slug = context["project_slug"]
+
+    # A runtime dependency: the production image builds the stylesheet without the dev group
+    assert "django-tailwind-cli" in {pin.name for pin in project.pins["dependencies"]}
+    base = project.settings("base")
+    assert "django_tailwind_cli" in base.literal("INSTALLED_APPS")
+    assert base.literal("TAILWIND_CLI_USE_DAISY_UI") is True
+    # A release of tailwind-cli-extra, never "latest": it fixes Tailwind CSS and daisyUI together
+    assert re.fullmatch(r"\d+\.\d+\.\d+", base.literal("TAILWIND_CLI_VERSION"))
+    # Outside the static directories: a manifest storage cannot resolve the source's @import "tailwindcss"
+    assert base.literal("TAILWIND_CLI_SRC_CSS") == f"{slug}/styles/main.css"
+    assert base.value("STATICFILES_DIRS") == [Expression("str(APPS_DIR / 'static')")]
+    assert base.literal("TAILWIND_CLI_DIST_CSS") == "css/tailwind.css"
+    # The production image builds under the test settings, so no other module may say otherwise
+    for environment in ("local", "test", "production"):
+        assert "TAILWIND_CLI" not in project.settings(environment).source
+
+    # Explicit sources: the scan is the same with and without the .gitignore that Docker leaves out
+    css = project.text(f"{slug}/styles/main.css")
+    assert '@import "tailwindcss" source(none);' in css
+    assert '@source "../";' in css
+    assert RE_DAISYUI_PLUGIN.search(css)
+
+    ignored = project.text(".gitignore").splitlines()
+    assert f"{slug}/static/css/tailwind.css" in ignored
+    assert ".django_tailwind_cli/" in ignored
+    assert not (project.root / slug / "static" / "css" / "tailwind.css").exists()
+    assert not (project.root / ".django_tailwind_cli").exists()
+
+
+def test_docker_builds_and_watches_the_stylesheet(bake, context):
+    """The production image builds the stylesheet in its build stage; only the local stack runs the watcher."""
+    project = bake({**context, "use_docker": "y"})
+    slug = context["project_slug"]
+
+    build_stage, run_stage = project.text("compose/production/django/Dockerfile").split("AS python-run-stage")
+    assert "manage.py tailwind build --skip-checks" in build_stage
+    # The CLI lives in a build cache, so no layer and no image holds it
+    assert "--mount=type=cache,target=/app/.django_tailwind_cli" in build_stage
+    assert "tailwind" not in run_stage
+    # A container collects what the image holds, and builds nothing
+    start = project.text("compose/production/django/start")
+    assert "collectstatic" in start
+    assert "tailwind" not in start
+
+    ignored = project.text(".dockerignore").splitlines()
+    assert ".django_tailwind_cli/" in ignored
+    assert f"{slug}/static/css/tailwind.css" in ignored
+
+    services = project.compose("local")["services"]
+    watcher = services["tailwind"]
+    assert watcher["command"] == "python manage.py tailwind watch"
+    # Tailwind's CLI stops watching once its standard input closes
+    assert watcher["tty"] is True
+    assert watcher["ports"] == []
+    assert f"{slug}_local_tailwind_cli:/app/.django_tailwind_cli" in services["django"]["volumes"]
+    for environment in DEPLOYED_ENVIRONMENTS:
+        assert "tailwind" not in project.compose(environment)["services"]
 
 
 def test_ui_library(bake, context):

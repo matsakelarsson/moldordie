@@ -206,6 +206,30 @@ from example templates it also shows as written, with the sample form and the pr
 
 _Avoid_: style guide, storybook, demo.
 
+## Source stylesheet
+
+The CSS a developer writes and the Tailwind CLI reads: `styles/main.css` in the project package,
+which imports Tailwind CSS, enables daisyUI and names the files whose class names count. It is
+committed, and sits outside the static directories.
+
+_Avoid_: input CSS, Tailwind config, main stylesheet.
+
+## Built stylesheet
+
+What the Tailwind CLI writes from the source stylesheet and the class names it finds:
+`static/css/tailwind.css`. An artefact: never generated, never committed, rebuilt by the watcher
+in development and built into the production image.
+
+_Avoid_: output CSS, bundle, compiled CSS.
+
+## Watcher
+
+The development process that rebuilds the built stylesheet whenever a scanned file changes:
+`manage.py tailwind watch`, a second terminal without Docker, the `tailwind` service with it. No
+deployed environment runs one.
+
+_Avoid_: dev server (Uvicorn is), build (the one-off `tailwind build`).
+
 ## Partial
 
 A named `partialdef` block of a Django template, addressed as `template.html#name`. It

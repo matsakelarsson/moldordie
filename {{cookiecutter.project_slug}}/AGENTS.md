@@ -109,6 +109,8 @@ Everything runs in the containers of `docker-compose.local.yml`. `just` wraps th
 | ---- | ------- |
 | Build the images | `just build` |
 | Start the stack | `just up` (`just down` to stop, `just logs` to follow) |
+| Rebuild the stylesheet as files change | the `tailwind` service, started by `just up` (`just logs tailwind` to follow) |
+| Build the stylesheet once | `just manage tailwind build` |
 | A management command | `just manage <command>` |
 | Migrations | `just manage makemigrations` then `just manage migrate` |
 | Tests | `just pytest` |
@@ -130,6 +132,8 @@ Everything runs through `uv` from the project root, against a PostgreSQL
 | ---- | ------- |
 | Install the dependencies | `uv sync` |
 | Serve the site | `uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'` |
+| Rebuild the stylesheet as files change | `uv run python manage.py tailwind watch`, in a second terminal |
+| Build the stylesheet once | `uv run python manage.py tailwind build` |
 | A management command | `uv run python manage.py <command>` |
 | Migrations | `uv run python manage.py makemigrations` then `uv run python manage.py migrate` |
 | Tests | `uv run pytest` |
@@ -178,6 +182,7 @@ ruff, djLint and the other checks on commit, and mypy on push.
 {%- endif %}
 | `{{ cookiecutter.project_slug }}/templates/` | Pages, the allauth overrides and the components under `cotton/ui/` |
 | `{{ cookiecutter.project_slug }}/static/` | The UI library's stylesheets, `css/project.css` and `js/project.js` |
+| `{{ cookiecutter.project_slug }}/styles/` | The source stylesheet: Tailwind's CLI builds `static/css/tailwind.css` from it, which is never committed |
 | `{{ cookiecutter.project_slug }}/htmx.py` | The htmx mixin and the login-redirect middleware |
 | `{{ cookiecutter.project_slug }}/typedefs.py` | The shared request types the views annotate against |
 | `{{ cookiecutter.project_slug }}/tests/` | Tests that belong to no single app, such as the policy and the error pages |

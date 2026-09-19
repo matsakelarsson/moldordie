@@ -136,6 +136,8 @@ You will need to build the stack first. To do that, run::
 
     docker compose -f docker-compose.production.yml build
 
+The ``django`` image is built with its stylesheet: its build stage runs ``python manage.py tailwind build``, which downloads the Tailwind CLI named by ``TAILWIND_CLI_VERSION`` from GitHub's releases, so a build on a cold cache needs to reach github.com. The CLI stays in a build cache and never becomes part of the image. A container builds nothing when it starts; its ``collectstatic`` collects the stylesheet the image holds. A build host that cannot reach GitHub provisions the binary itself and points ``TAILWIND_CLI_PATH`` at it, or mirrors the release and names the mirror in ``TAILWIND_CLI_SRC_REPO``.
+
 Once this is ready, you can run it with::
 
     docker compose -f docker-compose.production.yml up

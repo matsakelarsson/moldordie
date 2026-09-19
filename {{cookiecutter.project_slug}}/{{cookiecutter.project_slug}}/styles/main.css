@@ -1,0 +1,15 @@
+/* The stylesheet's source. "python manage.py tailwind build" compiles it, with the Tailwind CSS
+   and daisyUI it imports, into static/css/tailwind.css. It sits outside the static
+   directories on purpose: collectstatic must never collect it. Class names are collected
+   from this package's templates and Python modules, and from nowhere else, so the build is the
+   same on every machine and in every image. */
+@import "tailwindcss" source(none);
+
+@source "../";
+@source not "../media";
+@source not "../static";
+
+/* daisyUI (https://daisyui.com), bundled in the CLI that TAILWIND_CLI_VERSION names */
+@plugin "daisyui" {
+  logs: false;
+}

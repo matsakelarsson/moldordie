@@ -1,10 +1,11 @@
 volumes:
   {{ cookiecutter.project_slug }}_local_postgres_data: {}
   {{ cookiecutter.project_slug }}_local_postgres_data_backups: {}
+  {{ cookiecutter.project_slug }}_local_tailwind_cli: {}
   {% if cookiecutter.use_celery == 'y' %}{{ cookiecutter.project_slug }}_local_redis_data: {}{% endif %}
 
 services:
-  django:{% if cookiecutter.use_celery == 'y' %} &django{% endif %}
+  django: &django
     build:
       context: .
       dockerfile: ./compose/local/django/Dockerfile
@@ -23,6 +24,9 @@ services:
       {%- endif %}
     volumes:
       - /app/.venv
+      # The Tailwind CLI, downloaded on first use: a volume, so the Linux binary is
+      # fetched once, shared by the services and stays off the host
+      - {{ cookiecutter.project_slug }}_local_tailwind_cli:/app/.django_tailwind_cli
       - .:/app:z
     env_file:
       - path: ./.envs/.local/.django
@@ -32,6 +36,18 @@ services:
     ports:
       - '8000:8000'
     command: /start
+
+  # Rebuilds <project_slug>/static/css/tailwind.css whenever a template or module changes
+  tailwind:
+    <<: *django
+    image: {{ cookiecutter.project_slug }}_local_tailwind
+    container_name: {{ cookiecutter.project_slug }}_local_tailwind
+    depends_on:
+      - postgres
+    ports: []
+    # Tailwind's CLI stops watching once its standard input closes
+    tty: true
+    command: python manage.py tailwind watch
 
   postgres:
     build:

@@ -52,6 +52,7 @@ dependencies = [
   "django-storages[s3]==1.14.6",
 {%- endif %}
   "django-stubs-ext==6.1.0",
+  "django-tailwind-cli==4.8.1",
   "django-tasks-db==0.13.0",
 {%- if cookiecutter.rest_api == 'DRF' %}
   "djangorestframework==3.18.1",
