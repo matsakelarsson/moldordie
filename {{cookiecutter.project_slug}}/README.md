@@ -76,7 +76,9 @@ running while you work,
 To change the look, edit the project's own theme in
 `{{cookiecutter.project_slug}}/styles/theme.css`: every colour, radius and size daisyUI reads is
 written out there. Every theme daisyUI ships is enabled as well, and the navigation's theme picker
-keeps a visitor's choice in a cookie, through htmx and without a script. htmx fragments are Django template partials, and every response carries a
+keeps a visitor's choice in a cookie, through htmx and without a script. The examples page, `/examples/`,
+shows the components and the htmx patterns at work, each with its template as written: it is starter
+content, and `docs/frontend.rst` says how to delete it. htmx fragments are Django template partials, and every response carries a
 nonce-based Content Security Policy, so templates must not contain inline scripts or styles.
 `docs/frontend.rst` has the details; see also the
 [frontend guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/frontend.rst).

@@ -1,0 +1,24 @@
+{% raw %}<div class="flex flex-col" id="example-tabs-container">
+  {# daisyUI draws the tab with aria-selected as the active one #}
+  <div role="tablist" class="tabs tabs-border">
+    {% for tab in tabs %}
+      <a class="tab"
+         role="tab"
+         href="{% url 'examples:index' %}?tab={{ tab.slug }}#example-tabs"
+         hx-get="{% url 'examples:tabs' %}?tab={{ tab.slug }}"
+         hx-target="#example-tabs-container"
+         hx-swap="outerHTML"
+         hx-indicator="#example-tabs-indicator"
+         aria-selected="{% if tab == current_tab %}true{% else %}false{% endif %}">{{ tab.title }}</a>
+    {% endfor %}
+    <span class="loading loading-dots loading-sm htmx-indicator self-center"
+          id="example-tabs-indicator"
+          aria-hidden="true"></span>
+  </div>
+  <div role="tabpanel"
+       class="border-base-300 bg-base-100 rounded-box mt-2 border p-4">
+    <p>{{ current_tab.body }}</p>
+    <p class="text-base-content/70 text-sm">The server rendered this panel at {% now "H:i:s" %}.</p>
+  </div>
+</div>
+{%- endraw %}

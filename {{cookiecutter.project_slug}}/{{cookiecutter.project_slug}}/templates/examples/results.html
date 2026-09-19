@@ -1,0 +1,56 @@
+{% raw %}<div class="flex flex-col gap-4" id="example-results-container">
+  {% if page.object_list %}
+    <div class="overflow-x-auto">
+      <table class="table-zebra table">
+        <caption class="sr-only">Tasks</caption>
+        <thead>
+          <tr>
+            <th scope="col">Task</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in page.object_list %}
+            <tr>
+              <td>{{ task.title }}</td>
+              <td>
+                {# task.badge is a whole class name, written out in examples/content.py #}
+                <span class="badge badge-sm {{ task.badge }}">{{ task.status }}</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="join" aria-label="Pages of tasks">
+      {% for number in page_range %}
+        {% if number == page.paginator.ELLIPSIS %}
+          <span class="join-item btn btn-sm btn-disabled">{{ number }}</span>
+        {% else %}
+          <a class="join-item btn btn-sm"
+             href="{% url 'examples:index' %}{% querystring page=number %}#example-results"
+             hx-get="{% url 'examples:index' %}{% querystring page=number %}"
+             hx-target="#example-results-container"
+             hx-swap="outerHTML"
+             hx-push-url="true"
+             {% if number == page.number %}aria-current="page"{% endif %}>{{ number }}</a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  {% else %}
+    <div class="hero bg-base-100 rounded-box py-8">
+      <div class="hero-content text-center">
+        <div>
+          <p class="font-semibold">No task matches "{{ query }}".</p>
+          <a class="btn btn-sm mt-4"
+             href="{% url 'examples:index' %}#example-results"
+             hx-get="{% url 'examples:index' %}"
+             hx-target="#example-results-container"
+             hx-swap="outerHTML"
+             hx-push-url="true">Show every task</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{%- endraw %}

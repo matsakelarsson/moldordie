@@ -1,0 +1,30 @@
+{% raw %}{# The input keeps its id across the swap, so htmx gives it the focus back #}
+<form class="flex flex-wrap items-center gap-4"
+      id="example-toggle-form"
+      method="post"
+      action="{% url 'examples:toggle' %}"
+      hx-post="{% url 'examples:toggle' %}"
+      hx-trigger="change"
+      hx-target="this"
+      hx-swap="outerHTML">
+  {% csrf_token %}
+  <label class="label text-base-content" for="example-toggle-input">
+    <input type="checkbox"
+           class="toggle toggle-primary"
+           id="example-toggle-input"
+           name="enabled"
+           {% if notifications %}checked{% endif %} />
+    Notifications
+  </label>
+  <span class="badge {% if notifications %}badge-success{% else %}badge-neutral{% endif %}">
+    {% if notifications %}
+      On
+    {% else %}
+      Off
+    {% endif %}
+  </span>
+  <noscript>
+    <button class="btn btn-sm" type="submit">Save</button>
+  </noscript>
+</form>
+{%- endraw %}

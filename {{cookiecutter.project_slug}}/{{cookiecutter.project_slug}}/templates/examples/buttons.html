@@ -1,0 +1,17 @@
+{% raw %}<div class="flex flex-wrap items-center gap-2">
+  <button class="btn btn-primary" type="button">Primary</button>
+  <button class="btn btn-secondary" type="button">Secondary</button>
+  <button class="btn btn-accent" type="button">Accent</button>
+  <button class="btn" type="button">Default</button>
+  <button class="btn btn-ghost" type="button">Ghost</button>
+  <button class="btn btn-outline btn-primary" type="button">Outline</button>
+  <button class="btn btn-error" type="button">Delete</button>
+  <button class="btn btn-primary" type="button" disabled>Disabled</button>
+</div>
+<div class="flex flex-wrap items-center gap-2">
+  <button class="btn btn-primary btn-sm" type="button">Small</button>
+  <button class="btn btn-primary btn-lg" type="button">Large</button>
+  {# A link drawn as a button: the class is the same #}
+  <a class="btn btn-link" href="{% url 'about' %}">A link</a>
+</div>
+{%- endraw %}

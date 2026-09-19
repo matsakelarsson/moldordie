@@ -1,0 +1,27 @@
+{% raw %}<div class="flex flex-col gap-2">
+  <div class="alert alert-info">
+    <span>A note for the reader.</span>
+  </div>
+  <div class="alert alert-success">
+    <span>It worked.</span>
+  </div>
+  <div class="alert alert-warning">
+    <span>Look before you continue.</span>
+  </div>
+  {# role="alert" interrupts a screen reader, so it is for what cannot wait; role="status" waits its turn #}
+  <div class="alert alert-error" role="alert">
+    <span>It failed, and this is announced at once.</span>
+  </div>
+  {# Dismissed without a script: checking the hidden box hides the alert, as the messages in base.html do #}
+  <div class="alert alert-soft alert-info has-[:checked]:hidden">
+    <span>This one can be dismissed.</span>
+    <label class="btn btn-ghost btn-sm btn-circle relative justify-self-end">
+      <input type="checkbox"
+             class="sr-only"
+             autocomplete="off"
+             aria-label="Dismiss" />
+      <span aria-hidden="true">✕</span>
+    </label>
+  </div>
+</div>
+{%- endraw %}

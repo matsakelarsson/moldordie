@@ -78,6 +78,8 @@
       </footer>
     {% endblock body %}
     {% block modal %}
+      {# Where an htmx request puts a dialog: daisyUI's modal, held open by its modal-open class #}
+      <div id="modal"></div>
     {% endblock modal %}
   </body>
 </html>

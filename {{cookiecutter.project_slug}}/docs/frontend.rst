@@ -271,7 +271,7 @@ with every request, not only with form submissions, and ``CsrfViewMiddleware`` s
 The navigation is deliberately not boosted: a boosted page swap would keep the body's
 attribute, and with it a token that signing in has rotated.
 
-A view answers an htmx request with one fragment of its own template. The fragment is a
+The examples page shows the patterns below at work. A view answers an htmx request with one fragment of its own template. The fragment is a
 ``{% partialdef name inline %}`` block, and the view names it:
 
 .. code-block:: python
@@ -303,6 +303,55 @@ The profile pages are the worked example: the edit link loads the form into the 
 card with ``hx-get``, ``hx-target`` and ``hx-push-url``, the form posts with ``hx-post``,
 and the saved card is swapped back with its message beside it. A fragment holds no
 ``<script>``, ``<style>`` or ``<link>``; the profile views' tests check theirs for them.
+
+The examples page
+-----------------
+
+``/examples/`` shows daisyUI components and htmx patterns as this project writes them, and
+the navigation links to it. Each example is a small template under
+``templates/examples/``, rendered live and shown beneath as it is written: the view reads
+the template's source, of the examples ``examples/content.py`` names and of no other
+template, so an example cannot show one thing and render another. Its first section shows
+the colours of the theme in use, which makes it the page to keep open while you edit
+``styles/theme.css``.
+
+The htmx demos are the patterns worth copying:
+
+- **A form validated on the server** posts into its own container with ``hx-post`` and gets
+  it back with its errors, or with the result and a message swapped in out of band.
+  ``hx-disabled-elt`` keeps a second click from posting twice, and daisyUI's ``loading``
+  element carries ``htmx-indicator``.
+- **A filtered table with pagination** replaces its container and pushes the address
+  (``hx-push-url``), so a result can be bookmarked and the back button works. The filter's
+  ``hx-trigger`` names events only (``input changed delay:300ms``), because the policy turns
+  htmx's bracketed event filters off, and the page links are built with
+  ``{% querystring %}``, which keeps the filter.
+- **A toggle** posts its state on ``change`` and is swapped for what the server made of it.
+- **Tabs** fetch their panel when they are chosen; each is a link, so without htmx it loads
+  the page with that tab. Under ``DEBUG`` the view answers a little late, so the indicator
+  shows on a developer's machine.
+- **A dialog** is fetched into ``<div id="modal">``, which ``base.html`` provides, and
+  emptied again by the dialog's answer. daisyUI's ``modal-open`` class holds it open
+  without a script, which also means it has no Escape key and no focus trap: a dialog
+  that needs them is the place for the project's first script and ``<dialog>``.
+- **Notices** answer with the messages alone, which htmx swaps in out of band even though
+  the form asked for no swap of its own.
+
+Every demo works without JavaScript: a plain request gets the whole page in the state it
+asked for, or a redirect to it. Every view is ``HtmxTemplateMixin`` on
+``examples/index.html`` naming one of its partials.
+
+The page is routed in every environment, so it keeps nothing on the server: no table, no
+session, only the query string, the posted form and one cookie for the toggle. Its views
+open no transaction, and their tests run without database access to hold them to it. The
+copy is plain English rather than translated, which keeps the examples readable as
+written.
+
+It is starter content. To delete it, remove ``<project_slug>/examples/`` (its tests go
+with it), ``<project_slug>/templates/examples/`` and the ``examples/`` line in
+``config/urls.py``. The navigation asks for the route before it links to it, so nothing
+else changes; ``examples/tests/test_views.py`` renders the home page without the route
+to keep that true.
 
 Error pages
 -----------
