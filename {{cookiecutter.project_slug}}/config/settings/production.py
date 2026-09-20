@@ -147,12 +147,17 @@ AWS_SECRET_ACCESS_KEY = env("DJANGO_AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = env("DJANGO_AWS_STORAGE_BUCKET_NAME")
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
 AWS_QUERYSTRING_AUTH = False
-# DO NOT change these unless you know what you're doing.
+# An upload keeps its name, so a browser is told to check back within the week
 _AWS_EXPIRY = 60 * 60 * 24 * 7
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
 AWS_S3_OBJECT_PARAMETERS = {
     "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}, must-revalidate",
 }
+{%- if not whitenoise %}
+# A collected static file carries the hash of its contents in its name, so its URL changes
+# whenever the file does and the old one can be cached for as long as a browser likes
+_STATIC_EXPIRY = 60 * 60 * 24 * 365
+{%- endif %}
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
 AWS_S3_MAX_MEMORY_SIZE = env.int(
     "DJANGO_AWS_S3_MAX_MEMORY_SIZE",
@@ -185,9 +190,15 @@ STORAGES = {
 {%- if whitenoise %}
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
 {%- else %}
-        "BACKEND": "storages.backends.s3.S3Storage",
+        # ManifestFilesMixin over the bucket: collectstatic writes each file under a
+        # name holding the hash of its contents, and staticfiles.json, which it also
+        # uploads, is what {% raw %}{% static %}{% endraw %} reads to name them
+        "BACKEND": "storages.backends.s3.S3ManifestStaticStorage",
         "OPTIONS": {
             "location": "static",
+            "object_parameters": {
+                "CacheControl": f"max-age={_STATIC_EXPIRY}, s-maxage={_STATIC_EXPIRY}, immutable",
+            },
         },
 {%- endif %}
     },
@@ -196,7 +207,8 @@ STORAGES = {
 {%- if aws %}
 MEDIA_URL = f"https://{aws_s3_domain}/media/"
 {%- if not whitenoise %}
-COLLECTFASTA_STRATEGY = "collectfasta.strategies.boto3.Boto3Strategy"
+# The manifest strategy: a hashed file is uploaded once, from the pass that named it
+COLLECTFASTA_STRATEGY = "collectfasta.strategies.boto3.Boto3ManifestMemoryStrategy"
 STATIC_URL = f"https://{aws_s3_domain}/static/"
 {%- endif %}
 {%- endif %}
