@@ -20,9 +20,10 @@ caller presented no usable credential rather than an insufficient one.
 
 One container's workers share `PROMETHEUS_MULTIPROC_DIR`, which
 `compose/production/django/start` exports and empties before Gunicorn starts — the variable
-has to be set before Python starts, because `prometheus_client` reads it on import — and
-`config/gunicorn.py` retires the samples of a worker that has exited. A scrape then describes
-the container. It does not describe the deployment: a deployment that scales the application
+has to be set before Python starts, because `prometheus_client` reads it on import. A scrape
+then describes the container: a worker that exits leaves its samples behind, which is what
+keeps the counters whole when one is recycled, and `config/gunicorn.py` reports the exit so
+that a gauge declared with a `live` multiprocess mode stops counting that worker. It does not describe the deployment: a deployment that scales the application
 runs several containers behind the proxy, and the generated `docs/observability.rst` says to
 discover every replica rather than to scrape the address in front of them.
 

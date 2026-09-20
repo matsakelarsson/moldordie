@@ -10,8 +10,9 @@ all of them. The directory belongs to one container and is emptied before Gunico
 starts, in ``compose/production/django/start`` — the variable has to be set before
 Python starts, because ``prometheus_client`` reads it when it is imported.
 
-What is left to do here is the other end of a worker's life: a worker that exits
-leaves its samples behind, and nothing would ever retire them.
+What is left to do here is the other end of a worker's life. A worker that exits
+leaves its samples behind, which is what keeps the container's counters whole; only
+a gauge declared with one of the ``live`` multiprocess modes has to forget it.
 """
 
 from typing import Any
@@ -20,11 +21,15 @@ from prometheus_client import multiprocess
 
 
 def child_exit(server: Any, worker: Any) -> None:
-    """Retire the samples of a worker that has exited.
+    """Tell the client that a worker has exited.
 
-    Gunicorn calls this in the arbiter, which is the only process that learns a
-    worker is gone; without it a recycled or crashed worker's counters would be
-    served for the life of the container.
+    Gunicorn calls this in the arbiter, the only process that learns a worker is
+    gone. ``mark_process_dead`` removes that worker's ``live`` gauge files and
+    nothing else: its counters, histograms and ordinary gauges are kept on purpose,
+    so a recycled worker's contributions stay in the container's totals. The metrics
+    django-prometheus declares are counters and histograms, so this retires nothing
+    today; it is what keeps a gauge this project adds later — a ``livesum`` of the
+    connections a worker holds, say — from counting workers that no longer exist.
     """
     # prometheus_client ships a py.typed marker but annotates this function with nothing
     multiprocess.mark_process_dead(worker.pid)  # type: ignore[no-untyped-call]

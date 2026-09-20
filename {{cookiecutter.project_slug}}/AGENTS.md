@@ -184,7 +184,7 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `config/websocket.py` | The websocket routing and consumers |
 {%- endif %}
 {%- if cookiecutter.observability == 'prometheus' %}
-| `config/gunicorn.py` | Gunicorn's configuration: it retires the metrics of a worker that exited |
+| `config/gunicorn.py` | Gunicorn's configuration: the multiprocess bookkeeping when a worker exits |
 {%- endif %}
 | `{{ cookiecutter.project_slug }}/users/` | The custom user model, its forms, views, adapters and tests |
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}

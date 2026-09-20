@@ -138,7 +138,8 @@ services:
   {%- if cookiecutter.observability == 'prometheus' %}
 
   # Reads what the application exposes at /metrics, so the metrics can be seen while
-  # developing. A deployment brings its own (docs/observability.rst).
+  # developing. A deployment brings its own (docs/observability.rst). Its query API
+  # asks for no credential, so it is published to this machine and no further.
   prometheus:
     image: docker.io/prom/prometheus:v3.14.0
     container_name: {{ cookiecutter.project_slug }}_local_prometheus
@@ -147,6 +148,6 @@ services:
     volumes:
       - ./compose/local/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:z
     ports:
-      - '9090:9090'
+      - '127.0.0.1:9090:9090'
 
   {%- endif %}

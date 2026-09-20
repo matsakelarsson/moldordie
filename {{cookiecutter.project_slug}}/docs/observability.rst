@@ -18,8 +18,10 @@ deployment that configured no token has authorised nobody, so every request is r
 
 Each deployed environment drew its own token when the project was generated, as
 ``DJANGO_METRICS_TOKEN`` in ``.envs/.<environment>/.django``; a token that reads ``dev``
-therefore reads nothing else. The developer's machine declares a fixed value instead,
-because nothing on it is worth protecting::
+therefore reads nothing else. The developer's machine declares a value that is the same
+in every checkout, so the local scrape configuration beside it can name it; it is a
+development value and not a secret, which is also why the local Prometheus is published
+to the loopback interface alone::
 
     curl -H "Authorization: Bearer $DJANGO_METRICS_TOKEN" http://localhost:8000/metrics
 
@@ -51,14 +53,19 @@ request whose ``Host`` is not in ``ALLOWED_HOSTS``, before any view runs and wit
 so each deployed environment's ``DJANGO_ALLOWED_HOSTS`` names ``django`` beside the site's
 own domain. Scraping several replicas means addressing each of them, so whatever the
 service discovery yields — the names you gave the containers, or the addresses the
-platform assigned — belongs in that list as well. A 400 from ``/metrics`` is always this;
-a refused credential is 401.
+platform assigned — belongs in that list as well. A refused credential is 401, so on a
+400 check ``ALLOWED_HOSTS`` and the ``django.security.DisallowedHost`` log first; Django
+answers 400 to other malformed requests too.
 
 **One container, one set of samples.** Gunicorn runs ``WEB_CONCURRENCY`` workers, each
 with metrics of its own, so the client's multiprocess mode is what makes a single scrape
 describe the container: ``compose/production/django/start`` points
-``PROMETHEUS_MULTIPROC_DIR`` at a directory of that container, empties it before Gunicorn
-starts, and ``config/gunicorn.py`` retires the samples of a worker that has exited.
+``PROMETHEUS_MULTIPROC_DIR`` at a directory of that container and empties it before
+Gunicorn starts. A worker that exits leaves its samples behind, which is what keeps the
+container's counters whole across a recycled worker; ``config/gunicorn.py`` tells the
+client about the exit so that a gauge declared with one of the ``live`` multiprocess
+modes stops counting it. Nothing django-prometheus declares is such a gauge, so that
+hook retires nothing until the project adds one.
 
 That mode costs two things worth knowing. The process, platform and garbage-collection
 collectors are not in the exposition, because each describes one process while the
@@ -70,9 +77,10 @@ Other processes
 ----------------------------------------------------------------------
 
 The task worker{% if cookiecutter.use_celery == 'y' %}, the Celery worker and beat{% endif %}
-record the same database and cache metrics, but they serve no HTTP and so expose nothing.
-Reading them means giving that container something to scrape; until then, what they do
-shows up in the database and cache metrics of the queries they run.
+record the same database and cache metrics, in their own processes, and serve no HTTP.
+Nothing collects them: they are not in the web container's exposition, and the queries
+those processes run appear in no scrape. Measuring them means giving those containers
+something a scrape can read, which this project does not generate.
 
 Measuring a model
 ----------------------------------------------------------------------
@@ -95,9 +103,11 @@ development token::
 
     docker compose -f docker-compose.local.yml up prometheus
 
-Its own interface is at http://localhost:9090; ``compose/local/prometheus/prometheus.yml``
-is the configuration it reads, and the target's health is the fastest way to see whether
-the credential is right.
+Its own interface is at http://localhost:9090, published to this machine only, because
+it asks for no credential of its own and would otherwise hand out the metrics the
+application refuses without one. ``compose/local/prometheus/prometheus.yml`` is the
+configuration it reads, and the target's health is the fastest way to see whether the
+credential is right.
 {%- else -%}
 Set ``DJANGO_METRICS_TOKEN`` in the environment the development server runs in, then read
 the endpoint with ``curl`` as above, or point a Prometheus of your own at

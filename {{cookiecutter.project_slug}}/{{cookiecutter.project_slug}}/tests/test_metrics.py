@@ -7,8 +7,12 @@ table, so a query would be a mistake, and these tests are where it would show.
 from __future__ import annotations
 
 from http import HTTPStatus
+from types import SimpleNamespace
 
 from django.urls import reverse
+from prometheus_client import multiprocess
+
+from config import gunicorn
 
 CREDENTIAL = "the-credential-of-this-environment"
 BEFORE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
@@ -89,3 +93,17 @@ def test_the_middlewares_wrap_the_chain(settings):
 
 def test_the_database_backend_is_the_instrumented_one(settings):
     assert settings.DATABASES["default"]["ENGINE"] == ENGINE
+
+
+def test_the_worker_exit_hook_reports_the_worker_that_left(monkeypatch):
+    """Gunicorn's arbiter is the only process that learns a worker is gone, so the hook
+    hands the client its pid. What the client then does is its own behaviour: it drops
+    that worker's ``live`` gauge files and keeps its counters, which is what makes the
+    container's totals survive a recycled worker. This checks the wiring, nothing else.
+    """
+    reported: list[int] = []
+    monkeypatch.setattr(multiprocess, "mark_process_dead", reported.append)
+
+    gunicorn.child_exit(server=object(), worker=SimpleNamespace(pid=4242))
+
+    assert reported == [4242]
