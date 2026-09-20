@@ -64,14 +64,15 @@ describe the container: ``compose/production/django/start`` points
 Gunicorn starts. A worker that exits leaves its samples behind, which is what keeps the
 container's counters whole across a recycled worker; ``config/gunicorn.py`` tells the
 client about the exit so that a gauge declared with one of the ``live`` multiprocess
-modes stops counting it. Nothing django-prometheus declares is such a gauge, so that
-hook retires nothing until the project adds one.
+modes stops counting it. None of django-prometheus' own gauges is declared that way,
+so that hook removes no file until the project adds one that is.
 
 That mode costs two things worth knowing. The process, platform and garbage-collection
 collectors are not in the exposition, because each describes one process while the
 exposition describes the container; read those from the container runtime instead. And a
-gauge reports the sample of every live worker unless it is declared with a way to combine
-them — counters, histograms and summaries add up on their own.
+gauge exposes a sample per process by default, processes that have exited included; only
+the ``live`` modes leave those out, and only those are what ``config/gunicorn.py`` can
+retire. Counters, histograms and summaries add up on their own.
 
 Other processes
 ----------------------------------------------------------------------

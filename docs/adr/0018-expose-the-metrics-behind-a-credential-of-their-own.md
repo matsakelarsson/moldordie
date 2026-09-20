@@ -52,7 +52,8 @@ The option adds nothing to Traefik, so a deployment is free to route, block or t
 application as it likes, and none of that is this option's business. A scrape needs one line
 of configuration, the credential, wherever it runs. The multiprocess mode the aggregation
 needs costs the process, platform and garbage-collection collectors, which describe a process
-where the exposition describes a container, and makes a gauge report every live worker unless
-it says how to combine them; both are in the generated documentation. The worker processes —
+where the exposition describes a container, and leaves a gauge exposing a sample per process,
+exited processes included, unless it is declared with one of the `live` modes; both are in the
+generated documentation. The worker processes —
 the task worker and, with Celery, its worker and beat — record the same database and cache
 metrics but serve no HTTP, so nothing reads them yet.

@@ -25,11 +25,11 @@ def child_exit(server: Any, worker: Any) -> None:
 
     Gunicorn calls this in the arbiter, the only process that learns a worker is
     gone. ``mark_process_dead`` removes that worker's ``live`` gauge files and
-    nothing else: its counters, histograms and ordinary gauges are kept on purpose,
-    so a recycled worker's contributions stay in the container's totals. The metrics
-    django-prometheus declares are counters and histograms, so this retires nothing
-    today; it is what keeps a gauge this project adds later — a ``livesum`` of the
-    connections a worker holds, say — from counting workers that no longer exist.
+    nothing else: its counters, histograms and its gauges of every other mode are kept
+    on purpose, so a recycled worker's contributions stay in the container's totals.
+    None of django-prometheus' gauges uses a ``live`` mode, so this hook removes no
+    file today; it is what keeps a gauge this project adds later — a ``livesum`` of
+    the connections a worker holds, say — from counting workers that have exited.
     """
     # prometheus_client ships a py.typed marker but annotates this function with nothing
     multiprocess.mark_process_dead(worker.pid)  # type: ignore[no-untyped-call]
