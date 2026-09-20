@@ -60,9 +60,9 @@ The same can be done from the console, under the bucket's **Permissions** tab: f
 
 The policy applies to objects already in the bucket, so there is no need to re-run ``collectstatic``.
 
-.. note:: Requests for a key that does not exist return ``403 Forbidden`` rather than ``404 Not Found``, because anonymous callers lack ``s3:ListBucket``. If static files still 403 after this, check the object is really there with ``aws s3api head-object --bucket $BUCKET --key static/css/tailwind.css``.
+.. note:: Requests for a key that does not exist return ``403 Forbidden`` rather than ``404 Not Found``, because anonymous callers lack ``s3:ListBucket``. If static files still 403 after this, check the object is really there, under the hashed name the manifest gives it: ``aws s3api list-objects-v2 --bucket $BUCKET --prefix static/css/tailwind``.
 
-.. note:: Static files keep their names on S3, and ``AWS_S3_OBJECT_PARAMETERS`` lets browsers cache them for a week. The stylesheet is built from the class names in use, so it changes with most deployments, and a returning visitor can be served new markup with the stylesheet of the deployment before. Shorten that cache, or serve the static files with hashed names (WhiteNoise does, and so does a manifest storage on S3), before the first visitors arrive.
+.. note:: The static files are uploaded through ``S3ManifestStaticStorage``, so each one is named after the hash of its contents and a changed file is a new URL. That is what lets them be cached for a year as ``immutable``: a returning visitor is never served the previous deployment's stylesheet. Uploads, which keep their names, keep the shorter policy of ``AWS_S3_OBJECT_PARAMETERS``.
 
 Keeping media private
 ---------------------
