@@ -98,6 +98,8 @@ if settings.DEBUG:
             kwargs={"exception": Exception("Page not Found")},
         ),
         path("500/", default_views.server_error),
+        # The page listens here for the server to restart (docs/frontend.rst)
+        path("__reload__/", include("django_browser_reload.urls")),
     ]
     if "debug_toolbar" in settings.INSTALLED_APPS:
         import debug_toolbar

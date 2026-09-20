@@ -79,7 +79,9 @@ Make sure to have the following on your host:
 
 #. See the application being served through Uvicorn, the ASGI server used in development and production: ::
 
-    uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
+    uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html' --reload-include '*.css' --timeout-graceful-shutdown 1
+
+   The page reloads itself when the server restarts, which django-browser-reload tells it to do, so a change to a module, a template or the stylesheet reaches the browser without a keystroke. The two options beyond ``--reload`` are what make that work: ``--reload-include '*.css'`` restarts the server when the watcher rebuilds the stylesheet, and ``--timeout-graceful-shutdown 1`` makes the old process exit rather than wait, since the page's own connection to it would otherwise keep it alive and the browser would never learn that anything had changed.
 
    Django's ``runserver`` still works for plain HTTP, but it does not serve websockets; ``uv run python manage.py tailwind runserver`` starts it and the watcher together.
 
