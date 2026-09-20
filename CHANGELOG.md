@@ -8,6 +8,37 @@ including release 2026.9.8, is kept in
 
 <!-- GENERATOR_PLACEHOLDER -->
 
+## 2026.9.20
+
+
+### Changed
+
+- Reload an open page when the development server restarts ([#90](https://github.com/matsakelarsson/moldordie/pull/90))
+
+- Name the static files on S3 after their contents ([#89](https://github.com/matsakelarsson/moldordie/pull/89))
+
+- Build the frontend with Tailwind CSS and daisyUI through django-tailwind-cli (#81–#84, #86) ([#88](https://github.com/matsakelarsson/moldordie/pull/88))
+
+- Render the whole page when htmx restores history ([#85](https://github.com/matsakelarsson/moldordie/pull/85))
+
+- Regenerate the catalogues, sweep the last traces and record the browser pass ([#86](https://github.com/matsakelarsson/moldordie/pull/86))
+
+- Add the examples page, routed in every environment ([#84](https://github.com/matsakelarsson/moldordie/pull/84))
+
+- Enable every daisyUI theme behind an htmx theme picker kept in a cookie ([#83](https://github.com/matsakelarsson/moldordie/pull/83))
+
+- Restyle every page with daisyUI and remove the previous frontend ([#82](https://github.com/matsakelarsson/moldordie/pull/82))
+
+- Land the coding agent's guide on main (#79) ([#87](https://github.com/matsakelarsson/moldordie/pull/87))
+
+- Wire django-tailwind-cli, daisyUI and the stylesheet build ([#81](https://github.com/matsakelarsson/moldordie/pull/81))
+
+- Name every Python the packaging metadata allows ([#80](https://github.com/matsakelarsson/moldordie/pull/80))
+
+- Write the chosen coding agent's guide into the generated project ([#79](https://github.com/matsakelarsson/moldordie/pull/79))
+
+- Add the dev and test deployed environments ([#78](https://github.com/matsakelarsson/moldordie/pull/78))
+
 ## 2026.9.16
 
 
