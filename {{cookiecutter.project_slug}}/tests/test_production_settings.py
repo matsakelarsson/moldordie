@@ -55,6 +55,12 @@ WHITENOISE_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 {%- if cookiecutter.use_sentry == 'y' %}
 TRACES_SAMPLE_RATE = 0.5
 {%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+BEFORE_MIDDLEWARE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
+AFTER_MIDDLEWARE = "django_prometheus.middleware.PrometheusAfterMiddleware"
+METRICS_ENGINE = "django_prometheus.db.backends.postgresql"
+METRICS_CACHE = "django_prometheus.cache.backends.redis.RedisCache"
+{%- endif %}
 
 
 EXAMPLE_DOTENV_FILE = BASE_DIR / ".env.example"
@@ -131,7 +137,7 @@ def test_the_declared_environment_is_enough(production_settings, environment):
     assert settings.DEBUG is False
     assert environment["DJANGO_SECRET_KEY"] == settings.SECRET_KEY
     assert environment["DJANGO_ADMIN_URL"] == settings.ADMIN_URL
-    assert [environment["DJANGO_ALLOWED_HOSTS"]] == settings.ALLOWED_HOSTS
+    assert environment["DJANGO_ALLOWED_HOSTS"].split(",") == settings.ALLOWED_HOSTS
     assert settings.CACHES["default"]["LOCATION"] == environment["REDIS_URL"]
     assert settings.TASKS["default"]["BACKEND"] == "django_tasks_db.DatabaseBackend"
 {%- if cookiecutter.realtime == 'channels' %}
@@ -371,4 +377,17 @@ def test_api_docs_name_the_production_server(production_settings):
     assert settings.SPECTACULAR_SETTINGS["SERVERS"] == [
         {"url": "https://{{ cookiecutter.domain_name }}", "description": "Production server"},
     ]
+{%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+
+
+def test_metrics_are_configured_from_the_environment(production_settings, environment):
+    """Each environment supplies its own; an unset one would refuse every scrape."""
+    settings = production_settings()
+
+    assert environment["DJANGO_METRICS_TOKEN"] == settings.METRICS_TOKEN
+    assert settings.MIDDLEWARE[0] == BEFORE_MIDDLEWARE
+    assert settings.MIDDLEWARE[-1] == AFTER_MIDDLEWARE
+    assert settings.DATABASES["default"]["ENGINE"] == METRICS_ENGINE
+    assert settings.CACHES["default"]["BACKEND"] == METRICS_CACHE
 {%- endif %}

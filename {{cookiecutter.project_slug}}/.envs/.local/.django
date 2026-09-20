@@ -31,3 +31,11 @@ REDIS_URL=redis://redis:6379/0
 CELERY_FLOWER_USER=!!!SET CELERY_FLOWER_USER!!!
 CELERY_FLOWER_PASSWORD=!!!SET CELERY_FLOWER_PASSWORD!!!
 {%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+
+# Metrics
+# ------------------------------------------------------------------------------
+# The credential the local Prometheus presents; a development value, not a secret,
+# so compose/local/prometheus/prometheus.yml can name it. Deployments draw their own.
+DJANGO_METRICS_TOKEN=development-metrics-token
+{%- endif %}

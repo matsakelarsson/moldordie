@@ -65,77 +65,81 @@ You'll be prompted for some values. Provide them, then a Django project will be 
 
 Answer the prompts with your own desired [options](docs/1-getting-started/project-generation-options.rst). For example:
 
-      [1/24] project_name (My Awesome Project): Reddit Clone
-      [2/24] project_slug (reddit_clone): reddit
-      [3/24] description (Behold My Awesome Project!): A reddit clone.
-      [4/24] author_name (Daniel Roy Greenfeld): Daniel Greenfeld
-      [5/24] domain_name (example.com): myreddit.com
-      [6/24] email (daniel-greenfeld@myreddit.com): pydanny@gmail.com
-      [7/24] version (0.1.0): 0.0.1
-      [8/24] Select open_source_license
+      [1/25] project_name (My Awesome Project): Reddit Clone
+      [2/25] project_slug (reddit_clone): reddit
+      [3/25] description (Behold My Awesome Project!): A reddit clone.
+      [4/25] author_name (Daniel Roy Greenfeld): Daniel Greenfeld
+      [5/25] domain_name (example.com): myreddit.com
+      [6/25] email (daniel-greenfeld@myreddit.com): pydanny@gmail.com
+      [7/25] version (0.1.0): 0.0.1
+      [8/25] Select open_source_license
         1 - MIT
         2 - BSD
         3 - GPLv3
         4 - Apache Software License 2.0
         5 - Not open source
         Choose from [1/2/3/4/5] (1): 1
-      [9/24] Select username_type
+      [9/25] Select username_type
         1 - username
         2 - email
         Choose from [1/2] (1): 1
-      [10/24] timezone (UTC): America/Los_Angeles
-      [11/24] use_docker (n): n
-      [12/24] Select postgresql_version
+      [10/25] timezone (UTC): America/Los_Angeles
+      [11/25] use_docker (n): n
+      [12/25] Select postgresql_version
         1 - 18
         2 - 17
         3 - 16
         4 - 15
         5 - 14
         Choose from [1/2/3/4/5] (1): 1
-      [13/24] Select cloud_provider
+      [13/25] Select cloud_provider
         1 - AWS
         2 - None
         Choose from [1/2] (1): 1
-      [14/24] Select mail_service
+      [14/25] Select mail_service
         1 - Mailgun
         2 - Amazon SES
         3 - Other SMTP
         Choose from [1/2/3] (1): 1
-      [15/24] Select rest_api
+      [15/25] Select rest_api
         1 - None
         2 - DRF
         3 - Django Ninja
         Choose from [1/2/3] (1): 1
-      [16/24] Select identity_provider
+      [16/25] Select identity_provider
         1 - none
         2 - entra
         3 - google
         Choose from [1/2/3] (1): 1
-      [17/24] Select realtime
+      [17/25] Select realtime
         1 - none
         2 - channels
         Choose from [1/2] (1): 1
-      [18/24] use_celery (n): y
-      [19/24] Select mail_catcher
+      [18/25] use_celery (n): y
+      [19/25] Select mail_catcher
         1 - None
         2 - Mailpit
         3 - Mailtrap Local
         Choose from [1/2/3] (1): 1
-      [20/24] use_sentry (n): y
-      [21/24] use_whitenoise (n): n
-      [22/24] Select ci_tool
+      [20/25] use_sentry (n): y
+      [21/25] Select observability
+        1 - none
+        2 - prometheus
+        Choose from [1/2] (1): 2
+      [22/25] use_whitenoise (n): n
+      [23/25] Select ci_tool
         1 - None
         2 - Gitlab
         3 - Github
         Choose from [1/2/3] (1): 3
-      [23/24] Select coding_agent
+      [24/25] Select coding_agent
         1 - none
         2 - claude
         3 - codex
         4 - cursor
         5 - copilot
         Choose from [1/2/3/4/5] (1): 2
-      [24/24] debug (n): n
+      [25/25] debug (n): n
 
 Enter the project and take a look around:
 

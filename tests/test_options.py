@@ -40,6 +40,7 @@ KINDS = {
     "use_celery": FLAG,
     "mail_catcher": LIST,
     "use_sentry": FLAG,
+    "observability": LIST,
     "use_whitenoise": FLAG,
     "ci_tool": LIST,
     "coding_agent": LIST,

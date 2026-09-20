@@ -6,4 +6,16 @@ set -o nounset
 
 
 python /app/manage.py collectstatic --noinput
+{% if cookiecutter.observability == 'prometheus' -%}
+# The workers of this container write their samples here and the exposition reads all
+# of them, so one scrape describes the container rather than whichever worker answered.
+# It is exported before Python starts, because prometheus_client reads it on import,
+# and emptied first, so samples of an earlier run are never served (config/gunicorn.py).
+export PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+rm -rf "${PROMETHEUS_MULTIPROC_DIR}"
+mkdir -p "${PROMETHEUS_MULTIPROC_DIR}"
+
+exec gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker --config /app/config/gunicorn.py
+{%- else -%}
 exec gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker
+{%- endif %}

@@ -4,7 +4,12 @@
 DJANGO_SETTINGS_MODULE=config.settings.production
 DJANGO_SECRET_KEY=!!!SET DJANGO_SECRET_KEY!!!
 DJANGO_ADMIN_URL=!!!SET DJANGO_ADMIN_URL!!!/
+{%- if cookiecutter.observability == 'prometheus' %}
+# The last name is the Compose service, which a scrape inside the network dials
+DJANGO_ALLOWED_HOSTS=test.{{ cookiecutter.domain_name }},django
+{%- else %}
 DJANGO_ALLOWED_HOSTS=test.{{ cookiecutter.domain_name }}
+{%- endif %}
 
 # Security
 # ------------------------------------------------------------------------------
@@ -65,6 +70,11 @@ WEB_CONCURRENCY=4
 # ------------------------------------------------------------------------------
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=test
+{% endif %}{% if cookiecutter.observability == 'prometheus' %}
+# Metrics
+# ------------------------------------------------------------------------------
+# The credential a scrape presents to /metrics. No token, no metrics.
+DJANGO_METRICS_TOKEN=!!!SET DJANGO_METRICS_TOKEN!!!
 {% endif %}
 
 # Redis

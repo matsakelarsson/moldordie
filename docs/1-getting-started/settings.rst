@@ -61,6 +61,7 @@ SENTRY_DSN                     SENTRY_DSN                       n/a             
 SENTRY_ENVIRONMENT             SENTRY_ENVIRONMENT               n/a                 "production"
 SENTRY_TRACES_SAMPLE_RATE      SENTRY_TRACES_SAMPLE_RATE        n/a                 0.0
 DJANGO_SENTRY_LOG_LEVEL        SENTRY_LOG_LEVEL                 n/a                 logging.INFO
+DJANGO_METRICS_TOKEN           METRICS_TOKEN                    ""                  "" (every scrape refused)
 MAILGUN_API_KEY                ANYMAIL["MAILGUN_API_KEY"]       n/a                 raises error
 MAILGUN_DOMAIN                 ANYMAIL["MAILGUN_SENDER_DOMAIN"] n/a                 raises error
 MAILGUN_API_URL                ANYMAIL["MAILGUN_API_URL"]       n/a                 "https://api.mailgun.net/v3"
@@ -87,6 +88,8 @@ ENTRA_API_CLIENT_ID                          IDENTITY_SERVICE_AUDIENCE          
 ENTRA_SERVICE_ROLE                           ENTRA_SERVICE_ROLE                     "Service.Access"           "Service.Access"
 GOOGLE_SERVICE_AUDIENCE                      IDENTITY_SERVICE_AUDIENCE              "https://your_domain_name" "https://your_domain_name"
 ============================================ ====================================== ========================== ==========================
+
+With ``observability=prometheus``, ``DJANGO_METRICS_TOKEN`` is the credential a scrape presents at ``/metrics``, as a bearer token: the endpoint answers a machine, never a session, and an unset token refuses every request. Each deployed environment drew its own when the project was generated; the developer's machine declares a fixed value. The generated ``docs/observability.rst`` covers the scrape configuration.
 
 The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.env.example`` declares: no env file is in version control, so the committed example is where a checkout reads the deployment's variables from. The ``dev`` and ``test`` deployments run the same module, under the environment their own files declare; see :ref:`deployment-with-docker`.
 
