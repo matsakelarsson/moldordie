@@ -36,6 +36,11 @@ class ServiceRegistration(models.Model):
         verbose_name = _("service registration")
         verbose_name_plural = _("service registrations")
         ordering = ["name"]
+        {%- if cookiecutter.observability == 'prometheus' %}
+        # What a calling service must hold to read the exposition; a registration
+        # grants it nothing by existing. See {{ cookiecutter.project_slug }}/metrics.py
+        permissions = [("read_metrics", _("Can read the metrics"))]
+        {%- endif %}
 
     def __str__(self) -> str:
         return self.name

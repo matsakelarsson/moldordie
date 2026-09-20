@@ -1,20 +1,21 @@
-"""The verifier around its key source, and what it tells the logs."""
+"""The verifier around its key source, and what it tells the logs.
+
+The verifier is called here as its callers call it, rather than through one of them:
+what it accepts and refuses is the same wherever the token arrived.
+"""
 
 from __future__ import annotations
 
 import logging
-from http import HTTPStatus
 from typing import Any
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
-from django.urls import reverse
 from jwt import PyJWKClientError
 
 from {{ cookiecutter.project_slug }}.identity import verification
 from {{ cookiecutter.project_slug }}.identity.models import ServiceRegistration
 from {{ cookiecutter.project_slug }}.identity.tests import services
-from {{ cookiecutter.project_slug }}.identity.tests.headless import bearer
 from {{ cookiecutter.project_slug }}.identity.tests.services import KID
 from {{ cookiecutter.project_slug }}.identity.tests.services import LIFETIME
 from {{ cookiecutter.project_slug }}.identity.tests.services import SUBJECT
@@ -26,6 +27,7 @@ pytestmark = pytest.mark.django_db
 
 DISCOVERY_URL = "https://issuer.example.com/.well-known/openid-configuration"
 JWKS_URI = "https://issuer.example.com/keys"
+FOREIGN_ISSUER = "https://issuer.example.com"
 NEW_KID = "2026-10"
 NEW_PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
@@ -41,8 +43,15 @@ def registration() -> ServiceRegistration:
     return ServiceRegistration.objects.create(name="Billing", subject=SUBJECT)
 
 
-def get_principal(client, token: str) -> Any:
-    return client.get(reverse("api:principal"), headers=bearer(token))
+def verify(token: str) -> ServiceRegistration:
+    return verification.service_verifier().verify(token)
+
+
+def refuse(token: str) -> str:
+    """Verify a token that must be refused, and answer the reason code it carried."""
+    with pytest.raises(verification.Rejected) as refused:
+        verify(token)
+    return refused.value.reason
 
 
 def rejections(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
@@ -50,36 +59,26 @@ def rejections(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
 
 
 class TestKeySource:
-    def test_a_replaced_provider_key_is_accepted(self, client, registration, keys):
+    def test_a_replaced_provider_key_is_accepted(self, registration, keys):
         """The provider rotates: a new key id in its key set signs the next tokens."""
         keys.keys[NEW_KID] = NEW_PRIVATE_KEY.public_key()
         token = sign(service_claims(), kid=NEW_KID, key=NEW_PRIVATE_KEY)
 
-        assert get_principal(client, token).status_code == HTTPStatus.OK
+        assert verify(token) == registration
 
-    def test_a_retired_key_is_unknown(self, client, registration, keys, caplog):
+    def test_a_retired_key_is_unknown(self, registration, keys, caplog):
         caplog.set_level(logging.WARNING, logger=verification.__name__)
         del keys.keys[KID]
 
-        response = get_principal(client, sign(service_claims()))
-
-        assert response.status_code == HTTPStatus.UNAUTHORIZED
+        assert refuse(sign(service_claims())) == verification.UNKNOWN_KEY
         (record,) = rejections(caplog)
         assert "reason=unknown_key" in record.getMessage()
 
-    def test_a_key_lookup_failure_fails_closed(
-        self,
-        client,
-        registration,
-        monkeypatch,
-        caplog,
-    ):
+    def test_a_key_lookup_failure_fails_closed(self, registration, monkeypatch, caplog):
         caplog.set_level(logging.WARNING, logger=verification.__name__)
         services.use_keys(monkeypatch, services.FailingKeys())
 
-        response = get_principal(client, sign(service_claims()))
-
-        assert response.status_code == HTTPStatus.UNAUTHORIZED
+        assert refuse(sign(service_claims())) == verification.KEY_LOOKUP_FAILED
         (record,) = rejections(caplog)
         assert "reason=key_lookup_failed" in record.getMessage()
         assert "could not be reached" not in record.getMessage()
@@ -154,20 +153,20 @@ class TestDiscoveredKeys:
 
 
 class TestLogging:
-    def test_an_expired_token_is_routine(self, client, registration, caplog):
+    def test_an_expired_token_is_routine(self, registration, caplog):
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
         expired = service_claims(exp=service_claims()["iat"] - 2 * LIFETIME)
 
-        get_principal(client, sign(expired))
+        refuse(sign(expired))
 
         (record,) = rejections(caplog)
         assert record.levelno == logging.INFO
         assert "reason=expired" in record.getMessage()
 
-    def test_a_wrong_issuer_is_suspicious(self, client, registration, caplog):
+    def test_a_wrong_issuer_is_suspicious(self, registration, caplog):
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
 
-        get_principal(client, sign(service_claims(iss="https://issuer.example.com")))
+        refuse(sign(service_claims(iss=FOREIGN_ISSUER)))
 
         (record,) = rejections(caplog)
         assert record.levelno == logging.WARNING
@@ -175,7 +174,6 @@ class TestLogging:
 
     def test_a_burst_of_identical_warnings_is_collapsed(
         self,
-        client,
         registration,
         caplog,
         monkeypatch,
@@ -183,36 +181,31 @@ class TestLogging:
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
         clock = [1000.0]
         monkeypatch.setattr(verification, "monotonic", lambda: clock[0])
-        token = sign(service_claims(iss="https://issuer.example.com"))
+        token = sign(service_claims(iss=FOREIGN_ISSUER))
 
         for _ in range(5):
-            get_principal(client, token)
+            refuse(token)
 
         assert [record.getMessage() for record in rejections(caplog)] == [
-            "token rejected: branch=router reason=bad_issuer",
+            "token rejected: branch=service reason=bad_issuer",
         ]
 
         clock[0] += verification.LOG_COOLDOWN
-        get_principal(client, token)
+        refuse(token)
 
         cooldown = f"{verification.LOG_COOLDOWN:.0f}"
         assert rejections(caplog)[-1].getMessage() == (
-            "token rejected: branch=router reason=bad_issuer "
+            "token rejected: branch=service reason=bad_issuer "
             f"(and 4 more in the last {cooldown} seconds)"
         )
 
-    def test_different_reasons_are_not_collapsed_together(
-        self,
-        client,
-        registration,
-        caplog,
-    ):
+    def test_different_reasons_are_not_collapsed_together(self, registration, caplog):
         caplog.set_level(logging.DEBUG, logger=verification.__name__)
 
-        get_principal(client, sign(service_claims(iss="https://issuer.example.com")))
-        get_principal(client, sign(service_claims(aud="https://another.example.com")))
+        refuse(sign(service_claims(iss=FOREIGN_ISSUER)))
+        refuse(sign(service_claims(aud="https://another.example.com")))
 
         assert [record.getMessage() for record in rejections(caplog)] == [
-            "token rejected: branch=router reason=bad_issuer",
+            "token rejected: branch=service reason=bad_issuer",
             "token rejected: branch=service reason=bad_audience",
         ]

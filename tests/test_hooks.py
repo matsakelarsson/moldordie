@@ -415,9 +415,31 @@ NO_IDENTITY_PROVIDER = {
     f"{PKG}/users/tests/test_social_login.py",
 }
 NOT_ENTRA = {f"{PKG}/users/providers.py", f"{PKG}/users/tests/test_providers.py"}
-# The app behind the single-page application's login and the calling services: Django
-# Ninja with a provider only
+# The app behind the calling services, and with Django Ninja the single-page
+# application's login too: a provider that something reads a token from
 NO_IDENTITY_APP = {f"{PKG}/identity"}
+# Without Django Ninja the verifier and the registrations stay and the API's side goes
+NO_IDENTITY_API = {
+    f"{PKG}/identity/api.py",
+    f"{PKG}/identity/auth.py",
+    f"{PKG}/identity/frontend.py",
+    f"{PKG}/identity/management",
+    f"{PKG}/identity/permissions.py",
+    f"{PKG}/identity/tests/conftest.py",
+    f"{PKG}/identity/tests/headless.py",
+    f"{PKG}/identity/tests/test_apps.py",
+    f"{PKG}/identity/tests/test_auth.py",
+    f"{PKG}/identity/tests/test_frontend.py",
+    f"{PKG}/identity/tests/test_login.py",
+    f"{PKG}/identity/tests/test_permissions.py",
+    f"{PKG}/identity/tests/test_provider_login.py",
+    f"{PKG}/identity/tests/test_revoke_jwt_sessions.py",
+    f"{PKG}/identity/tests/test_services.py",
+}
+# The checks are the headless login's and Entra's, so the module goes with neither
+NO_IDENTITY_CHECKS = {f"{PKG}/identity/checks.py"}
+# The permission a scrape must hold, declared where there are metrics to read
+NO_METRICS_PERMISSION = {f"{PKG}/identity/migrations/0002_the_metrics_permission.py"}
 # No coding agent, so no guide for one; every other answer moves it where that agent reads it.
 NO_AGENT_GUIDE = {AGENT_GUIDE}
 
@@ -574,6 +596,11 @@ def test_prune_identity_provider_files(unpruned_project, identity_provider, expe
     assert_prunes(unpruned_project, expected, identity_provider=identity_provider)
 
 
+# With the default answers nothing reads the metrics, so the app that survives keeps no
+# permission to read them.
+KEPT = NO_IDENTITY_APP | NO_METRICS_PERMISSION
+
+
 @pytest.mark.parametrize(
     ("rest_api", "identity_provider", "expected"),
     [
@@ -582,13 +609,41 @@ def test_prune_identity_provider_files(unpruned_project, identity_provider, expe
         (
             "Django Ninja",
             "entra",
-            (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NOT_ENTRA - NO_IDENTITY_APP) | NO_DRF,
+            (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NOT_ENTRA - KEPT) | NO_DRF | NO_METRICS_PERMISSION,
         ),
-        ("Django Ninja", "google", (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - NO_IDENTITY_APP) | NO_DRF),
+        (
+            "Django Ninja",
+            "google",
+            (DEFAULTS - NO_REST_API - NO_IDENTITY_PROVIDER - KEPT) | NO_DRF | NO_METRICS_PERMISSION,
+        ),
     ],
 )
 def test_prune_identity_app(unpruned_project, rest_api, identity_provider, expected):
     assert_prunes(unpruned_project, expected, rest_api=rest_api, identity_provider=identity_provider)
+
+
+# Metrics and a provider, so a scrape may present a token of the provider's: the verifier
+# and the registrations are generated whether or not the API that also reads them is.
+WITH_METRICS = DEFAULTS - NO_METRICS - NO_IDENTITY_APP - NO_IDENTITY_PROVIDER
+
+
+@pytest.mark.parametrize(
+    ("rest_api", "identity_provider", "expected"),
+    [
+        ("None", "entra", (WITH_METRICS - NOT_ENTRA) | NO_IDENTITY_API),
+        ("None", "google", WITH_METRICS | NO_IDENTITY_API | NO_IDENTITY_CHECKS),
+        ("DRF", "entra", (WITH_METRICS - NO_REST_API - NOT_ENTRA) | NO_NINJA | NO_IDENTITY_API),
+        ("Django Ninja", "entra", (WITH_METRICS - NO_REST_API - NOT_ENTRA) | NO_DRF),
+    ],
+)
+def test_prune_machine_authentication(unpruned_project, rest_api, identity_provider, expected):
+    assert_prunes(
+        unpruned_project,
+        expected,
+        rest_api=rest_api,
+        identity_provider=identity_provider,
+        observability="prometheus",
+    )
 
 
 # The removal rules checked for self-consistency over every combination of the answers they

@@ -84,12 +84,19 @@ DJANGO_HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN  HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_I
 DJANGO_HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN  86400                      86400
 DJANGO_FRONTEND_ORIGINS                      FRONTEND_ORIGINS, CORS_ALLOWED_ORIGINS ["http://localhost:5173"]  raises error
 DJANGO_FRONTEND_URL                          FRONTEND_URL, HEADLESS_FRONTEND_URLS   "http://localhost:5173"    raises error
+============================================ ====================================== ========================== ==========================
+
+An identity provider also issues tokens to the calling services of the project, which the ``identity`` app verifies. It is generated wherever something reads one — Django Ninja's routes, or the metrics endpoint with ``observability=prometheus`` — and these are the settings its verifier reads:
+
+============================================ ====================================== ========================== ==========================
+Environment Variable                         Django Setting                         Development Default        Production Default
+============================================ ====================================== ========================== ==========================
 ENTRA_API_CLIENT_ID                          IDENTITY_SERVICE_AUDIENCE              "" (checks warn)           "" (checks warn)
 ENTRA_SERVICE_ROLE                           ENTRA_SERVICE_ROLE                     "Service.Access"           "Service.Access"
 GOOGLE_SERVICE_AUDIENCE                      IDENTITY_SERVICE_AUDIENCE              "https://your_domain_name" "https://your_domain_name"
 ============================================ ====================================== ========================== ==========================
 
-With ``observability=prometheus``, ``DJANGO_METRICS_TOKEN`` is the credential a scrape presents at ``/metrics``, as a bearer token: the endpoint answers a machine, never a session, and an unset token refuses every request. Each deployed environment drew its own when the project was generated; the developer's machine declares a fixed value. The generated ``docs/observability.rst`` covers the scrape configuration.
+With ``observability=prometheus``, ``DJANGO_METRICS_TOKEN`` is the credential a scrape presents at ``/metrics``, as a bearer token: the endpoint answers a machine, never a session, and an unset token refuses every request. Each deployed environment drew its own when the project was generated; the developer's machine declares a fixed value. With an identity provider a scraper registered as a calling service presents its own token instead, and its registration has to hold the ``identity.read_metrics`` permission, so a deployment whose scrapers have an identity at the provider can leave the drawn token unset. The generated ``docs/observability.rst`` covers both and the scrape configuration.
 
 The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.env.example`` declares: no env file is in version control, so the committed example is where a checkout reads the deployment's variables from. The ``dev`` and ``test`` deployments run the same module, under the environment their own files declare; see :ref:`deployment-with-docker`.
 

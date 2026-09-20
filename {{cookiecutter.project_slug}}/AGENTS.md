@@ -68,6 +68,9 @@ already there.
 - `{{ cookiecutter.project_slug }}/identity/`: allauth's headless API issuing the
   single-page application's JWTs, the verification of provider-issued service tokens, and
   the Ninja authentication policies every route runs under
+{%- elif cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
+- `{{ cookiecutter.project_slug }}/identity/`: the verification of provider-issued service
+  tokens and the registrations they resolve to, read by the metrics endpoint
 {%- endif %}
 {%- if cookiecutter.realtime == 'channels' %}
 - Websockets through Django Channels, routed by `config/websocket.py` from `config/asgi.py`
@@ -78,7 +81,8 @@ already there.
 {%- endif %}
 {%- if cookiecutter.observability == 'prometheus' %}
 - Metrics through django-prometheus, exposed at `/metrics` to a caller presenting
-  `METRICS_TOKEN` as a bearer token, never to a session (`docs/observability.rst`)
+  `METRICS_TOKEN` as a bearer token{% if cookiecutter.identity_provider != 'none' %}, or a service token of the provider's whose
+  registration holds `identity.read_metrics`{% endif %}, never to a session (`docs/observability.rst`)
 {%- endif %}
 {%- if cookiecutter.cloud_provider == 'AWS' %}
 - Uploads on Amazon S3 in production through django-storages
@@ -189,6 +193,8 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `{{ cookiecutter.project_slug }}/users/` | The custom user model, its forms, views, adapters and tests |
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 | `{{ cookiecutter.project_slug }}/identity/` | The app's own tokens, service tokens and the authentication policies |
+{%- elif cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
+| `{{ cookiecutter.project_slug }}/identity/` | Service tokens and the registrations that say what a calling service may do |
 {%- endif %}
 {%- if cookiecutter.use_sentry == 'y' %}
 | `{{ cookiecutter.project_slug }}/sentry/` | The app that initialises the Sentry SDK |

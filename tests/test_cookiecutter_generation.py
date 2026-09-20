@@ -239,7 +239,18 @@ PAIRED_COMBINATIONS = [
         "use_sentry": "y",
         "ci_tool": "Github",
     },
-    {"coding_agent": "cursor", "rest_api": "DRF", "ci_tool": "Gitlab", "observability": "prometheus"},
+    {
+        "coding_agent": "cursor",
+        "rest_api": "DRF",
+        "ci_tool": "Gitlab",
+        "observability": "prometheus",
+        "identity_provider": "entra",
+    },
+    # A provider and the metrics endpoint without Django Ninja: a scrape is then the only
+    # caller presenting a token the provider issued, so the verifier is generated for it
+    # alone, and Google's arm of the app has no check of its own to keep.
+    {"identity_provider": "google", "observability": "prometheus"},
+    {"identity_provider": "entra", "rest_api": "Django Ninja", "observability": "prometheus"},
 ]
 
 DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
@@ -758,6 +769,10 @@ DEPENDENCY_CASES = [
     ({"cloud_provider": "None", "use_whitenoise": "y"}, {"whitenoise"}, {"django-storages", "collectfasta"}),
     ({"mail_service": "Other SMTP"}, {"django-anymail"}, set()),
     ({"identity_provider": "none"}, {"django-allauth"}, set()),
+    # PyJWT verifies the tokens of calling services, wherever something reads one
+    ({"identity_provider": "entra", "observability": "prometheus"}, {"pyjwt"}, set()),
+    ({"identity_provider": "entra", "rest_api": "Django Ninja"}, {"pyjwt"}, set()),
+    ({"identity_provider": "entra"}, set(), {"pyjwt"}),
 ]
 
 
@@ -1841,6 +1856,49 @@ def test_metrics_wiring(bake, context, observability):
         assert "--config /app/config/gunicorn.py" in start
         assert "mark_process_dead" in project.text(Path("config") / "gunicorn.py")
         assert services["prometheus"]["depends_on"] == ["django"]
+
+
+# Whether a project has the verifier of calling services, and whether it also has the API
+# that reads one: the answers that decide are the provider and what consumes its tokens.
+MACHINE_AUTHENTICATION = [
+    ({"identity_provider": "none", "rest_api": "Django Ninja"}, False, False),
+    ({"identity_provider": "entra"}, False, False),
+    ({"identity_provider": "entra", "rest_api": "Django Ninja"}, True, True),
+    ({"identity_provider": "google", "observability": "prometheus"}, True, False),
+]
+
+
+@pytest.mark.parametrize(
+    ("answers", "verifier", "api"),
+    MACHINE_AUTHENTICATION,
+    ids=["no provider", "nothing reads a token", "the api reads one", "a scrape reads one"],
+)
+def test_machine_authentication_wiring(bake, context, answers, verifier, api):
+    """The identity app verifies the tokens of calling services wherever something reads
+    one, and the policies Django Ninja's routes run under are generated only with it."""
+    project = bake({**context, **answers})
+
+    package = Path(context["project_slug"])
+    identity = project.root / package / "identity"
+    assert (identity / "verification.py").exists() is verifier
+    assert (identity / "models.py").exists() is verifier
+    assert (identity / "tests" / "services.py").exists() is verifier
+    # The API's side: the policies, the routes they guard and what drives them in the tests
+    assert (identity / "auth.py").exists() is api
+    assert (identity / "tests" / "headless.py").exists() is api
+    assert ("pyjwt" in pinned(project)) is verifier
+
+    base = project.settings("base")
+    installed = f"{context['project_slug']}.identity"
+    assert (installed in base.value("INSTALLED_APPS")) is verifier
+    assert ("IDENTITY_SERVICE_ISSUERS" in base.source) is verifier
+
+    # A scrape presents a token of the provider's, and the permission says it may
+    scraped = answers.get("observability") == "prometheus"
+    permission = identity / "migrations" / "0002_the_metrics_permission.py"
+    assert permission.exists() is (verifier and scraped)
+    if scraped:
+        assert ("identity.read_metrics" in project.text(package / "metrics.py")) is verifier
 
 
 # The agent guide: where each coding agent reads its instructions, as the agent's own

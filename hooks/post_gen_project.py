@@ -46,6 +46,12 @@ def with_headless(context):
     return context["rest_api"] == "Django Ninja" and context["identity_provider"] != "none"
 
 
+def with_service_tokens(context):
+    """A provider whose calling services something reads a token from: the API's routes, or the
+    metrics endpoint. The verifier and the registrations exist for either."""
+    return with_headless(context) or (context["identity_provider"] != "none" and with_prometheus(context))
+
+
 @dataclass(frozen=True)
 class Secret:
     """One row of ``SECRETS``: a value drawn once and written over ``placeholder`` in each of ``files``."""
@@ -288,8 +294,42 @@ REMOVALS = (
         lambda c: c["identity_provider"] != "entra",
         ("{project_slug}/users/providers.py", "{project_slug}/users/tests/test_providers.py"),
     ),
-    # The app behind the single-page application's login: Django Ninja with a provider only.
-    (lambda c: not with_headless(c), ("{project_slug}/identity",)),
+    # The app behind the calling services, and with Django Ninja the single-page
+    # application's login too: a provider that something reads a token from.
+    (lambda c: not with_service_tokens(c), ("{project_slug}/identity",)),
+    # Without Django Ninja the verifier and the registrations stay, and the API's side of
+    # the app goes: the policies its routes run under, the headless login, their tests.
+    (
+        lambda c: with_service_tokens(c) and not with_headless(c),
+        (
+            "{project_slug}/identity/api.py",
+            "{project_slug}/identity/auth.py",
+            "{project_slug}/identity/frontend.py",
+            "{project_slug}/identity/management",
+            "{project_slug}/identity/permissions.py",
+            "{project_slug}/identity/tests/conftest.py",
+            "{project_slug}/identity/tests/headless.py",
+            "{project_slug}/identity/tests/test_apps.py",
+            "{project_slug}/identity/tests/test_auth.py",
+            "{project_slug}/identity/tests/test_frontend.py",
+            "{project_slug}/identity/tests/test_login.py",
+            "{project_slug}/identity/tests/test_permissions.py",
+            "{project_slug}/identity/tests/test_provider_login.py",
+            "{project_slug}/identity/tests/test_revoke_jwt_sessions.py",
+            "{project_slug}/identity/tests/test_services.py",
+        ),
+    ),
+    # The frontend check belongs to the headless login and the registration check to
+    # Entra, so the module goes when the app is left with neither.
+    (
+        lambda c: with_service_tokens(c) and not with_headless(c) and c["identity_provider"] != "entra",
+        ("{project_slug}/identity/checks.py",),
+    ),
+    # A registration holds the permission to read the metrics where there are metrics to read.
+    (
+        lambda c: with_service_tokens(c) and not with_prometheus(c),
+        ("{project_slug}/identity/migrations/0002_the_metrics_permission.py",),
+    ),
 )
 
 
