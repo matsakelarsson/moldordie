@@ -389,11 +389,13 @@ templates rely on. Its first run downloads the CLI. The deployment's own storage
 one, is not exercised.
 {%- endraw %}{% if cookiecutter.cloud_provider == 'AWS' and cookiecutter.use_whitenoise == 'n' %}{% raw %}
 
-Static files on S3 keep their names, and ``AWS_S3_OBJECT_PARAMETERS`` lets a browser
-cache them for a week. A stylesheet built from the class names in use changes with most
-deployments, so a returning visitor can get new markup with the stylesheet of the
-deployment before: shorten that cache for the stylesheet, or serve the static files with
-hashed names, before the first visitors arrive.{% endraw %}{% endif %}{% raw %}
+``collectstatic`` uploads to S3 through ``S3ManifestStaticStorage``, which names each
+file after the hash of its contents and uploads the ``staticfiles.json`` that
+``{% static %}`` reads to find it. A stylesheet built from the class names in use
+changes with most deployments; because its name changes with it, a browser cannot serve
+the previous one, and each file is uploaded with a year of caching and ``immutable``.
+Uploads keep their own names and their own shorter policy. The application reads the
+manifest from the bucket when it starts, so every process needs to reach it.{% endraw %}{% endif %}{% raw %}
 
 The policy's rules for templates
 --------------------------------

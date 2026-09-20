@@ -1351,11 +1351,14 @@ def test_tasks_framework(bake, context, use_celery):
 
 
 S3_STORAGE = "storages.backends.s3.S3Storage"
+S3_MANIFEST_STORAGE = "storages.backends.s3.S3ManifestStaticStorage"
 FILESYSTEM_STORAGE = "django.core.files.storage.FileSystemStorage"
 WHITENOISE_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# The static files are hashed under either manifest storage, so a changed file is a new URL
+HASHED_STORAGES = {S3_MANIFEST_STORAGE, WHITENOISE_STORAGE}
 # (answers, the storage backend for uploads, the one for the static files)
 STORAGE_CELLS = [
-    ({"cloud_provider": "AWS", "use_whitenoise": "n"}, S3_STORAGE, S3_STORAGE),
+    ({"cloud_provider": "AWS", "use_whitenoise": "n"}, S3_STORAGE, S3_MANIFEST_STORAGE),
     ({"cloud_provider": "AWS", "use_whitenoise": "y"}, S3_STORAGE, WHITENOISE_STORAGE),
     ({"cloud_provider": "None", "use_whitenoise": "y"}, FILESYSTEM_STORAGE, WHITENOISE_STORAGE),
 ]
@@ -1366,16 +1369,22 @@ def test_production_storages(bake, context_override, media, static):
     """The cloud provider decides where uploads go, WhiteNoise whether the app serves its own static files."""
     production = bake(context_override).settings("production")
 
-    storages = production.literal("STORAGES")
+    # value, not literal: the static files' cache control is an f-string over the expiry
+    storages = production.value("STORAGES")
     assert storages["default"]["BACKEND"] == media
     assert storages["staticfiles"]["BACKEND"] == static
+    # However they are served, the static files are hashed: nothing is served stale
+    assert static in HASHED_STORAGES
 
     uploads_on_s3 = media == S3_STORAGE
     assert ("DJANGO_AWS_STORAGE_BUCKET_NAME" in {read.name for read in production.env_reads()}) is uploads_on_s3
     assert ('MEDIA_URL = f"https://{aws_s3_domain}/media/"' in production.source) is uploads_on_s3
-    static_on_s3 = static == S3_STORAGE
+    static_on_s3 = static == S3_MANIFEST_STORAGE
     assert ('STATIC_URL = f"https://{aws_s3_domain}/static/"' in production.source) is static_on_s3
     assert ('INSTALLED_APPS = ["collectfasta", *INSTALLED_APPS]' in production.source) is static_on_s3
+    # A hashed file may be cached for as long as a browser likes; an upload keeps its name
+    assert ("immutable" in production.source) is static_on_s3
+    assert ("must-revalidate" in production.source) is uploads_on_s3
 
 
 # (mail service, the email backend, the extra of the django-anymail pin, the ANYMAIL settings

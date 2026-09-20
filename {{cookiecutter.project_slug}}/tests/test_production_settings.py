@@ -20,10 +20,16 @@ import sys
 import pytest
 from django.apps import AppConfig
 from django.conf import Settings
+{%- if cookiecutter.cloud_provider == 'AWS' and cookiecutter.use_whitenoise == 'n' %}
+from django.contrib.staticfiles.storage import ManifestFilesMixin
+{%- endif %}
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 from django.core.exceptions import ImproperlyConfigured
 {%- endif %}
 from django.utils.csp import CSP
+{%- if cookiecutter.cloud_provider == 'AWS' and cookiecutter.use_whitenoise == 'n' %}
+from django.utils.module_loading import import_string
+{%- endif %}
 
 from merge_production_dotenvs_in_dotenv import BASE_DIR
 from merge_production_dotenvs_in_dotenv import PRODUCTION_DOTENV_FILES
@@ -36,6 +42,10 @@ from {{ cookiecutter.project_slug }}.identity.apps import validate_token_setting
 SETTINGS_MODULES = ("config.settings.base", "config.settings.production")
 {%- if cookiecutter.cloud_provider == 'AWS' %}
 S3_STORAGE = "storages.backends.s3.S3Storage"
+{%- if cookiecutter.use_whitenoise == 'n' %}
+S3_MANIFEST_STORAGE = "storages.backends.s3.S3ManifestStaticStorage"
+A_YEAR = 60 * 60 * 24 * 365
+{%- endif %}
 {%- else %}
 FILESYSTEM_STORAGE = "django.core.files.storage.FileSystemStorage"
 {%- endif %}
@@ -205,11 +215,38 @@ def test_static_files_are_served_from_the_bucket(production_settings, environmen
     settings = production_settings()
 
     bucket = environment["DJANGO_AWS_STORAGE_BUCKET_NAME"]
-    assert settings.STORAGES["staticfiles"]["BACKEND"] == S3_STORAGE
-    assert settings.STORAGES["staticfiles"]["OPTIONS"]["location"] == "static"
+    options = settings.STORAGES["staticfiles"]["OPTIONS"]
+    # The manifest storage names a collected file after the hash of its contents
+    assert settings.STORAGES["staticfiles"]["BACKEND"] == S3_MANIFEST_STORAGE
+    assert options["location"] == "static"
     assert f"https://{bucket}.s3.amazonaws.com/static/" == settings.STATIC_URL
     # Collectfasta uploads in parallel; it must come before staticfiles
     assert settings.INSTALLED_APPS[0] == "collectfasta"
+    # Its strategy has to be the one that knows the manifest storage's two passes
+    assert settings.COLLECTFASTA_STRATEGY.endswith("Boto3ManifestMemoryStrategy")
+
+
+def test_the_static_files_storage_and_strategy_resolve(production_settings):
+    """Both are dotted paths in a settings module, so an upgrade that renames or drops
+    either of them would otherwise be found by a deployment rather than here."""
+    settings = production_settings()
+
+    storage = import_string(settings.STORAGES["staticfiles"]["BACKEND"])
+    # The mixin that names a file after the hash of its contents
+    assert issubclass(storage, ManifestFilesMixin)
+    assert import_string(settings.COLLECTFASTA_STRATEGY)
+
+
+def test_static_files_are_cached_for_longer_than_uploads(production_settings):
+    """A hashed name is a new URL, so the file it names can never go stale."""
+    settings = production_settings()
+
+    static = settings.STORAGES["staticfiles"]["OPTIONS"]["object_parameters"]
+    assert static["CacheControl"] == f"max-age={A_YEAR}, s-maxage={A_YEAR}, immutable"
+    # An upload keeps its name, so it keeps the shorter policy of every other object
+    uploads = settings.STORAGES["default"]["OPTIONS"]
+    assert "object_parameters" not in uploads
+    assert "must-revalidate" in settings.AWS_S3_OBJECT_PARAMETERS["CacheControl"]
 {%- endif %}
 
 
