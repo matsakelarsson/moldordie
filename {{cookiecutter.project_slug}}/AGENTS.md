@@ -39,7 +39,9 @@ already there.
   the source stylesheet and the project's own theme, the look to edit;
   `static/css/tailwind.css` is built from them and never committed. Every daisyUI theme is
   enabled, and the navigation's theme picker keeps a visitor's choice in a cookie through htmx.
-  `/examples/` shows the components and the htmx patterns as this project writes them
+  `/examples/` shows the components and the htmx patterns as this project writes them. Under
+  `DEBUG` an open page reloads itself whenever the server restarts, which it does for a module,
+  a template or a rebuilt stylesheet
 - A nonce-based Content Security Policy on every response, configured by `SECURE_CSP` in
   `config/settings/base.py`
 - Background work through Django's Tasks framework: run immediately in development and tests,
@@ -134,7 +136,7 @@ Everything runs through `uv` from the project root, against a PostgreSQL
 | Task | Command |
 | ---- | ------- |
 | Install the dependencies | `uv sync` |
-| Serve the site | `uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'` |
+| Serve the site | `uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html' --reload-include '*.css' --timeout-graceful-shutdown 1` |
 | Rebuild the stylesheet as files change | `uv run python manage.py tailwind watch`, in a second terminal |
 | Build the stylesheet once | `uv run python manage.py tailwind build` |
 | A management command | `uv run python manage.py <command>` |

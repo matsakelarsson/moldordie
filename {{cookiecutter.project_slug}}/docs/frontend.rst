@@ -48,8 +48,20 @@ one file and ask for another.
 
 Keep the watcher running while you work. It prints nothing as it rebuilds, errors
 included, so when a change to the source stylesheet seems to have no effect, run
-``tailwind build``, which reports them. Uvicorn serves the rebuilt file on the next
-request without restarting.
+``tailwind build``, which reports them.
+
+An open page reloads itself when the server restarts, and the development server restarts
+for a module, a template or a rebuilt stylesheet, so a change reaches the browser without
+a keystroke. `django-browser-reload`_, a development dependency installed by
+``config/settings/local.py``, writes the listener into every page it serves, with the
+policy's nonce, and serves the events it listens to under ``/__reload__/``. Nothing of it
+exists without ``DEBUG``. The two options the documented server command carries beyond
+``--reload`` are what make a restart visible: ``--reload-include '*.css'`` restarts the
+server when the watcher rebuilds the stylesheet, and ``--timeout-graceful-shutdown 1``
+makes the old process exit rather than wait for the page's own connection to it, which
+never closes on its own.
+
+.. _django-browser-reload: https://github.com/adamchainz/django-browser-reload
 
 Which class names count
 ~~~~~~~~~~~~~~~~~~~~~~~

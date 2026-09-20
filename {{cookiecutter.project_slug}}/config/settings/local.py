@@ -117,6 +117,19 @@ if env("USE_DOCKER") == "yes":
 # ------------------------------------------------------------------------------
 # https://django-extensions.readthedocs.io/en/latest/installation_instructions.html#configuration
 INSTALLED_APPS += ["django_extensions"]
+
+# django-browser-reload
+# ------------------------------------------------------------------------------
+# https://github.com/adamchainz/django-browser-reload
+# Reloads the page when the server restarts, which it does whenever a module, a
+# template or the built stylesheet changes (docs/frontend.rst). Its middleware writes
+# the listener into every HTML page, with the policy's nonce, and nothing into a
+# fragment, which has no body element to write before
+INSTALLED_APPS += ["django_browser_reload"]
+# https://github.com/adamchainz/django-browser-reload#usage
+# After the policy's middleware, so its response is built before the header that
+# has to carry the nonce of the script it just wrote
+MIDDLEWARE += ["django_browser_reload.middleware.BrowserReloadMiddleware"]
 {% if cookiecutter.use_celery == 'y' -%}
 
 # Celery

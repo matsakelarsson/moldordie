@@ -1179,6 +1179,35 @@ def test_tailwind_and_daisyui(bake, context):
     assert "   frontend\n" in project.text("docs/index.rst")
 
 
+def test_the_page_reloads_itself_in_development(bake, context):
+    """django-browser-reload is a development dependency, installed and routed under DEBUG alone, and
+    the server command gives Uvicorn what a restart has to be visible through."""
+    project = bake(context)
+
+    assert "django-browser-reload" in {pin.name for pin in project.pins["dev"]}
+    base = project.settings("base")
+    local = project.settings("local")
+    assert "django_browser_reload" not in base.literal("INSTALLED_APPS")
+    assert 'INSTALLED_APPS += ["django_browser_reload"]' in local.source
+    # After the policy's middleware, whose header has to carry the nonce of the written script
+    middleware = local.source.index("django_browser_reload.middleware.BrowserReloadMiddleware")
+    assert middleware > local.source.index('MIDDLEWARE += ["debug_toolbar')
+    assert "csp" not in local.source[middleware:]
+
+    debug_only = project.text("config/urls.py").partition("if settings.DEBUG:")[2]
+    assert 'include("django_browser_reload.urls")' in debug_only
+
+    # A rebuilt stylesheet has to restart the server, and the old process has to exit for the
+    # page to notice: its own connection to it would otherwise never close. The command says
+    # so in the two places a developer reads it, the container's and the guide's
+    command = (
+        "uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'"
+        " --reload-include '*.css' --timeout-graceful-shutdown 1"
+    )
+    assert command in bake({**context, "use_docker": "y"}).text("compose/local/django/start")
+    assert command in bake({**context, "coding_agent": "claude"}).text("CLAUDE.md")
+
+
 def test_themes(bake, context):
     """Every daisyUI theme is enabled next to the project's own, and the picker's choice is kept by a view
     that is always routed. That the stylesheet and ``THEMES`` agree is the generated suite's to check."""
