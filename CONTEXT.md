@@ -69,6 +69,9 @@ paths that are deleted when it holds. Paths are relative to the generated projec
 `{project_slug}` standing for the project package. For any context, no path is listed twice or under
 another listed path, so the rules can be applied in any order; `tests/test_hooks.py` checks this over
 every combination of the answers the rules read, and that every listed path exists in the template.
+The rules are also the statement of what the supported combinations must reach: a combination
+**keeps** a path when no rule that holds for its context lists the path or a directory above it,
+and every listed path is kept by some combination (`docs/adr/0021`).
 
 _Avoid_: manifest, cleanup function, `remove_*` helper.
 
@@ -104,17 +107,20 @@ _Avoid_: instructions file, CLAUDE.md or AGENTS.md (one agent's name for it), ru
 ## Bake
 
 Generating one project in the tests from a complete set of answers, through the `bake` fixture
-in `tests/test_cookiecutter_generation.py`, which returns the reader. The complete answers, the
-catalogue's defaults filling in what the test leaves out, are baked once per test process, and
+in `tests/test_cookiecutter_generation.py`, which returns the reader. The **complete answers**, the
+catalogue's defaults filling in what the test leaves out (`complete_answers` in
+`tests/answers.py`), are baked once per test process, and
 every test that bakes them gets the same tree, so no test modifies it: a tool that rewrites
 files runs on a copy. The hostile free-text answers are a bake of their own. Under xdist a
 process is a worker: the tests parametrized over the combinations are grouped so that one
 worker runs a combination's, and the hand-written tests bake on the worker that runs them
-(`docs/adr/0002`). `scripts/compare_generated.py` bakes outside the tests, a Cookiecutter
-process per project and revision, to compare the trees two revisions generate.
+(`docs/adr/0002`). The **supported combinations** are the rows every matrix-wide check bakes;
+between them they keep every path a removal rule lists (`docs/adr/0021`).
+`scripts/compare_generated.py` bakes outside the tests, a Cookiecutter process per project and
+revision, to compare the trees two revisions generate.
 
 _Avoid_: generating a project per test; result (pytest-cookies' object, which the fixture keeps
-to itself).
+to itself); effective answers (for the complete answers).
 
 ## Reader
 
