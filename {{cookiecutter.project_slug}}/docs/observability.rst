@@ -80,11 +80,11 @@ Two properties of the deployed stack decide what the scrape configuration looks 
 and a third decides whether the scrape is answered at all.
 
 **Scrape the application, not the proxy in front of it.** The application can run as
-several containers behind Traefik (``docker compose -f docker-compose.production.yml up
---scale django=4``), and a scrape that arrives through the proxy describes whichever
-replica answered it: the numbers would jump between scrapes and none of them would be the
-whole picture. Point the scraper at the application's own address instead — with one
-container, that is the Compose service:
+several {% if cookiecutter.use_docker == 'y' %}containers behind Traefik (``docker compose -f docker-compose.production.yml up
+--scale django=4``){% else %}processes behind a proxy{% endif %}, and a scrape that arrives through the proxy describes
+whichever replica answered it: the numbers would jump between scrapes and none of them
+would be the whole picture. Point the scraper at the application's own address instead —
+{% if cookiecutter.use_docker == 'y' %}with one container, that is the Compose service:{% else %}the address each process binds, which is where it answers:{% endif %}
 
 .. code-block:: yaml
 
@@ -94,23 +94,39 @@ container, that is the Compose service:
         authorization:
           credentials_file: /etc/prometheus/metrics-token
         static_configs:
-          - targets: ['django:5000']
+          - targets: [{% if cookiecutter.use_docker == 'y' %}'django:5000'{% else %}'127.0.0.1:5000'{% endif %}]
 
 **The address it dials has to be one the application answers to.** Django refuses a
 request whose ``Host`` is not in ``ALLOWED_HOSTS``, before any view runs and with 400,
-so each deployed environment's ``DJANGO_ALLOWED_HOSTS`` names ``django`` beside the site's
-own domain. Scraping several replicas means addressing each of them, so whatever the
-service discovery yields — the names you gave the containers, or the addresses the
-platform assigned — belongs in that list as well. A refused credential is 401, so on a
+so each deployed environment's ``DJANGO_ALLOWED_HOSTS`` names {% if cookiecutter.use_docker == 'y' %}``django``{% else %}the address it is
+scraped on{% endif %} beside the site's own domain. Scraping several replicas means addressing each
+of them, so whatever the service discovery yields — {% if cookiecutter.use_docker == 'y' %}the names you gave the containers{% else %}the hosts you run it on{% endif %},
+or the addresses the platform assigned — belongs in that list as well. A refused credential is 401, so on a
 400 check ``ALLOWED_HOSTS`` and the ``django.security.DisallowedHost`` log first; Django
 answers 400 to other malformed requests too.
 
-**One container, one set of samples.** Gunicorn runs ``WEB_CONCURRENCY`` workers, each
+**One {% if cookiecutter.use_docker == 'y' %}container{% else %}deployment{% endif %}, one set of samples.** Gunicorn runs ``WEB_CONCURRENCY`` workers, each
 with metrics of its own, so the client's multiprocess mode is what makes a single scrape
-describe the container: ``compose/production/django/start`` points
+describe {% if cookiecutter.use_docker == 'y' %}the container: ``compose/production/django/start`` points
 ``PROMETHEUS_MULTIPROC_DIR`` at a directory of that container and empties it before
-Gunicorn starts. A worker that exits leaves its samples behind, which is what keeps the
-container's counters whole across a recycled worker; ``config/gunicorn.py`` tells the
+Gunicorn starts{% else %}all of them rather than whichever answered. Whatever starts Gunicorn — a unit
+file, a supervisor, a platform's process manager; this project does not choose one —
+has three things to do, in this order:
+
+.. code-block:: sh
+
+    export PROMETHEUS_MULTIPROC_DIR=/run/{{ cookiecutter.project_slug }}/metrics
+    rm -rf "${PROMETHEUS_MULTIPROC_DIR}" && mkdir -p "${PROMETHEUS_MULTIPROC_DIR}"
+    exec gunicorn config.asgi --bind 0.0.0.0:5000 \
+        -k uvicorn_worker.UvicornWorker --config config/gunicorn.py
+
+The variable is exported before Python starts, because ``prometheus_client`` reads it
+when it is imported; the directory is emptied first, so the samples of an earlier run
+are never served; and ``--config`` is what gives Gunicorn the hook below. Leave the
+variable out and the application serves and answers a scrape exactly as before, with
+the metrics of whichever worker answered it and a line from the arbiter at startup
+saying so{% endif %}. A worker that exits leaves its samples behind, which is what keeps the
+counters whole across a recycled worker; ``config/gunicorn.py`` tells the
 client about the exit so that a gauge declared with one of the ``live`` multiprocess
 modes stops counting it. None of django-prometheus' own gauges is declared that way,
 so that hook removes no file until the project adds one that is.
@@ -219,9 +235,27 @@ parent, before the fork, and the exporters' threads do not survive it.
   pool, which is the one the generated start script runs;
 {%- endif %}
 * the task worker and the development server, from ``TelemetryConfig.ready``, because
-  ``DJANGO_TELEMETRY_COMPONENT`` names the component in their start scripts. A
-  management command is told nothing, and so starts nothing.
+  ``DJANGO_TELEMETRY_COMPONENT`` names the component in {% if cookiecutter.use_docker == 'y' %}their start scripts{% else %}the environment they are
+  started in{% endif %}. A management command is told nothing, and so starts nothing.
+{% if cookiecutter.use_docker != 'y' %}
+Which leaves a deployment three things to do with the processes it starts. Gunicorn is
+given ``--config config/gunicorn.py``, without which the hook above is never read and
+the web workers export nothing. Any other process that serves something exports
+``DJANGO_TELEMETRY_COMPONENT`` naming what it is — ``taskworker`` for the task worker —
+because nothing else tells it. And ``DJANGO_SETTINGS_MODULE`` names the production
+settings before Gunicorn starts, because the hook runs in the worker before the
+application is loaded and reads the settings there; a process started without it fails
+at boot rather than falling back.
 
+.. code-block:: sh
+
+    export DJANGO_SETTINGS_MODULE=config.settings.production
+    exec gunicorn config.asgi --bind 0.0.0.0:5000 \
+        -k uvicorn_worker.UvicornWorker --config config/gunicorn.py
+
+Which supervisor runs those commands, and which collector they export to, is the
+deployment's to choose; that they are wired this way is not.
+{% endif %}
 Each process reports as an instance of its own, ``<component>-<hostname>-<pid>``,
 under one service name. A deployment runs several containers of several components,
 each with workers of its own; without that they would arrive as one instance and be
