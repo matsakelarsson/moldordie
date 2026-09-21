@@ -156,8 +156,9 @@ THIRD_PARTY_APPS = [
     "corsheaders",
 {%- endif %}
 {%- if prometheus %}
-    # Metrics for the database, the cache, the models and the migrations;
-    # the request metrics come from the middlewares below
+    # Metrics for the database and the cache, through the backends named below;
+    # the request metrics come from the middlewares below that, and a model's own
+    # when a model asks for them (docs/observability.rst)
     "django_prometheus",
 {%- endif %}
     "django_htmx",

@@ -3,8 +3,8 @@
 ``config/settings/base.py`` installs it in every environment, because what decides
 whether anything is exported is the configured endpoint rather than the environment
 the process runs in. ``ready`` runs for every management command, so this one starts
-the exporters only where the environment says the process serves something
-(``telemetry/configure.py``).
+the exporters only where the environment says the process serves something, and
+imports what would start them no sooner (``telemetry/configure.py``).
 """
 
 import os
@@ -12,8 +12,7 @@ import os
 from django.apps import AppConfig
 from django.utils.translation import gettext_lazy as _
 
-from .configure import COMPONENT_VARIABLE
-from .configure import configure
+from . import COMPONENT_VARIABLE
 
 
 class TelemetryConfig(AppConfig):
@@ -22,5 +21,11 @@ class TelemetryConfig(AppConfig):
 
     def ready(self) -> None:
         component = os.environ.get(COMPONENT_VARIABLE, "")
-        if component:
-            configure(component)
+        if not component:
+            return
+        # Imported here rather than above: this runs for every management command,
+        # and the SDK and its instrumentations cost the best part of a second to
+        # import, which a command that exports nothing should not be paying.
+        from .configure import configure  # noqa: PLC0415
+
+        configure(component)
