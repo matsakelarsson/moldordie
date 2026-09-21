@@ -207,8 +207,11 @@ def test_an_empty_certificate_in_the_environment_still_verifies(settings, monkey
 
     exporter = OTLPSpanExporter(**telemetry.connection("traces", settings))
 
-    # What the exporter hands requests as ``verify``, and it exposes it nowhere else
-    assert exporter._certificate_file is True  # noqa: SLF001
+    # What the exporter hands requests as ``verify``, and it exposes it nowhere
+    # else. Anything falsy there is what selects ``CERT_NONE``, so the property
+    # this asserts is the one that decides, rather than the value carrying it:
+    # the exporter is annotated as taking a path, and True is not one.
+    assert exporter._certificate_file  # noqa: SLF001
 
 
 class Recording:
