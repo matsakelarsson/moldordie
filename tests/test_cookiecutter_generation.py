@@ -1926,6 +1926,53 @@ def test_telemetry_wiring(bake, context, observability):
     assert project.env("local", "django")["OTEL_EXPORTER_OTLP_ENDPOINT"].endswith(f":{port}")
 
 
+# What a project generated with the default answer to use_docker does not have. The two
+# wiring tests above answer it "y", so the tree a default project starts from is this one.
+PRUNED_BY_NO_DOCKER = ("compose/", "docker-compose.")
+
+
+@pytest.mark.parametrize("observability", ["prometheus", "opentelemetry"])
+def test_an_arm_that_measures_starts_without_docker(bake, context, observability):
+    """The Compose files that start a deployed container are pruned with use_docker=n,
+    and both arms are still generated whole. What is left has to be startable: nothing
+    sends a reader to a file this tree does not have, the configuration Gunicorn is
+    given is still here, and the page says what the process that starts it has to do.
+    """
+    context["observability"] = observability
+    context["use_docker"] = "n"
+    project = bake(context)
+
+    assert not (project.root / "compose").exists()
+    assert (project.root / "config" / "gunicorn.py").exists()
+
+    offenders = []
+    for path in project.files():
+        if is_binary(str(project.root / path)):
+            continue
+        content = project.text(path)
+        offenders.extend(f"{path}: {pruned}" for pruned in PRUNED_BY_NO_DOCKER if pruned in content)
+    assert offenders == []
+
+    # Nothing else tells Gunicorn where its hooks are, so the page has to
+    page = project.text(Path("docs") / "observability.rst")
+    assert "--config config/gunicorn.py" in page
+    started = "PROMETHEUS_MULTIPROC_DIR=" if observability == "prometheus" else "DJANGO_TELEMETRY_COMPONENT"
+    assert started in page
+
+
+def test_the_exit_hook_holds_without_the_directory_it_retires_from(bake, context):
+    """The hook runs in the arbiter, so what it raises ends the deployment rather than
+    the worker that exited; nothing sets the variable where the start script is pruned."""
+    project = bake({**context, "observability": "prometheus", "use_docker": "n"})
+
+    hook = project.text(Path("config") / "gunicorn.py")
+    assert "MULTIPROCESS_DIRECTORY = " in hook
+    # The client is asked only once the deployment has said where the samples go
+    guard, _, retire = hook.partition("multiprocess.mark_process_dead")
+    assert "if not os.environ.get(MULTIPROCESS_DIRECTORY):" in guard.rpartition("def child_exit")[2]
+    assert retire
+
+
 def test_a_celery_worker_starts_its_own_telemetry(bake, context):
     """The prefork pool forks its workers, so they start after the fork rather than
     wherever the parent reaches: ready() would run before it."""

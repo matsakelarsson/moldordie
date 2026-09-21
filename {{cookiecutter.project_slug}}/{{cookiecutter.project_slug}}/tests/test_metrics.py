@@ -119,18 +119,63 @@ def test_the_database_backend_is_the_instrumented_one(settings):
     assert settings.DATABASES["default"]["ENGINE"] == ENGINE
 
 
-def test_the_worker_exit_hook_reports_the_worker_that_left(monkeypatch):
+def test_the_worker_exit_hook_reports_the_worker_that_left(monkeypatch, tmp_path):
     """Gunicorn's arbiter is the only process that learns a worker is gone, so the hook
     hands the client its pid. What the client then does is its own behaviour: it drops
     that worker's ``live`` gauge files and keeps its counters, which is what makes the
     container's totals survive a recycled worker. This checks the wiring, nothing else.
     """
+    monkeypatch.setenv(gunicorn.MULTIPROCESS_DIRECTORY, str(tmp_path))
     reported: list[int] = []
     monkeypatch.setattr(multiprocess, "mark_process_dead", reported.append)
 
     gunicorn.child_exit(server=object(), worker=SimpleNamespace(pid=4242))
 
     assert reported == [4242]
+
+
+def test_the_worker_exit_hook_holds_where_no_directory_was_configured(monkeypatch):
+    """Nothing was written, so there is nothing of that worker to retire, and the
+    client is not asked. Asked anyway it would go looking for the variable itself and
+    join a file name onto what it did not find; this hook runs in the arbiter, one
+    process for the whole deployment, so that ends the deployment on the first worker
+    to be recycled rather than ending the worker that exited.
+    """
+    monkeypatch.delenv(gunicorn.MULTIPROCESS_DIRECTORY, raising=False)
+    asked: list[int] = []
+    monkeypatch.setattr(multiprocess, "mark_process_dead", asked.append)
+
+    gunicorn.child_exit(server=object(), worker=SimpleNamespace(pid=4242))
+
+    assert asked == []
+
+
+def arbiter():
+    """A stand-in for the server Gunicorn hands its hooks, recording what it is told."""
+    said: list[tuple[object, ...]] = []
+    log = SimpleNamespace(warning=lambda *arguments: said.append(arguments))
+    return SimpleNamespace(log=log), said
+
+
+def test_the_arbiter_says_so_where_no_directory_was_configured(monkeypatch):
+    """A scrape of one worker looks exactly like a scrape of the deployment, so the
+    one place the difference can be noticed is the log of what starts them."""
+    monkeypatch.delenv(gunicorn.MULTIPROCESS_DIRECTORY, raising=False)
+    server, said = arbiter()
+
+    gunicorn.on_starting(server)
+
+    ((_, named),) = said
+    assert named == gunicorn.MULTIPROCESS_DIRECTORY
+
+
+def test_the_arbiter_says_nothing_where_the_directory_is_set(monkeypatch, tmp_path):
+    monkeypatch.setenv(gunicorn.MULTIPROCESS_DIRECTORY, str(tmp_path))
+    server, said = arbiter()
+
+    gunicorn.on_starting(server)
+
+    assert said == []
 {%- if service_tokens %}
 
 

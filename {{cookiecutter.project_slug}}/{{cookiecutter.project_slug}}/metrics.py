@@ -22,9 +22,11 @@ authorised nobody.
 
 The exposition itself is django-prometheus', built from what the middlewares, the
 database backend and the cache backend recorded. Under Gunicorn each worker keeps its
-own registry, so the deployed image points ``PROMETHEUS_MULTIPROC_DIR`` at a directory
-the workers of that container share and the exporter reads all of them, which is what
-makes one scrape describe the whole container (``compose/production/django/start``).
+own registry, so what starts the deployment points ``PROMETHEUS_MULTIPROC_DIR`` at a
+directory those workers share and the exporter reads all of them, which is what makes
+one scrape describe the deployment rather than the worker that answered it
+({% if cookiecutter.use_docker == 'y' %}``compose/production/django/start``{% else %}``docs/observability.rst``{% endif %}). Without it a scrape is still answered, and
+describes one worker.
 """
 
 from __future__ import annotations
