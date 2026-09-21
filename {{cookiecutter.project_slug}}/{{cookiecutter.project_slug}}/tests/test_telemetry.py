@@ -14,12 +14,14 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from functools import partial
 from types import SimpleNamespace
 
 import pytest
 {%- if celery %}
 from celery.signals import beat_init
 from celery.signals import worker_process_init
+from celery.signals import worker_process_shutdown
 {%- endif %}
 from django.apps import AppConfig
 from opentelemetry import metrics
@@ -227,6 +229,41 @@ class Recording:
         self.calls.append(("shutdown", timeout_millis))
 
 
+class Blocking:
+    """A provider whose flush does not come back inside anyone's deadline."""
+
+    def __init__(self, seconds):
+        self.seconds = seconds
+
+    def force_flush(self, timeout_millis=None):
+        time.sleep(self.seconds)
+
+    def shutdown(self, timeout_millis=None):
+        time.sleep(self.seconds)
+
+
+REFUSED = "the collector refused the connection"
+
+
+class Raising:
+    """A provider that cannot send what it is holding, and says so by raising.
+
+    The SDK does: a meter provider collects its readers' errors and re-raises them as
+    one, and an exporter over HTTP raises whatever the connection did.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def force_flush(self, timeout_millis=None):
+        self.calls.append(("force_flush", timeout_millis))
+        raise RuntimeError(REFUSED)
+
+    def shutdown(self, timeout_millis=None):
+        self.calls.append(("shutdown", timeout_millis))
+        raise RuntimeError(REFUSED)
+
+
 async def unreachable(scope, receive, send):
     """The wrapped application, which no lifespan message may reach."""
     raise AssertionError(scope)
@@ -315,10 +352,86 @@ def test_the_server_lifespan_sends_what_the_worker_is_holding(holding):
     assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
 
 
-def test_a_flush_that_overruns_does_not_hold_the_worker(holding, monkeypatch):
-    """The SDK's own timeouts are best-effort, so the deadline is the one here."""
-    monkeypatch.setattr(asgi, "SHUTDOWN_TIMEOUT_SECONDS", 0.01)
-    monkeypatch.setattr(telemetry, "shutdown", lambda: time.sleep(1))
+# A deadline short enough to be missed on purpose, and a flush that will not meet it
+DEADLINE = 0.05
+BLOCKED = 1.0
+
+
+def test_a_flush_that_overruns_does_not_hold_the_worker(monkeypatch):
+    """What the deadline has to bound is the time the process takes, not the time the
+    coroutine waits: a thread cannot be cancelled, and the loop joins the threads it
+    started before ``asyncio.run`` returns. So this is timed rather than asked whether
+    the shutdown was answered — the worker is held for exactly as long as this is.
+
+    ``flush`` is replaced where ``asgi`` binds it and not where it is defined, which
+    is the difference between driving this path and watching the one beside it.
+    """
+    blocked = Blocking(BLOCKED)
+    monkeypatch.setattr(
+        telemetry,
+        "_started",
+        {"component": COMPONENT, "tracing": blocked, "metering": blocked},
+    )
+    monkeypatch.setattr(asgi, "flush", partial(telemetry.flush, DEADLINE))
+
+    started = time.monotonic()
+    sent = drive_lifespan(
+        asgi.flushing_on_shutdown(unreachable),
+        [{"type": "lifespan.shutdown"}],
+    )
+    held = time.monotonic() - started
+
+    assert [message["type"] for message in sent] == ["lifespan.shutdown.complete"]
+    assert held < BLOCKED
+
+
+def test_a_flush_says_whether_it_finished(monkeypatch):
+    """What the deadline costs is what was still unsent when it passed, so a process
+    that gave up on one has something to say that a process that did not has not."""
+    monkeypatch.setattr(
+        telemetry,
+        "_started",
+        {"component": COMPONENT, "tracing": Blocking(BLOCKED), "metering": None},
+    )
+
+    assert telemetry.flush(DEADLINE) is False
+
+    tracing, metering = Recording(), Recording()
+    monkeypatch.setattr(
+        telemetry,
+        "_started",
+        {"component": COMPONENT, "tracing": tracing, "metering": metering},
+    )
+
+    assert telemetry.flush(DEADLINE) is True
+
+
+def test_a_signal_that_cannot_be_sent_does_not_take_the_other_with_it(monkeypatch):
+    """The two are stopped independently: an interval of measurements would otherwise
+    be lost to a flush of spans that raised, and nothing would be left to try from."""
+    tracing, metering = Raising(), Recording()
+    monkeypatch.setattr(
+        telemetry,
+        "_started",
+        {"component": COMPONENT, "tracing": tracing, "metering": metering},
+    )
+
+    telemetry.shutdown()
+
+    assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
+    assert ("shutdown", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in metering.calls
+    assert telemetry.started() is None
+
+
+def test_a_shutdown_that_cannot_send_still_answers_the_server(monkeypatch):
+    """The server is in the middle of stopping and is waiting on this answer. Told
+    that the shutdown failed, uvicorn reports the protocol as unsupported and the
+    worker as having failed to stop, for a flush that no one was waiting for."""
+    monkeypatch.setattr(
+        telemetry,
+        "_started",
+        {"component": COMPONENT, "tracing": Raising(), "metering": Raising()},
+    )
 
     sent = drive_lifespan(
         asgi.flushing_on_shutdown(unreachable),
@@ -392,4 +505,15 @@ def test_the_scheduler_starts_its_own_telemetry(celery_starts):
     beat_init.send(sender=None)
 
     assert celery_starts == ["celerybeat"]
+
+
+def test_a_worker_process_sends_what_it_holds_before_the_pool_ends_it(monkeypatch):
+    """The pool ends its children itself, so this is where a worker's last spans and
+    measurements go — under the deadline, because the pool waits for this handler."""
+    flushed: list[bool] = []
+    monkeypatch.setattr(telemetry, "flush", lambda: flushed.append(True))
+
+    worker_process_shutdown.send(sender=None)
+
+    assert flushed == [True]
 {%- endif %}
