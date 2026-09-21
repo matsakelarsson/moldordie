@@ -86,6 +86,8 @@ To obtain logs and information about crashes in a production setup, make sure th
 The `extra` parameter allows you to send additional information about the context of this error.
 
 
+With ``observability=prometheus``, the application exposes its metrics at ``/metrics``, to a scrape that presents ``DJANGO_METRICS_TOKEN`` as a bearer token. Point your own Prometheus at every replica rather than at the proxy in front of them — a scrape that arrives through Traefik describes whichever replica answered it — and read the generated ``docs/observability.rst`` for the scrape configuration and for what Gunicorn's multiprocess mode changes about the exposition.
+
 You will probably also need to setup the Mail backend, for example by adding a `Mailgun`_ API key and a `Mailgun`_ sender domain, otherwise, the account creation view will crash and result in a 500 error when the backend attempts to send an email to the account owner.
 
 .. _sentry.io: https://sentry.io/welcome

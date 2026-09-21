@@ -43,9 +43,10 @@ def default_context():
 DEPLOYED_ENVIRONMENTS = ("dev", "test", "production")
 ENVIRONMENTS = ("local", *DEPLOYED_ENVIRONMENTS)
 
-# The placeholder sites of the template by file, in file order, as rendered with Celery and
-# with Django Ninja and an identity provider; the Flower ones are not rendered without
-# Celery, the headless key without Ninja and a provider.
+# The placeholder sites of the template by file, in file order, as rendered with Celery,
+# with Django Ninja and an identity provider, and with metrics; the Flower ones are not
+# rendered without Celery, the headless key without Ninja and a provider, and the metrics
+# token without django-prometheus.
 PLACEHOLDER_SITES = {
     ".envs/.local/.django": ("CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"),
     ".envs/.local/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
@@ -53,6 +54,7 @@ PLACEHOLDER_SITES = {
         "DJANGO_SECRET_KEY",
         "DJANGO_ADMIN_URL",
         "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "DJANGO_METRICS_TOKEN",
         "CELERY_FLOWER_USER",
         "CELERY_FLOWER_PASSWORD",
     ),
@@ -61,6 +63,7 @@ PLACEHOLDER_SITES = {
         "DJANGO_SECRET_KEY",
         "DJANGO_ADMIN_URL",
         "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "DJANGO_METRICS_TOKEN",
         "CELERY_FLOWER_USER",
         "CELERY_FLOWER_PASSWORD",
     ),
@@ -69,6 +72,7 @@ PLACEHOLDER_SITES = {
         "DJANGO_SECRET_KEY",
         "DJANGO_ADMIN_URL",
         "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        "DJANGO_METRICS_TOKEN",
         "CELERY_FLOWER_USER",
         "CELERY_FLOWER_PASSWORD",
     ),
@@ -79,6 +83,8 @@ PLACEHOLDER_SITES = {
 FLOWER_PLACEHOLDERS = {"CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"}
 HEADLESS_PLACEHOLDERS = {"DJANGO_HEADLESS_JWT_PRIVATE_KEY"}
 HEADLESS_ANSWERS = {"rest_api": "Django Ninja", "identity_provider": "entra"}
+METRICS_PLACEHOLDERS = {"DJANGO_METRICS_TOKEN"}
+METRICS_ANSWERS = {"observability": "prometheus"}
 # The sites that read one shared value: the database role, so that a backup restores across
 # the environments, and Flower's user.
 SHARED_SITES = (
@@ -90,7 +96,12 @@ RANDOM_IN_DEBUG = {
     *(
         (f".envs/.{environment}/.django", placeholder)
         for environment in DEPLOYED_ENVIRONMENTS
-        for placeholder in ("DJANGO_SECRET_KEY", "DJANGO_ADMIN_URL", "DJANGO_HEADLESS_JWT_PRIVATE_KEY")
+        for placeholder in (
+            "DJANGO_SECRET_KEY",
+            "DJANGO_ADMIN_URL",
+            "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+            "DJANGO_METRICS_TOKEN",
+        )
     ),
     ("config/settings/local.py", "DJANGO_SECRET_KEY"),
     ("config/settings/local.py", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
@@ -100,7 +111,7 @@ RANDOM_IN_DEBUG = {
 PLACEHOLDER = re.compile(r"!!!SET (\w+)!!!")
 
 
-def unfilled_project(root, *, with_celery, with_headless):
+def unfilled_project(root, *, with_celery, with_headless, with_metrics=True):
     """The placeholder sites as the template renders them, one ``NAME=!!!SET NAME!!!`` line each."""
     for file, names in PLACEHOLDER_SITES.items():
         path = root / file
@@ -110,6 +121,7 @@ def unfilled_project(root, *, with_celery, with_headless):
             for name in names
             if (with_celery or name not in FLOWER_PLACEHOLDERS)
             and (with_headless or name not in HEADLESS_PLACEHOLDERS)
+            and (with_metrics or name not in METRICS_PLACEHOLDERS)
         ]
         path.write_text("".join(f"{name}=!!!SET {name}!!!\n" for name in rendered))
 
@@ -156,7 +168,11 @@ def test_fill_secrets_draws_each_value_once(tmp_path):
     """The shared sites read one value and every other site its own: nothing is drawn twice or reused."""
     unfilled_project(tmp_path, with_celery=True, with_headless=True)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", **HEADLESS_ANSWERS}, draw=draw)
+    fill_secrets(
+        tmp_path,
+        {**default_context(), "use_celery": "y", **HEADLESS_ANSWERS, **METRICS_ANSWERS},
+        draw=draw,
+    )
     values = site_values(tmp_path)
     for shared in SHARED_SITES:
         assert len({values[site] for site in shared}) == 1
@@ -169,7 +185,11 @@ def test_fill_secrets_debug_fixes_the_credentials(tmp_path):
     """With debug, the credentials read ``debug``; the keys and the admin URL are still drawn."""
     unfilled_project(tmp_path, with_celery=True, with_headless=True)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", "debug": "y", **HEADLESS_ANSWERS}, draw=draw)
+    fill_secrets(
+        tmp_path,
+        {**default_context(), "use_celery": "y", "debug": "y", **HEADLESS_ANSWERS, **METRICS_ANSWERS},
+        draw=draw,
+    )
     values = site_values(tmp_path)
     assert {site for site, value in values.items() if value == "debug"} == set(values) - RANDOM_IN_DEBUG
     assert len({values[site] for site in RANDOM_IN_DEBUG}) == len(RANDOM_IN_DEBUG)
@@ -180,7 +200,11 @@ def test_fill_secrets_skips_the_flower_rows_without_celery(tmp_path):
     """Without Celery the template renders no Flower placeholders, so their rows do not apply."""
     unfilled_project(tmp_path, with_celery=False, with_headless=True)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "n", **HEADLESS_ANSWERS}, draw=draw)
+    fill_secrets(
+        tmp_path,
+        {**default_context(), "use_celery": "n", **HEADLESS_ANSWERS, **METRICS_ANSWERS},
+        draw=draw,
+    )
     values = site_values(tmp_path)
     assert not any(name in FLOWER_PLACEHOLDERS for _, name in values)
     assert not any("!!!SET" in value for value in values.values())
@@ -200,7 +224,7 @@ def test_fill_secrets_skips_the_headless_key_without_ninja_and_a_provider(tmp_pa
     """Only Django Ninja with a provider renders the key allauth signs the app's tokens with."""
     unfilled_project(tmp_path, with_celery=True, with_headless=False)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", **answers}, draw=draw)
+    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", **answers, **METRICS_ANSWERS}, draw=draw)
     values = site_values(tmp_path)
     assert not any(name in HEADLESS_PLACEHOLDERS for _, name in values)
     assert not any("!!!SET" in value for value in values.values())
@@ -374,6 +398,15 @@ NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
 NO_REST_API = {"config/api_router.py", "config/api.py", f"{PKG}/users/api", f"{PKG}/users/tests/api"}
 NO_CHANNELS = {"config/websocket.py", f"{PKG}/tests/test_websocket.py"}
 NO_SENTRY = {f"{PKG}/sentry", f"{PKG}/tests/test_sentry.py"}
+# The metrics endpoint, the Gunicorn configuration that keeps the workers' samples
+# together, and the page on scraping them; the local receiver goes with the images.
+NO_METRICS = {
+    "config/gunicorn.py",
+    "docs/observability.rst",
+    f"{PKG}/metrics.py",
+    f"{PKG}/tests/test_metrics.py",
+}
+NO_METRICS_IMAGES = {"compose/local/prometheus"}
 NO_IDENTITY_PROVIDER = {
     "docs/authentication.rst",
     f"{PKG}/users/checks.py",
@@ -388,8 +421,8 @@ NO_IDENTITY_APP = {f"{PKG}/identity"}
 # No coding agent, so no guide for one; every other answer moves it where that agent reads it.
 NO_AGENT_GUIDE = {AGENT_GUIDE}
 
-# cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery,
-# no CI, no REST API, no identity provider, no Channels, no Sentry, no coding agent.
+# cookiecutter.json defaults: MIT, username login, no Docker, AWS, no Celery, no CI,
+# no REST API, no identity provider, no Channels, no Sentry, no metrics, no coding agent.
 DEFAULTS = (
     NOT_GPL
     | USERNAME_LOGIN
@@ -402,10 +435,12 @@ DEFAULTS = (
     | NO_IDENTITY_APP
     | NO_CHANNELS
     | NO_SENTRY
+    | NO_METRICS
     | NO_AGENT_GUIDE
 )
-# Docker on, everything else at its default: the helper scripts and the Celery images go instead of compose.
-WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES
+# Docker on, everything else at its default: the helper scripts go instead of compose, and
+# the images of the options that are off go with it.
+WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES | NO_METRICS_IMAGES
 
 
 def test_prune_with_the_default_answers(unpruned_project):
@@ -513,6 +548,20 @@ def test_prune_sentry_app(unpruned_project, use_sentry, expected):
 
 
 @pytest.mark.parametrize(
+    ("use_docker", "observability", "expected"),
+    [
+        ("n", "none", DEFAULTS),
+        # Without Docker the local receiver goes with the rest of the compose directory
+        ("n", "prometheus", DEFAULTS - NO_METRICS),
+        ("y", "none", WITH_DOCKER | NO_NGINX),
+        ("y", "prometheus", (WITH_DOCKER | NO_NGINX) - NO_METRICS - NO_METRICS_IMAGES),
+    ],
+)
+def test_prune_metrics_files(unpruned_project, use_docker, observability, expected):
+    assert_prunes(unpruned_project, expected, use_docker=use_docker, observability=observability)
+
+
+@pytest.mark.parametrize(
     ("identity_provider", "expected"),
     [
         ("none", DEFAULTS),
@@ -560,6 +609,7 @@ REMOVAL_OPTIONS = (
     "identity_provider",
     "realtime",
     "use_sentry",
+    "observability",
     "coding_agent",
 )
 

@@ -76,6 +76,10 @@ already there.
 - Sentry, initialised by the `{{ cookiecutter.project_slug }}.sentry` app from the
   `SENTRY_*` settings that `production.py` defines
 {%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+- Metrics through django-prometheus, exposed at `/metrics` to a caller presenting
+  `METRICS_TOKEN` as a bearer token, never to a session (`docs/observability.rst`)
+{%- endif %}
 {%- if cookiecutter.cloud_provider == 'AWS' %}
 - Uploads on Amazon S3 in production through django-storages
 {%- elif cookiecutter.use_docker == 'y' %}
@@ -179,6 +183,9 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 {%- if cookiecutter.realtime == 'channels' %}
 | `config/websocket.py` | The websocket routing and consumers |
 {%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+| `config/gunicorn.py` | Gunicorn's configuration: the multiprocess bookkeeping when a worker exits |
+{%- endif %}
 | `{{ cookiecutter.project_slug }}/users/` | The custom user model, its forms, views, adapters and tests |
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 | `{{ cookiecutter.project_slug }}/identity/` | The app's own tokens, service tokens and the authentication policies |
@@ -192,6 +199,9 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `{{ cookiecutter.project_slug }}/themes.py` | The themes a visitor may choose, the cookie that keeps the choice and the view the picker posts to |
 | `{{ cookiecutter.project_slug }}/examples/` | The examples page: starter content, routed in every environment until it is deleted |
 | `{{ cookiecutter.project_slug }}/htmx.py` | The htmx mixin and the login-redirect middleware |
+{%- if cookiecutter.observability == 'prometheus' %}
+| `{{ cookiecutter.project_slug }}/metrics.py` | The metrics endpoint and the credential a scrape presents |
+{%- endif %}
 | `{{ cookiecutter.project_slug }}/typedefs.py` | The shared request types the views annotate against |
 | `{{ cookiecutter.project_slug }}/tests/` | Tests that belong to no single app, such as the policy and the error pages |
 | `tests/` | Tests of the root-level files |

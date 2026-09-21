@@ -6,6 +6,7 @@
 {%- set whitenoise = cookiecutter.use_whitenoise == 'y' %}
 {%- set channels = cookiecutter.realtime == 'channels' %}
 {%- set sentry = cookiecutter.use_sentry == 'y' %}
+{%- set prometheus = cookiecutter.observability == 'prometheus' %}
 {%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
 {%- set mail = {
     'Mailgun': {
@@ -61,7 +62,12 @@ DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 # ------------------------------------------------------------------------------
 CACHES = {
     "default": {
+{%- if prometheus %}
+        # The instrumented backend, a subclass of django-redis', counts hits and misses
+        "BACKEND": "django_prometheus.cache.backends.redis.RedisCache",
+{%- else %}
         "BACKEND": "django_redis.cache.RedisCache",
+{%- endif %}
         "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",

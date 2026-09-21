@@ -16,6 +16,7 @@
 {#- With Django Ninja, a provider also serves the single-page application through
     allauth's headless API, guarded by the identity app. #}
 {%- set headless = provider and cookiecutter.rest_api == 'Django Ninja' %}
+{%- set prometheus = cookiecutter.observability == 'prometheus' %}
 """Base settings to build other settings files upon."""
 
 import os
@@ -93,6 +94,11 @@ else:
     }
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
+{%- if prometheus %}
+# The instrumented backend, a subclass of the one above, counts connections,
+# errors and query durations. It wraps whichever branch bound DATABASES.
+DATABASES["default"]["ENGINE"] = "django_prometheus.db.backends.postgresql"
+{%- endif %}
 
 # URLS
 # ------------------------------------------------------------------------------
@@ -144,6 +150,11 @@ THIRD_PARTY_APPS = [
     # from local static files instead of a CDN
     "ninja",
     "corsheaders",
+{%- endif %}
+{%- if prometheus %}
+    # Metrics for the database, the cache, the models and the migrations;
+    # the request metrics come from the middlewares below
+    "django_prometheus",
 {%- endif %}
     "django_htmx",
     # Tailwind CSS and daisyUI without Node.js: the tailwind management command
@@ -204,6 +215,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
+{%- if prometheus %}
+    # Wraps the chain: the pair times what happens between them, and counts what
+    # never arrives at a view. local.py appends its development middlewares after
+    # the second one, which is left out of the deployed chain
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
+{%- endif %}
     "django.middleware.security.SecurityMiddleware",
 {%- if cookiecutter.rest_api != 'None' %}
     "corsheaders.middleware.CorsMiddleware",
@@ -225,6 +242,9 @@ MIDDLEWARE = [
     "{{ cookiecutter.project_slug }}.htmx.HtmxLoginRedirectMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+{%- if prometheus %}
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
+{%- endif %}
 ]
 
 # STATIC
@@ -395,6 +415,15 @@ LOGGING = {
     },
     "root": {"level": "INFO", "handlers": ["console"]},
 }
+{%- if prometheus %}
+
+# METRICS
+# ------------------------------------------------------------------------------
+# The credential a scrape presents, as a bearer token. Prometheus is a machine, so
+# the endpoint takes no session: no token, no metrics ({{ cookiecutter.project_slug }}/metrics.py).
+# Each deployed environment draws its own; the local one is a development value.
+METRICS_TOKEN = env("DJANGO_METRICS_TOKEN", default="")
+{%- endif %}
 
 REDIS_URL = env("REDIS_URL", default="redis://{% if cookiecutter.use_docker == 'y' %}redis{%else%}localhost{% endif %}:6379/0")
 REDIS_SSL = REDIS_URL.startswith("rediss://")

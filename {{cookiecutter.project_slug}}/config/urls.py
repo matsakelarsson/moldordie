@@ -15,6 +15,9 @@ from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
 {%- endif %}
 
+{% if cookiecutter.observability == 'prometheus' -%}
+from {{ cookiecutter.project_slug }}.metrics import metrics
+{% endif -%}
 from {{ cookiecutter.project_slug }}.themes import set_theme
 {%- if cookiecutter.rest_api == 'Django Ninja' %}
 
@@ -44,6 +47,10 @@ urlpatterns = [
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
     # The single-page application's login: allauth's headless API, app client only
     path("_allauth/", include("allauth.headless.urls")),
+{%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+    # What a scrape reads; the token it presents is its own, not a visitor's session
+    path("metrics", metrics, name="metrics"),
 {%- endif %}
     # Your stuff: custom urls includes go here
     # ...

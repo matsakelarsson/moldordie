@@ -16,6 +16,9 @@ Welcome to {{ cookiecutter.project_name }}'s documentation!
 {%- if cookiecutter.identity_provider != 'none' %}
    authentication
 {%- endif %}
+{%- if cookiecutter.observability == 'prometheus' %}
+   observability
+{%- endif %}
 
 
 

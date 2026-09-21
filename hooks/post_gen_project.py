@@ -36,6 +36,11 @@ def with_celery(context):
     return context["use_celery"] == "y"
 
 
+def with_prometheus(context):
+    """Metrics through django-prometheus: a scrape presents a credential of its own."""
+    return context["observability"] == "prometheus"
+
+
 def with_headless(context):
     """Django Ninja with an identity provider: allauth's headless API signs the app's tokens."""
     return context["rest_api"] == "Django Ninja" and context["identity_provider"] != "none"
@@ -106,6 +111,11 @@ SECRETS = (
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (PRODUCTION_DJANGO,), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/local.py",), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/test.py",), debug=False, applies=with_headless),
+    # The credential a scrape presents, one per deployed environment so a token that
+    # reads dev reads nothing else. The developer's machine declares a value instead.
+    Secret("DJANGO_METRICS_TOKEN", (DEV_DJANGO,), debug=False, applies=with_prometheus),
+    Secret("DJANGO_METRICS_TOKEN", (TEST_DJANGO,), debug=False, applies=with_prometheus),
+    Secret("DJANGO_METRICS_TOKEN", (PRODUCTION_DJANGO,), debug=False, applies=with_prometheus),
 )
 
 
@@ -245,6 +255,23 @@ REMOVALS = (
     (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),
     # The app that initialises the Sentry SDK, installed by the production settings.
     (lambda c: c["use_sentry"] == "n", ("{project_slug}/sentry", "{project_slug}/tests/test_sentry.py")),
+    # Metrics: the endpoint a scrape reads, the Gunicorn configuration that retires the
+    # samples of a worker that exited, and the page describing how to scrape them.
+    (
+        lambda c: c["observability"] != "prometheus",
+        (
+            "config/gunicorn.py",
+            "docs/observability.rst",
+            "{project_slug}/metrics.py",
+            "{project_slug}/tests/test_metrics.py",
+        ),
+    ),
+    # The local Prometheus reads the endpoint while developing; without Docker the
+    # whole compose directory goes instead.
+    (
+        lambda c: c["observability"] != "prometheus" and c["use_docker"] == "y",
+        ("compose/local/prometheus",),
+    ),
     # Sign-in through the identity provider: its documentation, the check of its credentials and its tests.
     (
         lambda c: c["identity_provider"] == "none",

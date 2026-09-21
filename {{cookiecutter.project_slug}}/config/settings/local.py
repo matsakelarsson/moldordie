@@ -17,7 +17,13 @@ SECRET_KEY = env(
     default="!!!SET DJANGO_SECRET_KEY!!!",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
+{%- if cookiecutter.observability == 'prometheus' and cookiecutter.use_docker == 'y' %}
+# The scrape dials the application by its Compose service name, and a name the
+# application does not answer to is refused before any view runs
+ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1", "django"]  # noqa: S104
+{%- else %}
 ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]  # noqa: S104
+{%- endif %}
 {%- if headless %}
 # https://docs.allauth.org/en/latest/headless/configuration.html
 # The key allauth signs the single-page application's tokens with
@@ -32,7 +38,12 @@ HEADLESS_JWT_PRIVATE_KEY = env(
 # https://docs.djangoproject.com/en/dev/ref/settings/#caches
 CACHES = {
     "default": {
+{%- if cookiecutter.observability == 'prometheus' %}
+        # The instrumented backend, a subclass of Django's, counts hits and misses
+        "BACKEND": "django_prometheus.cache.backends.locmem.LocMemCache",
+{%- else %}
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+{%- endif %}
         "LOCATION": "",
     },
 }

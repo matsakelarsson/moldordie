@@ -25,6 +25,7 @@
   "use_celery": "n",
   "mail_catcher": ["None", "Mailpit", "Mailtrap Local"],
   "use_sentry": "n",
+  "observability": ["none", "prometheus"],
   "use_whitenoise": "n",
   "ci_tool": ["None", "Gitlab", "Github"],
   "coding_agent": ["none", "claude", "codex", "cursor", "copilot"],

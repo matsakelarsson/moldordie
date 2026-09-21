@@ -239,7 +239,7 @@ PAIRED_COMBINATIONS = [
         "use_sentry": "y",
         "ci_tool": "Github",
     },
-    {"coding_agent": "cursor", "rest_api": "DRF", "ci_tool": "Gitlab"},
+    {"coding_agent": "cursor", "rest_api": "DRF", "ci_tool": "Gitlab", "observability": "prometheus"},
 ]
 
 DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
@@ -751,6 +751,8 @@ DEPENDENCY_CASES = [
     ({"rest_api": "None"}, set(), {"django-cors-headers", "djangorestframework", "django-ninja"}),
     ({"use_sentry": "y"}, {"sentry-sdk"}, set()),
     ({"use_sentry": "n"}, set(), {"sentry-sdk"}),
+    ({"observability": "prometheus"}, {"django-prometheus", "prometheus-client"}, set()),
+    ({"observability": "none"}, set(), {"django-prometheus", "prometheus-client"}),
     ({"use_whitenoise": "y"}, {"whitenoise"}, {"collectfasta"}),
     ({"cloud_provider": "AWS", "use_whitenoise": "n"}, {"django-storages", "collectfasta"}, {"whitenoise"}),
     ({"cloud_provider": "None", "use_whitenoise": "y"}, {"whitenoise"}, {"django-storages", "collectfasta"}),
@@ -1790,6 +1792,55 @@ def test_sentry_wiring(bake, context, use_sentry):
         assert reads["SENTRY_DSN"].default is NO_DEFAULT
         assert reads["SENTRY_ENVIRONMENT"].default == "production"
         assert "sentry_sdk.init(" in project.text(package / "sentry" / "apps.py")
+
+
+BEFORE_MIDDLEWARE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
+AFTER_MIDDLEWARE = "django_prometheus.middleware.PrometheusAfterMiddleware"
+
+
+@pytest.mark.parametrize("observability", ["none", "prometheus"])
+def test_metrics_wiring(bake, context, observability):
+    """The metrics of django-prometheus: the app, the middleware pair that wraps the
+    chain, the instrumented backends, and the endpoint behind its own credential."""
+    context["observability"] = observability
+    context["use_docker"] = "y"
+    project = bake(context)
+
+    selected = observability == "prometheus"
+    package = Path(context["project_slug"])
+    assert (project.root / package / "metrics.py").exists() is selected
+    assert (project.root / package / "tests" / "test_metrics.py").exists() is selected
+    assert (project.root / "config" / "gunicorn.py").exists() is selected
+    assert (project.root / "docs" / "observability.rst").exists() is selected
+    assert ("django-prometheus" in pinned(project)) is selected
+
+    base = project.settings("base")
+    assert ("django_prometheus" in base.value("INSTALLED_APPS")) is selected
+    middleware = base.value("MIDDLEWARE")
+    assert (middleware[0] == BEFORE_MIDDLEWARE) is selected
+    assert (middleware[-1] == AFTER_MIDDLEWARE) is selected
+    # DATABASES is bound in a branch and then mutated, so the assignment is read as written
+    engine = 'DATABASES["default"]["ENGINE"] = "django_prometheus.db.backends.postgresql"'
+    assert (engine in base.source) is selected
+    reads = {read.name: read for read in base.env_reads()}
+    assert ("DJANGO_METRICS_TOKEN" in reads) is selected
+
+    # local.py and production.py each bind their own cache, and both wrap the backend
+    for environment, backend in (("local", "locmem.LocMemCache"), ("production", "redis.RedisCache")):
+        wrapped = f'"BACKEND": "django_prometheus.cache.backends.{backend}"'
+        assert (wrapped in project.settings(environment).source) is selected
+
+    # The endpoint is routed in every environment; nothing about it is conditional at runtime
+    assert ('path("metrics", metrics, name="metrics")' in project.text("config/urls.py")) is selected
+    services = project.compose("local")["services"]
+    assert ("prometheus" in services) is selected
+    if selected:
+        # The scrape reads the container, not one worker of it
+        start = project.text(Path("compose") / "production" / "django" / "start")
+        assert "export PROMETHEUS_MULTIPROC_DIR=" in start
+        assert "--config /app/config/gunicorn.py" in start
+        assert "mark_process_dead" in project.text(Path("config") / "gunicorn.py")
+        assert services["prometheus"]["depends_on"] == ["django"]
 
 
 # The agent guide: where each coding agent reads its instructions, as the agent's own

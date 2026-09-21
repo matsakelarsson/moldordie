@@ -127,6 +127,16 @@ mail_catcher:
 use_sentry:
     Indicates whether the project should be configured to use Sentry_.
 
+observability:
+    Select how the project reports on itself while it runs. It generates the application's own
+    integration and an example receiver configuration; the monitoring infrastructure itself is
+    the deployment's to supply, and the local Compose file gains a receiver for development.
+    The choices are:
+
+    1. none, so no telemetry dependencies and no endpoint
+    2. ``prometheus``, Django metrics through `django-prometheus`_, exposed for scraping at
+       ``/metrics`` behind a credential the scraper presents
+
 use_whitenoise:
     Indicates whether the project should be configured to use WhiteNoise_.
 
@@ -183,6 +193,7 @@ debug:
 .. _Mailtrap Local: https://github.com/mailtrap/mailtrap-local
 
 .. _Sentry: https://github.com/getsentry/sentry
+.. _django-prometheus: https://github.com/django-commons/django-prometheus
 
 .. _WhiteNoise: https://github.com/evansd/whitenoise
 

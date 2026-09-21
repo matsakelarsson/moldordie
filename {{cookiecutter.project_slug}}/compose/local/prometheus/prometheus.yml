@@ -1,0 +1,18 @@
+# The local Prometheus: one target, the django service of this Compose file, with the
+# credential .envs/.local/.django declares. It is a development value and the same in
+# every checkout, which is why it can be written here.
+#
+# A deployment's configuration differs in two ways, both in docs/observability.rst: it
+# discovers every replica of the application rather than naming one address, because a
+# scrape that arrives through a load balancer describes whichever replica answered; and
+# its credential is that environment's own, drawn when the project was generated.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: {{ cookiecutter.project_slug }}
+    metrics_path: /metrics
+    authorization:
+      credentials: development-metrics-token
+    static_configs:
+      - targets: ['django:8000']
