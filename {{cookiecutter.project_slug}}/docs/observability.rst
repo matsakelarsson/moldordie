@@ -184,7 +184,9 @@ needs them. ``OTEL_EXPORTER_OTLP_HEADERS`` is what the collector asks a caller f
 written as comma-separated ``name=value`` pairs. ``OTEL_EXPORTER_OTLP_CERTIFICATE`` is
 the authority that signed the collector's own certificate, where that is a private
 one: it is the trust anchor for the connection this project opens, and has nothing to
-do with the certificate the site is served under.
+do with the certificate the site is served under. Left unset, the connection is
+verified against the authorities the image already trusts; there is no answer to this
+variable that posts to the collector without verifying it.
 
 The exporters post over HTTP, to the path the protocol gives each signal:
 ``/v1/traces`` and ``/v1/metrics`` under the configured address. They are told what
