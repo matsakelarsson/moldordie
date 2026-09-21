@@ -141,8 +141,9 @@ retire. Counters, histograms and summaries add up on their own.
 Other processes
 ----------------------------------------------------------------------
 
-The task worker{% if cookiecutter.use_celery == 'y' %}, the Celery worker and beat{% endif %}
-record the same database and cache metrics, in their own processes, and serve no HTTP.
+{% if cookiecutter.use_celery == 'y' %}The task worker, the Celery worker and beat record the same database and cache
+metrics, in processes of their own, and serve no HTTP.{% else %}The task worker records the same database and cache metrics, in a process of its
+own, and serves no HTTP.{% endif %}
 Nothing collects them: they are not in the web container's exposition, and the queries
 those processes run appear in no scrape. Measuring them means giving those containers
 something a scrape can read, which this project does not generate.

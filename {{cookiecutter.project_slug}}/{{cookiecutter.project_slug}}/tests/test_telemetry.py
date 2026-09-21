@@ -34,7 +34,7 @@ from opentelemetry.instrumentation.django import DjangoInstrumentor
 from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 
-from {{ cookiecutter.project_slug }}.telemetry import apps
+from {{ cookiecutter.project_slug }}.telemetry import COMPONENT_VARIABLE
 from {{ cookiecutter.project_slug }}.telemetry import asgi
 from {{ cookiecutter.project_slug }}.telemetry import configure as telemetry
 
@@ -64,7 +64,10 @@ def exported(monkeypatch):
     # wrap a library of this process for good
     for instrumentor in telemetry.INSTRUMENTORS:
         monkeypatch.setattr(instrumentor, "instrument", record)
-    return recorded
+    yield recorded
+    # Installing them is recorded rather than done, but building them is real: each
+    # provider holds a thread and an atexit hook that would outlive this test
+    telemetry.shutdown()
 
 
 def test_a_serving_process_exports_its_traces_and_its_metrics(settings, exported):
@@ -102,7 +105,10 @@ def test_the_stable_conventions_are_what_it_speaks(
     """The instrumentations emit the older attribute names unless told otherwise, and
     a project generated today has no dashboard that reads those."""
     settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
-    monkeypatch.delenv(telemetry.SEMANTIC_CONVENTIONS, raising=False)
+    # Set before it is removed: monkeypatch records no undo for a name that was not
+    # there, and configure sets this one, which would then outlive the test
+    monkeypatch.setenv(telemetry.SEMANTIC_CONVENTIONS, "")
+    monkeypatch.delenv(telemetry.SEMANTIC_CONVENTIONS)
 
     telemetry.configure(COMPONENT)
 
@@ -327,10 +333,16 @@ def test_stopping_twice_sends_nothing_the_second_time(holding):
     assert tracing.calls == sent
 
 
-def test_a_process_that_started_nothing_has_nothing_to_send(exported):
-    """Which is every process of a project that named no collector."""
-    telemetry.shutdown()
+def test_a_process_that_started_nothing_has_nothing_to_send(settings, exported):
+    """Which is every process of a project that named no collector: nothing was
+    installed, so there is nothing to flush and nothing to say about it."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ""
 
+    assert telemetry.configure(COMPONENT) is False
+
+    telemetry.shutdown()
+    assert exported.tracer is None
+    assert exported.instrumented == []
     assert telemetry.started() is None
 
 
@@ -460,8 +472,8 @@ def test_every_other_scope_reaches_the_application():
 def test_the_app_starts_nothing_unless_the_environment_names_a_component(monkeypatch):
     """ready() runs for every management command, and a command serves nothing."""
     started: list[str] = []
-    monkeypatch.delenv(telemetry.COMPONENT_VARIABLE, raising=False)
-    monkeypatch.setattr(apps, "configure", started.append)
+    monkeypatch.delenv(COMPONENT_VARIABLE, raising=False)
+    monkeypatch.setattr(telemetry, "configure", started.append)
 
     AppConfig.create(APP).ready()
 
@@ -471,8 +483,8 @@ def test_the_app_starts_nothing_unless_the_environment_names_a_component(monkeyp
 def test_the_app_starts_the_component_the_environment_names(monkeypatch):
     """The start script of a process that has no hook of its own names it here."""
     started: list[str] = []
-    monkeypatch.setenv(telemetry.COMPONENT_VARIABLE, "taskworker")
-    monkeypatch.setattr(apps, "configure", started.append)
+    monkeypatch.setenv(COMPONENT_VARIABLE, "taskworker")
+    monkeypatch.setattr(telemetry, "configure", started.append)
 
     AppConfig.create(APP).ready()
 

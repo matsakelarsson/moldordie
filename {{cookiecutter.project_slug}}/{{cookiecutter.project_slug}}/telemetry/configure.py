@@ -49,10 +49,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# What tells an app registry that this process serves something. A start script sets
-# it for the processes that have no hook of their own to start from.
-COMPONENT_VARIABLE = "DJANGO_TELEMETRY_COMPONENT"
-
 # The semantic conventions the instrumentations speak. They read this variable when
 # they are asked to instrument, and emit the older attribute names without it; a
 # project generated today has no dashboard reading those, so it starts on the stable
