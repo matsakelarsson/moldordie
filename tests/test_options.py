@@ -1,12 +1,11 @@
-"""The option catalogue in local_extensions.py: what it reads from cookiecutter.json, and who reads it."""
+"""The option catalogue in local_extensions.py: what it reads from cookiecutter.json, and who
+reads it. The CI integration rows, another reader, are ``tests/test_ci_rows.py``."""
 
 import json
 import re
-import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
 from cookiecutter.environment import StrictEnvironment
 
 from local_extensions import FLAG
@@ -87,28 +86,6 @@ def test_cookiecutter_exposes_option_names_to_the_templates_and_hooks():
     rendered = env.from_string('{{ option_names("flag") | tojson }}').render()
 
     assert json.loads(rendered) == list(option_names(FLAG))
-
-
-def ci_integration_answers():
-    """The answers each Docker and bare-metal CI job passes to cookiecutter, by job."""
-    workflow = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text())
-    for job in ("docker", "bare"):
-        for script in workflow["jobs"][job]["strategy"]["matrix"]["script"]:
-            answers = {}
-            for token in shlex.split(script["args"]):
-                assert "=" in token, f"{job} {script['name']}: {token!r} is not name=value"
-                name, value = token.split("=", 1)
-                answers[name] = value
-            yield f"{job} {script['name']}", answers
-
-
-def test_ci_integration_jobs_pass_options_of_the_catalogue():
-    """A misspelt option in ci.yml would bake the default project and pass."""
-    for job, answers in ci_integration_answers():
-        for name, value in answers.items():
-            assert name in OPTIONS, f"{job}: {name!r} is not an option"
-            if OPTIONS[name].choices:
-                assert value in OPTIONS[name].choices, f"{job}: {value!r} is not a choice of {name}"
 
 
 @dataclass(frozen=True)

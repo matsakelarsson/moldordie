@@ -5,6 +5,7 @@ A bug here would make the real checks vacuous: the test that every removable pat
 """
 
 from tests.removal_coverage import MOST_CHANGED_ANSWERS
+from tests.removal_coverage import coverage_gaps
 from tests.removal_coverage import fewest_answers_keeping
 from tests.removal_coverage import paths_kept
 
@@ -141,3 +142,33 @@ def test_no_row_is_missing_for_a_path_that_no_answers_keep():
     rules = ((lambda c: True, ("orphan.py",)),)
 
     assert fewest_answers_keeping("orphan.py", rules, complete, CHOICES) is None
+
+
+# Paths that some rows may go without, each for a reason written beside it. What is tested is
+# that the excuse is needed: one that excuses nothing would hide the next path to lose its row.
+
+
+def test_an_exempted_path_is_no_gap():
+    kept = {"COPYING": False, "compose": True, "config/api.py": False}
+
+    gaps, stale = coverage_gaps(kept, {"COPYING": "nothing reads a licence text"})
+
+    assert gaps == ["config/api.py"]
+    assert stale == []
+
+
+def test_an_exemption_for_a_path_some_row_keeps_is_stale():
+    kept = {"COPYING": True, "compose": True}
+
+    gaps, stale = coverage_gaps(kept, {"COPYING": "nothing reads a licence text"})
+
+    assert gaps == []
+    assert stale == ["COPYING"]
+
+
+def test_an_exemption_for_a_path_no_rule_lists_is_stale():
+    """A renamed path would otherwise keep its excuse for ever."""
+    gaps, stale = coverage_gaps({"compose": True}, {"COPYING.txt": "nothing reads a licence text"})
+
+    assert gaps == []
+    assert stale == ["COPYING.txt"]

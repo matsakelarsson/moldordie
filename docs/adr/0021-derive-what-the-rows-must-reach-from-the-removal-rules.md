@@ -29,6 +29,24 @@ the conditionals inside a file that is kept, so whether every `{% if %}` of a ke
 rendered by some row is not checked. Checking that was a candidate of the 2026-09-13 review
 and was declined; this decision does not reopen it.
 
+The CI integration rows are held to the same table
+(`test_every_removable_path_is_generated_by_some_ci_row`). On 2026-09-21 none of the 14 rows
+passed `use_sentry=y`, so CI had never type-checked or run the generated Sentry app, and none
+reached the nginx image of a Docker project without a cloud provider; the same day, rows that
+had been replaced rather than added were restored (#98), because Celery was by then exercised
+only together with an observability arm. A row's complete answers are the defaults, then the
+answers its script passes to Cookiecutter itself (`use_docker`), then its own, so the coverage
+computed is that of the projects CI really generates. Coverage is bought with answers on
+existing rows, not with jobs: the `Basic` Docker row and the `Celery` bare-metal row stay the
+plain cases, and a job is added only where widening a row would hide which answer a failure
+belongs to. Paths that nothing the integration scripts run reads are exempted by hand, each
+with its reason (the GPL's text, the agent guide), and an exemption that a row makes
+unnecessary, or whose path no rule lists any more, fails.
+
+What "a CI row reaches a path" proves is narrow, in the terms of ADR 0004: the checks of that
+row's script ran on a project that has the path. It does not show that those checks execute
+the file, or that a service it configures works.
+
 ## Considered options
 
 - **Hand-kept paired rows under a comment**, the previous state: the comment above
@@ -38,6 +56,9 @@ and was declined; this decision does not reopen it.
   functions, so a row can only be found by searching the answers; the rows stay hand-written,
   the test says when one is missing, and the search runs only to word that failure.
 - **Condition-level coverage**: see above.
+- **A CI job per arm**: every job generates, installs and checks a whole project to reach
+  paths that an answer on an existing row reaches as well. Jobs are for answers whose
+  failures would otherwise be hard to tell apart.
 
 ## Consequences
 
@@ -48,4 +69,8 @@ comparison over the supported combinations (`scripts/compare_generated.py`) is n
 about every file a removal rule can delete. It still says nothing about a fork inside a
 kept file that no row reaches; those answers are passed to the comparison as extra rows.
 The Channels cleanup is a step of pruning, not a rule, so its paths are outside this check;
-the single-choice rows reach them.
+the single-choice rows reach them. In CI, `use_sentry=y` rides on Docker's Channels row and on
+bare metal's Celery and OpenTelemetry row, and `cloud_provider=None` with WhiteNoise on Docker's
+Entra and Django Ninja row. The check is per path, not per row: narrowing the nginx row, or
+both Sentry rows, fails it, naming the paths that lost their last row; narrowing one Sentry
+row passes, since the other still keeps the Sentry app.

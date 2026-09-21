@@ -18,12 +18,14 @@ from local_extensions import LIST
 from local_extensions import OPTIONS
 from local_extensions import option_names
 from tests.answers import complete_answers
+from tests.answers import unknown_answers
 from tests.generated_project import NO_DEFAULT
 from tests.generated_project import EnvRead
 from tests.generated_project import Expression
 from tests.generated_project import GeneratedProject
 from tests.generated_project import PythonModule
 from tests.removal_coverage import MOST_CHANGED_ANSWERS
+from tests.removal_coverage import coverage_gaps
 from tests.removal_coverage import fewest_answers_keeping
 from tests.removal_coverage import paths_kept
 
@@ -387,7 +389,7 @@ def test_every_removable_path_is_baked():
     File-level: whether every conditional inside a kept file is rendered is not checked (docs/adr/0021).
     """
     rows = [complete_answers(row) for row in SUPPORTED_COMBINATIONS]
-    unbaked = [path for path, kept in paths_kept(REMOVALS, rows).items() if not kept]
+    unbaked, _ = coverage_gaps(paths_kept(REMOVALS, rows), exemptions={})
 
     choices = {name: OPTIONS[name].choices for name in option_names(LIST, FLAG)}
     missing = {
@@ -409,9 +411,7 @@ def test_every_removable_path_is_baked():
 def test_combinations_name_options_of_the_catalogue():
     """A misspelt option or choice in a hand-written row would bake the default project and pass."""
     for row in [*PAIRED_COMBINATIONS, *UNSUPPORTED_COMBINATIONS]:
-        for name, value in row.items():
-            assert name in OPTIONS, f"{name!r} is not an option: {row}"
-            assert value in OPTIONS[name].choices, f"{value!r} is not a choice of {name}: {row}"
+        assert unknown_answers(row) == [], row
 
 
 @pytest.mark.parametrize("context_override", SUPPORTED_COMBINATIONS, ids=_fixture_id)
