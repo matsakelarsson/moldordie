@@ -62,6 +62,11 @@ SENTRY_ENVIRONMENT             SENTRY_ENVIRONMENT               n/a             
 SENTRY_TRACES_SAMPLE_RATE      SENTRY_TRACES_SAMPLE_RATE        n/a                 0.0
 DJANGO_SENTRY_LOG_LEVEL        SENTRY_LOG_LEVEL                 n/a                 logging.INFO
 DJANGO_METRICS_TOKEN           METRICS_TOKEN                    ""                  "" (every scrape refused)
+OTEL_SERVICE_NAME              OTEL_SERVICE_NAME                the project slug    the project slug
+OTEL_DEPLOYMENT_ENVIRONMENT    OTEL_DEPLOYMENT_ENVIRONMENT      "local"             the environment's own name
+OTEL_EXPORTER_OTLP_ENDPOINT    OTEL_EXPORTER_OTLP_ENDPOINT      ""                  "" (nothing is exported)
+OTEL_EXPORTER_OTLP_HEADERS     OTEL_EXPORTER_OTLP_HEADERS       {}                  {}
+OTEL_EXPORTER_OTLP_CERTIFICATE OTEL_EXPORTER_OTLP_CERTIFICATE   ""                  "" (the container's trust store)
 MAILGUN_API_KEY                ANYMAIL["MAILGUN_API_KEY"]       n/a                 raises error
 MAILGUN_DOMAIN                 ANYMAIL["MAILGUN_SENDER_DOMAIN"] n/a                 raises error
 MAILGUN_API_URL                ANYMAIL["MAILGUN_API_URL"]       n/a                 "https://api.mailgun.net/v3"
@@ -97,6 +102,8 @@ GOOGLE_SERVICE_AUDIENCE                      IDENTITY_SERVICE_AUDIENCE          
 ============================================ ====================================== ========================== ==========================
 
 With ``observability=prometheus``, ``DJANGO_METRICS_TOKEN`` is the credential a scrape presents at ``/metrics``, as a bearer token: the endpoint answers a machine, never a session. Each deployed environment drew its own when the project was generated; the developer's machine declares a fixed value. An unset token authorises nobody through that credential, so without an identity provider every request is refused. With one, a scraper registered as a calling service presents the token the provider issued it instead, and its registration has to hold the ``identity.read_metrics`` permission, so a deployment whose scrapers have an identity there can leave the drawn token unset and still be scraped. The generated ``docs/observability.rst`` covers both and the scrape configuration.
+
+With ``observability=opentelemetry``, the ``OTEL_*`` variables say where the project's traces and metrics go and what the connection to the collector looks like. ``OTEL_EXPORTER_OTLP_ENDPOINT`` is the switch: while it is unset the project starts no exporter and instruments no library, so a checkout, a management command and the test suite dial nowhere. ``OTEL_DEPLOYMENT_ENVIRONMENT`` says which deployment a span came from, as ``SENTRY_ENVIRONMENT`` does for Sentry, because the three deployed environments run one settings module. The exporters are started in each process that serves something and in no other, and the generated ``docs/observability.rst`` covers the collector's configuration and the sampling the SDK reads from the environment itself.
 
 The Sentry SDK is initialised from the ``SENTRY_*`` settings by the project's ``sentry`` app once the app registry is ready, not when the settings are imported, so the production settings can be loaded without side effects. The project's ``tests/test_production_settings.py`` does exactly that, under the environment ``.env.example`` declares: no env file is in version control, so the committed example is where a checkout reads the deployment's variables from. The ``dev`` and ``test`` deployments run the same module, under the environment their own files declare; see :ref:`deployment-with-docker`.
 

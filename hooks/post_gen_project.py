@@ -261,22 +261,31 @@ REMOVALS = (
     (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),
     # The app that initialises the Sentry SDK, installed by the production settings.
     (lambda c: c["use_sentry"] == "n", ("{project_slug}/sentry", "{project_slug}/tests/test_sentry.py")),
-    # Metrics: the endpoint a scrape reads, the Gunicorn configuration that retires the
-    # samples of a worker that exited, and the page describing how to scrape them.
+    # Metrics: the endpoint a scrape reads.
     (
         lambda c: c["observability"] != "prometheus",
-        (
-            "config/gunicorn.py",
-            "docs/observability.rst",
-            "{project_slug}/metrics.py",
-            "{project_slug}/tests/test_metrics.py",
-        ),
+        ("{project_slug}/metrics.py", "{project_slug}/tests/test_metrics.py"),
     ),
-    # The local Prometheus reads the endpoint while developing; without Docker the
-    # whole compose directory goes instead.
+    # Telemetry: the app that starts a serving process's exporters.
+    (
+        lambda c: c["observability"] != "opentelemetry",
+        ("{project_slug}/telemetry", "{project_slug}/tests/test_telemetry.py"),
+    ),
+    # Gunicorn's configuration, which each arm gives a hook of its own, and the page
+    # that says where what the project measures is read: both belong to either arm.
+    (
+        lambda c: c["observability"] == "none",
+        ("config/gunicorn.py", "docs/observability.rst"),
+    ),
+    # The receiver each arm runs while developing; without Docker the whole compose
+    # directory goes instead.
     (
         lambda c: c["observability"] != "prometheus" and c["use_docker"] == "y",
         ("compose/local/prometheus",),
+    ),
+    (
+        lambda c: c["observability"] != "opentelemetry" and c["use_docker"] == "y",
+        ("compose/local/otel-collector",),
     ),
     # Sign-in through the identity provider: its documentation, the check of its credentials and its tests.
     (

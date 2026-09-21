@@ -125,7 +125,8 @@ Answer the prompts with your own desired [options](docs/1-getting-started/projec
       [21/25] Select observability
         1 - none
         2 - prometheus
-        Choose from [1/2] (1): 2
+        3 - opentelemetry
+        Choose from [1/2/3] (1): 2
       [22/25] use_whitenoise (n): n
       [23/25] Select ci_tool
         1 - None

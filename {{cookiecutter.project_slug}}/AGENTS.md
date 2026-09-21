@@ -84,6 +84,12 @@ already there.
   `METRICS_TOKEN` as a bearer token{% if cookiecutter.identity_provider != 'none' %}, or a service token of the provider's whose
   registration holds `identity.read_metrics`{% endif %}, never to a session (`docs/observability.rst`)
 {%- endif %}
+{%- if cookiecutter.observability == 'opentelemetry' %}
+- Traces and metrics over OTLP, exported by the `{{ cookiecutter.project_slug }}.telemetry`
+  app from the `OTEL_*` settings in `config/settings/base.py`. Nothing is exported until
+  `OTEL_EXPORTER_OTLP_ENDPOINT` names a collector, and only a process that serves
+  something starts the exporters at all (`docs/observability.rst`)
+{%- endif %}
 {%- if cookiecutter.cloud_provider == 'AWS' %}
 - Uploads on Amazon S3 in production through django-storages
 {%- elif cookiecutter.use_docker == 'y' %}
@@ -189,6 +195,8 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 {%- endif %}
 {%- if cookiecutter.observability == 'prometheus' %}
 | `config/gunicorn.py` | Gunicorn's configuration: the multiprocess bookkeeping when a worker exits |
+{%- elif cookiecutter.observability == 'opentelemetry' %}
+| `config/gunicorn.py` | Gunicorn's configuration: the hook a worker starts its exporters from |
 {%- endif %}
 | `{{ cookiecutter.project_slug }}/users/` | The custom user model, its forms, views, adapters and tests |
 {%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
@@ -207,6 +215,8 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `{{ cookiecutter.project_slug }}/htmx.py` | The htmx mixin and the login-redirect middleware |
 {%- if cookiecutter.observability == 'prometheus' %}
 | `{{ cookiecutter.project_slug }}/metrics.py` | The metrics endpoint and the credential a scrape presents |
+{%- elif cookiecutter.observability == 'opentelemetry' %}
+| `{{ cookiecutter.project_slug }}/telemetry/` | The OTLP exporters and what starts them in a serving process |
 {%- endif %}
 | `{{ cookiecutter.project_slug }}/typedefs.py` | The shared request types the views annotate against |
 | `{{ cookiecutter.project_slug }}/tests/` | Tests that belong to no single app, such as the policy and the error pages |

@@ -378,6 +378,19 @@ def test_api_docs_name_the_production_server(production_settings):
         {"url": "https://{{ cookiecutter.domain_name }}", "description": "Production server"},
     ]
 {%- endif %}
+{%- if cookiecutter.observability == 'opentelemetry' %}
+
+
+def test_telemetry_is_configured_from_the_environment(production_settings, environment):
+    """Each deployment names its own destination and says which deployment it is."""
+    settings = production_settings()
+
+    endpoint = environment["OTEL_EXPORTER_OTLP_ENDPOINT"]
+    assert endpoint == settings.OTEL_EXPORTER_OTLP_ENDPOINT
+    assert settings.OTEL_DEPLOYMENT_ENVIRONMENT == "production"
+    assert settings.OTEL_SERVICE_NAME == "{{ cookiecutter.project_slug }}"
+    assert "{{ cookiecutter.project_slug }}.telemetry" in settings.INSTALLED_APPS
+{%- endif %}
 {%- if cookiecutter.observability == 'prometheus' %}
 
 

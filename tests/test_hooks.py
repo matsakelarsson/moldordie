@@ -398,15 +398,14 @@ NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
 NO_REST_API = {"config/api_router.py", "config/api.py", f"{PKG}/users/api", f"{PKG}/users/tests/api"}
 NO_CHANNELS = {"config/websocket.py", f"{PKG}/tests/test_websocket.py"}
 NO_SENTRY = {f"{PKG}/sentry", f"{PKG}/tests/test_sentry.py"}
-# The metrics endpoint, the Gunicorn configuration that keeps the workers' samples
-# together, and the page on scraping them; the local receiver goes with the images.
-NO_METRICS = {
-    "config/gunicorn.py",
-    "docs/observability.rst",
-    f"{PKG}/metrics.py",
-    f"{PKG}/tests/test_metrics.py",
-}
+# The metrics endpoint a scrape reads, and the app that exports over OTLP. The Gunicorn
+# configuration and the page belong to either arm, so they go only where neither was
+# chosen; each arm's local receiver goes with the images.
+NO_METRICS = {f"{PKG}/metrics.py", f"{PKG}/tests/test_metrics.py"}
+NO_TELEMETRY = {f"{PKG}/telemetry", f"{PKG}/tests/test_telemetry.py"}
+NO_OBSERVABILITY = {"config/gunicorn.py", "docs/observability.rst"}
 NO_METRICS_IMAGES = {"compose/local/prometheus"}
+NO_TELEMETRY_IMAGES = {"compose/local/otel-collector"}
 NO_IDENTITY_PROVIDER = {
     "docs/authentication.rst",
     f"{PKG}/users/checks.py",
@@ -458,11 +457,13 @@ DEFAULTS = (
     | NO_CHANNELS
     | NO_SENTRY
     | NO_METRICS
+    | NO_TELEMETRY
+    | NO_OBSERVABILITY
     | NO_AGENT_GUIDE
 )
 # Docker on, everything else at its default: the helper scripts go instead of compose, and
 # the images of the options that are off go with it.
-WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES | NO_METRICS_IMAGES
+WITH_DOCKER = (DEFAULTS - NO_DOCKER) | DOCKER | NO_CELERY_IMAGES | NO_METRICS_IMAGES | NO_TELEMETRY_IMAGES
 
 
 def test_prune_with_the_default_answers(unpruned_project):
@@ -569,17 +570,25 @@ def test_prune_sentry_app(unpruned_project, use_sentry, expected):
     assert_prunes(unpruned_project, expected, use_sentry=use_sentry)
 
 
+# Each arm keeps its own files, the Gunicorn configuration and the page both arms write
+# to, and, with Docker, its receiver; without Docker the receivers go with the rest of
+# the compose directory.
+KEPT_BY_PROMETHEUS = NO_METRICS | NO_OBSERVABILITY
+KEPT_BY_TELEMETRY = NO_TELEMETRY | NO_OBSERVABILITY
+
+
 @pytest.mark.parametrize(
     ("use_docker", "observability", "expected"),
     [
         ("n", "none", DEFAULTS),
-        # Without Docker the local receiver goes with the rest of the compose directory
-        ("n", "prometheus", DEFAULTS - NO_METRICS),
+        ("n", "prometheus", DEFAULTS - KEPT_BY_PROMETHEUS),
+        ("n", "opentelemetry", DEFAULTS - KEPT_BY_TELEMETRY),
         ("y", "none", WITH_DOCKER | NO_NGINX),
-        ("y", "prometheus", (WITH_DOCKER | NO_NGINX) - NO_METRICS - NO_METRICS_IMAGES),
+        ("y", "prometheus", (WITH_DOCKER | NO_NGINX) - KEPT_BY_PROMETHEUS - NO_METRICS_IMAGES),
+        ("y", "opentelemetry", (WITH_DOCKER | NO_NGINX) - KEPT_BY_TELEMETRY - NO_TELEMETRY_IMAGES),
     ],
 )
-def test_prune_metrics_files(unpruned_project, use_docker, observability, expected):
+def test_prune_observability_files(unpruned_project, use_docker, observability, expected):
     assert_prunes(unpruned_project, expected, use_docker=use_docker, observability=observability)
 
 
@@ -624,7 +633,7 @@ def test_prune_identity_app(unpruned_project, rest_api, identity_provider, expec
 
 # Metrics and a provider, so a scrape may present a token of the provider's: the verifier
 # and the registrations are generated whether or not the API that also reads them is.
-WITH_METRICS = DEFAULTS - NO_METRICS - NO_IDENTITY_APP - NO_IDENTITY_PROVIDER
+WITH_METRICS = DEFAULTS - KEPT_BY_PROMETHEUS - NO_IDENTITY_APP - NO_IDENTITY_PROVIDER
 
 
 @pytest.mark.parametrize(

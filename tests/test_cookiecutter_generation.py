@@ -237,6 +237,7 @@ PAIRED_COMBINATIONS = [
         "rest_api": "Django Ninja",
         "identity_provider": "entra",
         "use_sentry": "y",
+        "observability": "opentelemetry",
         "ci_tool": "Github",
     },
     {
@@ -742,6 +743,15 @@ def pinned(project: GeneratedProject) -> set[str]:
     return {pin.name for array in project.pins.values() for pin in array}
 
 
+PROMETHEUS_PACKAGES = {"django-prometheus", "prometheus-client"}
+TELEMETRY_PACKAGES = {
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation-django",
+    "opentelemetry-instrumentation-psycopg",
+    "opentelemetry-instrumentation-redis",
+}
+
 # (answers, packages the generated project must pin, packages it must not)
 DEPENDENCY_CASES = [
     ({"use_celery": "y"}, {"celery", "django-celery-beat", "celery-types", "watchfiles"}, {"flower"}),
@@ -762,8 +772,15 @@ DEPENDENCY_CASES = [
     ({"rest_api": "None"}, set(), {"django-cors-headers", "djangorestframework", "django-ninja"}),
     ({"use_sentry": "y"}, {"sentry-sdk"}, set()),
     ({"use_sentry": "n"}, set(), {"sentry-sdk"}),
-    ({"observability": "prometheus"}, {"django-prometheus", "prometheus-client"}, set()),
-    ({"observability": "none"}, set(), {"django-prometheus", "prometheus-client"}),
+    ({"observability": "prometheus"}, PROMETHEUS_PACKAGES, TELEMETRY_PACKAGES),
+    # The instrumentations are the libraries the project talks to, and only those
+    (
+        {"observability": "opentelemetry"},
+        TELEMETRY_PACKAGES,
+        PROMETHEUS_PACKAGES | {"opentelemetry-instrumentation-celery"},
+    ),
+    ({"observability": "opentelemetry", "use_celery": "y"}, {"opentelemetry-instrumentation-celery"}, set()),
+    ({"observability": "none"}, set(), PROMETHEUS_PACKAGES | TELEMETRY_PACKAGES),
     ({"use_whitenoise": "y"}, {"whitenoise"}, {"collectfasta"}),
     ({"cloud_provider": "AWS", "use_whitenoise": "n"}, {"django-storages", "collectfasta"}, {"whitenoise"}),
     ({"cloud_provider": "None", "use_whitenoise": "y"}, {"whitenoise"}, {"django-storages", "collectfasta"}),
@@ -1813,7 +1830,10 @@ BEFORE_MIDDLEWARE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
 AFTER_MIDDLEWARE = "django_prometheus.middleware.PrometheusAfterMiddleware"
 
 
-@pytest.mark.parametrize("observability", ["none", "prometheus"])
+OBSERVABILITY_ANSWERS = ["none", "prometheus", "opentelemetry"]
+
+
+@pytest.mark.parametrize("observability", OBSERVABILITY_ANSWERS)
 def test_metrics_wiring(bake, context, observability):
     """The metrics of django-prometheus: the app, the middleware pair that wraps the
     chain, the instrumented backends, and the endpoint behind its own credential."""
@@ -1825,8 +1845,6 @@ def test_metrics_wiring(bake, context, observability):
     package = Path(context["project_slug"])
     assert (project.root / package / "metrics.py").exists() is selected
     assert (project.root / package / "tests" / "test_metrics.py").exists() is selected
-    assert (project.root / "config" / "gunicorn.py").exists() is selected
-    assert (project.root / "docs" / "observability.rst").exists() is selected
     assert ("django-prometheus" in pinned(project)) is selected
 
     base = project.settings("base")
@@ -1856,6 +1874,66 @@ def test_metrics_wiring(bake, context, observability):
         assert "--config /app/config/gunicorn.py" in start
         assert "mark_process_dead" in project.text(Path("config") / "gunicorn.py")
         assert services["prometheus"]["depends_on"] == ["django"]
+
+
+TASK_WORKER_START = Path("compose") / "production" / "django" / "tasks" / "worker" / "start"
+COLLECTOR_CONFIG = Path("compose") / "local" / "otel-collector" / "config.yml"
+
+
+@pytest.mark.parametrize("observability", OBSERVABILITY_ANSWERS)
+def test_telemetry_wiring(bake, context, observability):
+    """Traces and metrics over OTLP: the app, the settings with every default off, the
+    entry point of each serving process, and the collector that receives them."""
+    context["observability"] = observability
+    context["use_docker"] = "y"
+    project = bake(context)
+
+    selected = observability == "opentelemetry"
+    package = Path(context["project_slug"])
+    assert (project.root / package / "telemetry" / "configure.py").exists() is selected
+    assert (project.root / package / "telemetry" / "asgi.py").exists() is selected
+    # A web worker is ended by a re-raised signal, so the lifespan is where it flushes
+    assert ("flushing_on_shutdown" in project.text(Path("config") / "asgi.py")) is selected
+    assert (project.root / package / "tests" / "test_telemetry.py").exists() is selected
+    assert (pinned(project) >= TELEMETRY_PACKAGES) is selected
+    # Both arms measure something, and the page says where what they measure is read
+    measured = observability != "none"
+    assert (project.root / "docs" / "observability.rst").exists() is measured
+    assert (project.root / "config" / "gunicorn.py").exists() is measured
+
+    base = project.settings("base")
+    assert (f"{context['project_slug']}.telemetry" in base.value("INSTALLED_APPS")) is selected
+    reads = {read.name: read for read in base.env_reads()}
+    assert ("OTEL_EXPORTER_OTLP_ENDPOINT" in reads) is selected
+
+    services = project.compose("local")["services"]
+    assert ("otel-collector" in services) is selected
+    if not selected:
+        return
+    # Nothing is exported until a deployment names a destination
+    assert reads["OTEL_EXPORTER_OTLP_ENDPOINT"].default == ""
+    assert reads["OTEL_SERVICE_NAME"].default == context["project_slug"]
+    # Each process that serves something starts its own exporters, and no command does
+    assert "post_fork" in project.text(Path("config") / "gunicorn.py")
+    start = project.text(Path("compose") / "production" / "django" / "start")
+    assert "--config /app/config/gunicorn.py" in start
+    assert "DJANGO_TELEMETRY_COMPONENT=taskworker" in project.text(TASK_WORKER_START)
+    # The application exports to the collector, so the collector is up first
+    assert "otel-collector" in services["django"]["depends_on"]
+    # And the address it is given is the one the collector listens on
+    receiver = yaml.safe_load(project.text(COLLECTOR_CONFIG))["receivers"]["otlp"]
+    _, _, port = receiver["protocols"]["http"]["endpoint"].rpartition(":")
+    assert project.env("local", "django")["OTEL_EXPORTER_OTLP_ENDPOINT"].endswith(f":{port}")
+
+
+def test_a_celery_worker_starts_its_own_telemetry(bake, context):
+    """The prefork pool forks its workers, so they start after the fork rather than
+    wherever the parent reaches: ready() would run before it."""
+    project = bake({**context, "observability": "opentelemetry", "use_celery": "y"})
+
+    celery_app = project.text(Path("config") / "celery_app.py")
+    assert "worker_process_init" in celery_app
+    assert "beat_init" in celery_app
 
 
 # Whether a project has the verifier of calling services, and whether it also has the API

@@ -445,6 +445,7 @@ def test_env_reads_list_every_literal_name_read_through_env_in_source_order():
         K = env("K", str, "k")
         L = env("L", default=DEFAULT)
         M = env(name)
+        N = env.dict("N", default={"n": "1"})
     """)
     assert reader.env_reads() == [
         EnvRead("A", None, "a", 4),
@@ -459,6 +460,7 @@ def test_env_reads_list_every_literal_name_read_through_env_in_source_order():
         EnvRead("J", "float", 0.5, 12),
         EnvRead("K", None, "k", 13),
         EnvRead("L", None, Expression("DEFAULT"), 14),
+        EnvRead("N", "dict", {"n": "1"}, 16),
     ]
 
 

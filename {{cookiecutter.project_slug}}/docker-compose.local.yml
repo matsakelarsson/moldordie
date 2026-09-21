@@ -16,6 +16,9 @@ services:
       {%- if cookiecutter.use_celery == 'y' %}
       - redis
       {%- endif %}
+      {%- if cookiecutter.observability == 'opentelemetry' %}
+      - otel-collector
+      {%- endif %}
       {%- if cookiecutter.mail_catcher == 'Mailpit' %}
       - mailpit
       {%- endif %}
@@ -149,5 +152,19 @@ services:
       - ./compose/local/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:z
     ports:
       - '127.0.0.1:9090:9090'
+
+  {%- endif %}
+  {%- if cookiecutter.observability == 'opentelemetry' %}
+
+  # Receives what the application exports and prints it, so the traces and metrics
+  # can be read while developing: ``docker compose -f docker-compose.local.yml logs
+  # otel-collector``. A deployment brings its own (docs/observability.rst). Nothing
+  # is published to this machine, because the application reaches it by service name
+  # and its output is the log.
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector:0.160.0
+    container_name: {{ cookiecutter.project_slug }}_local_otel_collector
+    volumes:
+      - ./compose/local/otel-collector/config.yml:/etc/otelcol/config.yaml:z
 
   {%- endif %}

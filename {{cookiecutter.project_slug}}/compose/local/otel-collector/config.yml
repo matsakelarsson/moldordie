@@ -1,0 +1,26 @@
+# The local collector: it receives what the application exports and prints it, so the
+# traces and metrics can be read while developing. Nothing leaves this machine, and it
+# keeps nothing: what arrives is in the container's log and nowhere else.
+#
+# A deployment's collector is its own, and differs in both halves. It receives over a
+# connection the application is told to trust and to present a credential on, and it
+# exports to whatever stores the data rather than to the log. Both are in
+# docs/observability.rst.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      exporters: [debug]

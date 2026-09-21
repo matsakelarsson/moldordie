@@ -63,8 +63,8 @@ jobs:
         script:
           - name: Entra & Prometheus without Django Ninja
             args: "ci_tool=Gitlab observability=prometheus identity_provider=entra"
-          - name: Celery & DRF
-            args: "use_celery=y rest_api=DRF"
+          - name: Celery, DRF & OpenTelemetry
+            args: "use_celery=y rest_api=DRF observability=opentelemetry"
           - name: Channels
             args: "realtime=channels"
           - name: Entra & Django-Ninja
@@ -90,8 +90,8 @@ jobs:
       fail-fast: false
       matrix:
         script:
-          - name: Celery
-            args: "use_celery=y"
+          - name: Celery & OpenTelemetry
+            args: "use_celery=y observability=opentelemetry"
           - name: Email Username
             args: "username_type=email ci_tool=Github project_name='Something superduper long - the great amazing project' project_slug=my_awesome_project"
           - name: Email username & DRF

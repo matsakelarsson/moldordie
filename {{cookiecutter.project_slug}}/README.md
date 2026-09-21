@@ -212,6 +212,14 @@ The application measures itself with [django-prometheus](https://github.com/djan
 
 A scrape is a machine, so the endpoint takes a bearer token and never a session. Each deployed environment drew its own as `DJANGO_METRICS_TOKEN`{% if cookiecutter.identity_provider != 'none' %}; a scraper the identity provider issues tokens to presents one of those instead, its registration holding the `identity.read_metrics` permission, so a deployment whose scrapers have an identity there can leave the drawn token unset{% else %}, and an unset token refuses every request{% endif %}. Scraping a deployment means finding every replica rather than going through the proxy, which answers from one of them; `docs/observability.rst` has the scrape configuration and what Gunicorn's multiprocess mode changes.
 {%- endif %}
+{%- if cookiecutter.observability == "opentelemetry" %}
+
+### Telemetry
+
+The application exports traces and metrics over OTLP with [OpenTelemetry](https://opentelemetry.io/docs/languages/python/): a span for every request and for every query it makes to PostgreSQL and to Redis{% if cookiecutter.use_celery == 'y' %}, and one for every Celery task{% endif %}.
+
+Nothing is exported until `OTEL_EXPORTER_OTLP_ENDPOINT` names a collector, so a checkout, a management command and the test suite dial nowhere. The exporters start in each process that serves something and in no other, and send what they are holding when it stops{% if cookiecutter.use_docker == 'y' %}; the local Compose file runs a collector that prints what arrives{% endif %}. `docs/observability.rst` has the collector's configuration and where each process starts.
+{%- endif %}
 
 ## Deployment
 
