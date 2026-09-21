@@ -11,7 +11,9 @@ measurement for them to post.
 
 from __future__ import annotations
 
+import asyncio
 import os
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -30,6 +32,7 @@ from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 
 from {{ cookiecutter.project_slug }}.telemetry import apps
+from {{ cookiecutter.project_slug }}.telemetry import asgi
 from {{ cookiecutter.project_slug }}.telemetry import configure as telemetry
 
 APP = "{{ cookiecutter.project_slug }}.telemetry"
@@ -186,6 +189,136 @@ def test_no_certificate_of_its_own_leaves_the_trust_store_of_the_container(setti
     settings.OTEL_EXPORTER_OTLP_CERTIFICATE = ""
 
     assert telemetry.connection("traces", settings)["certificate_file"] is None
+
+
+class Recording:
+    """A provider that records being flushed and stopped, and exports nothing."""
+
+    def __init__(self):
+        self.calls = []
+
+    def force_flush(self, timeout_millis=None):
+        self.calls.append(("force_flush", timeout_millis))
+
+    def shutdown(self, timeout_millis=None):
+        self.calls.append(("shutdown", timeout_millis))
+
+
+async def unreachable(scope, receive, send):
+    """The wrapped application, which no lifespan message may reach."""
+    raise AssertionError(scope)
+
+
+async def nothing(*args):
+    """A receive or send the scopes that pass through are never asked for."""
+
+
+def drive_lifespan(application, messages):
+    """Send ``messages`` to ``application``'s lifespan; return what it sent back."""
+
+    async def driven():
+        sent = []
+        incoming = iter(messages)
+
+        async def receive():
+            return next(incoming)
+
+        async def send(message):
+            sent.append(message)
+
+        await application({"type": "lifespan"}, receive, send)
+        return sent
+
+    return asyncio.run(driven())
+
+
+@pytest.fixture
+def holding(monkeypatch):
+    """A process that has started, with providers that record instead of exporting."""
+    tracing, metering = Recording(), Recording()
+    monkeypatch.setattr(
+        telemetry,
+        "_started",
+        {"component": COMPONENT, "tracing": tracing, "metering": metering},
+    )
+    return tracing, metering
+
+
+def test_a_stopping_process_sends_what_it_is_holding(holding):
+    """Up to a batch of spans and an interval of measurements have been recorded and
+    not sent; a process that is stopped would otherwise take them with it."""
+    tracing, metering = holding
+
+    telemetry.shutdown()
+
+    assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
+    assert ("shutdown", None) in tracing.calls
+    assert ("shutdown", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in metering.calls
+    assert telemetry.started() is None
+
+
+def test_stopping_twice_sends_nothing_the_second_time(holding):
+    tracing, _ = holding
+    telemetry.shutdown()
+    sent = list(tracing.calls)
+
+    telemetry.shutdown()
+
+    assert tracing.calls == sent
+
+
+def test_a_process_that_started_nothing_has_nothing_to_send(exported):
+    """Which is every process of a project that named no collector."""
+    telemetry.shutdown()
+
+    assert telemetry.started() is None
+
+
+def test_the_server_lifespan_sends_what_the_worker_is_holding(holding):
+    """A web worker is ended by a signal its server re-raises once it has stopped
+    serving, so this is the last thing it runs and the last time the exporters are
+    reachable."""
+    tracing, _ = holding
+
+    sent = drive_lifespan(
+        asgi.flushing_on_shutdown(unreachable),
+        [{"type": "lifespan.startup"}, {"type": "lifespan.shutdown"}],
+    )
+
+    assert [message["type"] for message in sent] == [
+        "lifespan.startup.complete",
+        "lifespan.shutdown.complete",
+    ]
+    assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
+
+
+def test_a_flush_that_overruns_does_not_hold_the_worker(holding, monkeypatch):
+    """The SDK's own timeouts are best-effort, so the deadline is the one here."""
+    monkeypatch.setattr(asgi, "SHUTDOWN_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(telemetry, "shutdown", lambda: time.sleep(1))
+
+    sent = drive_lifespan(
+        asgi.flushing_on_shutdown(unreachable),
+        [{"type": "lifespan.shutdown"}],
+    )
+
+    assert [message["type"] for message in sent] == ["lifespan.shutdown.complete"]
+
+
+def test_every_other_scope_reaches_the_application():
+    """The wrapper answers the lifespan and is otherwise not in the way."""
+    seen = []
+
+    async def application(scope, receive, send):
+        seen.append(scope["type"])
+
+    async def served():
+        wrapped = asgi.flushing_on_shutdown(application)
+        await wrapped({"type": "http"}, nothing, nothing)
+
+    asyncio.run(served())
+
+    assert seen == ["http"]
 
 
 def test_the_app_starts_nothing_unless_the_environment_names_a_component(monkeypatch):

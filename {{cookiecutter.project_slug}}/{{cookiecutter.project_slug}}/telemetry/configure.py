@@ -57,11 +57,17 @@ SERVICE_NAME = "service.name"
 SERVICE_INSTANCE_ID = "service.instance.id"
 DEPLOYMENT_ENVIRONMENT = "deployment.environment.name"
 
-# What this process exports as, once ``configure`` has started its exporters. Each
-# entry point above is the only one in its process, so this records rather than
-# guards — until an environment names a component to a process that starts from a
-# hook as well, where a second set of exporters would export through neither.
-_started: dict[str, str] = {}
+# How long a shutdown waits for the exporters. A flush to a collector that is there
+# takes milliseconds; one to a collector that is not must not hold a deployment up,
+# so it is bounded here rather than left at the SDK's thirty seconds.
+SHUTDOWN_TIMEOUT_MILLIS = 5000
+
+# What this process started, once ``configure`` has: the component it exports as and
+# the two providers ``shutdown`` flushes. Each entry point above is the only one in
+# its process, so this records rather than guards — until an environment names a
+# component to a process that starts from a hook as well, where a second set of
+# exporters would export through neither.
+_started: dict[str, Any] = {}
 
 # The libraries this project talks to, each instrumented by the package that knows
 # it. Their common base excludes itself from type checking, so it cannot be named as
@@ -169,11 +175,32 @@ def configure(component: str) -> bool:
     telemetry_settings: TelemetrySettings = settings
     if started() is not None or not telemetry_settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         return False
-    _started["component"] = component
-    trace.set_tracer_provider(tracer_provider(component, telemetry_settings))
-    metrics.set_meter_provider(meter_provider(component, telemetry_settings))
+    tracing = tracer_provider(component, telemetry_settings)
+    metering = meter_provider(component, telemetry_settings)
+    _started.update(component=component, tracing=tracing, metering=metering)
+    trace.set_tracer_provider(tracing)
+    metrics.set_meter_provider(metering)
     # Read by the first instrumentation to be asked, and once for the process
     os.environ.setdefault(SEMANTIC_CONVENTIONS, STABLE_CONVENTIONS)
     for instrumentor in INSTRUMENTORS:
         instrumentor().instrument()
     return True
+
+
+def shutdown() -> None:
+    """Send what this process is holding, and stop its exporters.
+
+    A process that is stopped has recorded up to a batch of spans and an interval of
+    measurements that nothing has sent yet. Every process that can reach this calls
+    it on its way out; a web worker reaches it from the server's lifespan, which is
+    the last thing it runs (``telemetry/asgi.py``). Starting nothing means holding
+    nothing, so this does nothing where ``configure`` did.
+    """
+    tracing: TracerProvider | None = _started.pop("tracing", None)
+    metering: MeterProvider | None = _started.pop("metering", None)
+    _started.clear()
+    if tracing is not None:
+        tracing.force_flush(SHUTDOWN_TIMEOUT_MILLIS)
+        tracing.shutdown()
+    if metering is not None:
+        metering.shutdown(timeout_millis=SHUTDOWN_TIMEOUT_MILLIS)

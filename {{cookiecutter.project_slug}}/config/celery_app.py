@@ -9,6 +9,7 @@ from celery.signals import beat_init
 from celery.signals import setup_logging
 {%- if opentelemetry %}
 from celery.signals import worker_process_init
+from celery.signals import worker_process_shutdown
 
 from {{ cookiecutter.project_slug }}.telemetry import configure as telemetry
 {%- endif %}
@@ -46,9 +47,23 @@ def start_worker_telemetry(*args: Any, **kwargs: Any) -> None:
     telemetry.configure("celeryworker")
 
 
+@worker_process_shutdown.connect
+def stop_worker_telemetry(*args: Any, **kwargs: Any) -> None:
+    """Send what this worker process is still holding before the pool ends it.
+
+    The pool ends its children itself, so the exporters are stopped where they were
+    started rather than where a process that exits on its own would stop them.
+    """
+    telemetry.shutdown()
+
+
 @beat_init.connect
 def start_beat_telemetry(*args: Any, **kwargs: Any) -> None:
-    """Export the scheduler's traces and metrics; it is one process and forks none."""
+    """Export the scheduler's traces and metrics; it is one process and forks none.
+
+    Nothing stops them here: the scheduler exits on its own, and the SDK flushes
+    from the ``atexit`` hook it registered when the providers were built.
+    """
     telemetry.configure("celerybeat")
 {%- endif %}
 

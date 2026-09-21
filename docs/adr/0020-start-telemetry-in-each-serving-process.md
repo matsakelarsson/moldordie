@@ -71,14 +71,15 @@ replaces that command loses the traces silently — the generated documentation 
 look when nothing arrives. Without Docker the development server has no start script, so a
 developer names the component themselves.
 
-Starting per process also means stopping per process, and a web worker cannot: Gunicorn's
-uvicorn worker re-raises the signal it was sent once it has stopped serving, which ends the
-process before Gunicorn's exit hooks or the SDK's `atexit` flush run. A stopped worker
-therefore loses up to one batch of spans and one interval of measurements. Both windows are
-the SDK's and are read from the environment, so a deployment narrows them without a change
-here; the alternative, an ASGI lifespan wrapper in `config/asgi.py`, would buy the web
-container alone what the task and Celery workers already get from exiting normally, and is
-protocol plumbing in a file two options already fork.
+Starting per process means stopping per process, and each process is stopped where it can
+be. A web worker is the awkward one: Gunicorn's uvicorn worker re-raises the signal it was
+sent once it has stopped serving, which ends the process before Gunicorn's exit hooks or the
+SDK's `atexit` flush run. What runs before that is the server's lifespan shutdown, so
+`telemetry/asgi.py` answers it and flushes there, and `config/asgi.py` wraps the application
+in it; a Celery worker process, which its pool ends, flushes from `worker_process_shutdown`;
+every other process exits normally and the SDK's own `atexit` hook flushes it. The flush is
+bounded at five seconds, because a collector that is unreachable must not hold a deployment
+up, and the SDK's own timeouts are documented as best-effort.
 
 Logs stay on standard output: exporting them is a separate change, and a log line is worth
 more with a trace id in it than in a second pipeline.

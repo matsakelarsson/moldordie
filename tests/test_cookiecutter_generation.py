@@ -1891,6 +1891,9 @@ def test_telemetry_wiring(bake, context, observability):
     selected = observability == "opentelemetry"
     package = Path(context["project_slug"])
     assert (project.root / package / "telemetry" / "configure.py").exists() is selected
+    assert (project.root / package / "telemetry" / "asgi.py").exists() is selected
+    # A web worker is ended by a re-raised signal, so the lifespan is where it flushes
+    assert ("flushing_on_shutdown" in project.text(Path("config") / "asgi.py")) is selected
     assert (project.root / package / "tests" / "test_telemetry.py").exists() is selected
     assert (pinned(project) >= TELEMETRY_PACKAGES) is selected
     # Both arms measure something, and the page says where what they measure is read

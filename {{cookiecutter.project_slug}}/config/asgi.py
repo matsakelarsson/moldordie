@@ -51,3 +51,13 @@ application = ProtocolTypeRouter(
 # This application object is used by any ASGI server configured to use this file.
 application = get_asgi_application()
 {%- endif %}
+{%- if cookiecutter.observability == 'opentelemetry' %}
+
+from {{ cookiecutter.project_slug }}.telemetry.asgi import flushing_on_shutdown  # noqa: E402
+
+# A web worker is stopped by a signal its server re-raises once it has stopped
+# serving, so the server's lifespan is the last thing it runs: it is where what this
+# worker recorded is sent ({{ cookiecutter.project_slug }}/telemetry/asgi.py). The
+# ignore is the rebinding: what serves is now a function rather than the class above.
+application = flushing_on_shutdown(application)  # type: ignore[assignment]
+{%- endif %}

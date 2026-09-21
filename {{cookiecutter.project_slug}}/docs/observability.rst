@@ -384,22 +384,30 @@ started at all: either the endpoint is unset in that environment's env file, or 
 process was never meant to export — a management command, or a serving process whose
 start script names no component.
 
-What a restart loses
+What a restart costs
 ----------------------------------------------------------------------
 
-A web worker that is stopped loses what it has buffered: up to one batch of spans and
-up to one interval of measurements. Gunicorn's uvicorn worker re-raises the signal it
-was sent once it has stopped serving, which ends the process before Gunicorn's own
-exit hooks or the SDK's ``atexit`` flush can run. A process that exits normally — the
-task worker, a management command that opened spans of its own — does flush.
+A process sends what it is holding before it goes, so a restart costs nothing that was
+recorded before it began.
 
-Both windows are the SDK's own and are read from the environment, so a deployment that
-cannot afford them shortens them in its env file::
+A web worker needs help with that. Gunicorn's uvicorn worker re-raises the signal it
+was sent once it has stopped serving, which ends the process before Gunicorn's own exit
+hooks or the SDK's ``atexit`` flush can run. What does run first is the server's
+lifespan shutdown, so ``{{ cookiecutter.project_slug }}/telemetry/asgi.py`` answers it
+by flushing the exporters, and ``config/asgi.py`` wraps the application in that.
+{%- if celery %} A Celery worker process is ended by its pool, so it flushes from
+``worker_process_shutdown``, where it started from ``worker_process_init``.{% endif %}
+Every other process — the task worker,{% if celery %} the scheduler,{% endif %} a management command that
+opened spans of its own — exits normally, and the SDK flushes from the ``atexit`` hook
+it registered when the providers were built.
+
+The flush is bounded. A collector that is there takes milliseconds; one that is not
+must not hold a deployment up, so the worker gives up after five seconds, says so at
+``WARNING`` and goes. Only then is anything lost, and only what those seconds held.
+
+The two windows it flushes are the SDK's own and are read from the environment, so a
+deployment that wants them narrower still sets them in its env file::
 
     OTEL_BSP_SCHEDULE_DELAY=2000      # milliseconds between exports of a span batch
     OTEL_METRIC_EXPORT_INTERVAL=15000
-
-A restart therefore costs the last seconds before it and nothing else. What was
-already exported is at the collector, and the process that comes up is a new instance
-whose counters start from zero there.
 {%- endif %}
