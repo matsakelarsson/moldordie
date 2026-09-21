@@ -1973,14 +1973,18 @@ def test_the_exit_hook_holds_without_the_directory_it_retires_from(bake, context
     assert retire
 
 
-def test_a_celery_worker_starts_its_own_telemetry(bake, context):
+def test_a_celery_worker_starts_and_stops_its_own_telemetry(bake, context):
     """The prefork pool forks its workers, so they start after the fork rather than
-    wherever the parent reaches: ready() would run before it."""
+    wherever the parent reaches: ready() would run before it. The pool ends those
+    children itself, so what they are still holding goes from the shutdown signal."""
     project = bake({**context, "observability": "opentelemetry", "use_celery": "y"})
 
     celery_app = project.text(Path("config") / "celery_app.py")
     assert "worker_process_init" in celery_app
     assert "beat_init" in celery_app
+    # Under the deadline, which is what a worker child shares with a web worker
+    assert "worker_process_shutdown" in celery_app
+    assert "telemetry.flush()" in celery_app
 
 
 # Whether a project has the verifier of calling services, and whether it also has the API

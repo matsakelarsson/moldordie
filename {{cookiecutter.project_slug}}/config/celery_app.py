@@ -52,9 +52,12 @@ def stop_worker_telemetry(*args: Any, **kwargs: Any) -> None:
     """Send what this worker process is still holding before the pool ends it.
 
     The pool ends its children itself, so the exporters are stopped where they were
-    started rather than where a process that exits on its own would stop them.
+    started rather than where a process that exits on its own would stop them. Under
+    the same deadline as every other process: the pool waits for this handler, and a
+    collector that is not there would otherwise hold the worker past whatever its
+    container allows it to take to stop.
     """
-    telemetry.shutdown()
+    telemetry.flush()
 
 
 @beat_init.connect

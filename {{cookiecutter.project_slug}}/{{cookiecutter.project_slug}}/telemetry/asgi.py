@@ -8,17 +8,20 @@ to send what they are still holding (``docs/adr/0020``).
 
 Django's handler answers no lifespan message, and neither does Channels' router, so
 the wrapper answers them itself and passes every other scope through untouched.
+
+The deadline the flush keeps is ``telemetry/configure.py``'s, and it is kept there
+rather than here: a Celery worker process stops on the same terms and reaches no
+lifespan. What arrives here is the answer, and the shutdown is completed either way —
+a server told that its shutdown failed would say so as an unsupported protocol.
 """
 
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING
 from typing import Any
 
-from .configure import SHUTDOWN_TIMEOUT_MILLIS
-from .configure import shutdown
+from .configure import flush
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable
@@ -34,32 +37,6 @@ if TYPE_CHECKING:
     Send = Callable[[Message], Awaitable[None]]
     Application = Callable[..., Awaitable[None]]
 
-logger = logging.getLogger(__name__)
-
-# The whole of a shutdown, however the exporters behave inside it: what stops this
-# worker is a signal that will be re-raised, and a deployment waits for neither
-MILLISECONDS = 1000
-SHUTDOWN_TIMEOUT_SECONDS = SHUTDOWN_TIMEOUT_MILLIS / MILLISECONDS
-
-
-async def flush() -> None:
-    """Flush the exporters, in a thread and under a deadline of our own.
-
-    The SDK's own timeouts are best-effort, so the deadline that decides how long a
-    worker takes to go is this one. A flush that overruns it is given up on and said
-    so; the process is on its way out either way.
-    """
-    try:
-        await asyncio.wait_for(
-            asyncio.to_thread(shutdown),
-            timeout=SHUTDOWN_TIMEOUT_SECONDS,
-        )
-    except TimeoutError:
-        logger.warning(
-            "Telemetry was not flushed within %ss of shutdown",
-            SHUTDOWN_TIMEOUT_SECONDS,
-        )
-
 
 def flushing_on_shutdown(application: Application) -> Application:
     """``application``, answering the server's lifespan and flushing on shutdown."""
@@ -73,7 +50,7 @@ def flushing_on_shutdown(application: Application) -> Application:
             if message["type"] == "lifespan.startup":
                 await send({"type": "lifespan.startup.complete"})
             elif message["type"] == "lifespan.shutdown":
-                await flush()
+                await asyncio.to_thread(flush)
                 await send({"type": "lifespan.shutdown.complete"})
                 return
 
