@@ -423,11 +423,12 @@ LOGGING = {
 # METRICS
 # ------------------------------------------------------------------------------
 # The credential a scrape presents, as a bearer token. Prometheus is a machine, so
-# the endpoint takes no session: no token, no metrics ({{ cookiecutter.project_slug }}/metrics.py).
+# the endpoint takes no session{% if not service_tokens %}: no token, no metrics{% endif %} ({{ cookiecutter.project_slug }}/metrics.py).
 # Each deployed environment draws its own; the local one is a development value.
 {%- if service_tokens %}
 # A scraper the provider issues tokens to presents one of those instead, and needs no
-# value here; it holds the identity.read_metrics permission on its registration.
+# value here; it holds the identity.read_metrics permission on its registration. An
+# empty value here then refuses only the scrapes that would have presented it.
 {%- endif %}
 METRICS_TOKEN = env("DJANGO_METRICS_TOKEN", default="")
 {%- endif %}

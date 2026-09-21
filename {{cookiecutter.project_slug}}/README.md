@@ -210,7 +210,7 @@ You must set the DSN url in production.
 
 The application measures itself with [django-prometheus](https://github.com/django-commons/django-prometheus) and exposes the result at `/metrics`: requests, database connections and queries, and cache hits and misses.
 
-A scrape is a machine, so the endpoint takes a bearer token and never a session. Each deployed environment drew its own as `DJANGO_METRICS_TOKEN`, and an unset token refuses every request. Scraping a deployment means finding every replica rather than going through the proxy, which answers from one of them; `docs/observability.rst` has the scrape configuration and what Gunicorn's multiprocess mode changes.
+A scrape is a machine, so the endpoint takes a bearer token and never a session. Each deployed environment drew its own as `DJANGO_METRICS_TOKEN`{% if cookiecutter.identity_provider != 'none' %}; a scraper the identity provider issues tokens to presents one of those instead, its registration holding the `identity.read_metrics` permission, so a deployment whose scrapers have an identity there can leave the drawn token unset{% else %}, and an unset token refuses every request{% endif %}. Scraping a deployment means finding every replica rather than going through the proxy, which answers from one of them; `docs/observability.rst` has the scrape configuration and what Gunicorn's multiprocess mode changes.
 {%- endif %}
 
 ## Deployment

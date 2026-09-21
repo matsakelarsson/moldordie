@@ -80,8 +80,8 @@ def test_a_scrape_with_the_wrong_credential_is_refused(client, settings):
     assert refused(client, "Bearer crédential")
 
 
-def test_an_unset_token_refuses_every_scrape(client, settings):
-    """A deployment that configured no credential has authorised nobody."""
+def test_an_unset_token_authorises_no_credential(client, settings):
+    """A deployment that configured no credential has authorised nobody through one."""
     settings.METRICS_TOKEN = ""
 
     assert refused(client, "Bearer ")
@@ -170,9 +170,21 @@ class TestAServiceToken:
         exposition = response.content.decode()
         assert "django_http_requests_before_middlewares_total" in exposition
 
-    def test_a_service_without_the_permission_is_refused(self, client, registration):
-        """Registered and enabled is not enough; the grant is the answer to may it."""
-        response = scrape(client, f"Bearer {sign(service_claims())}")
+    def test_a_service_without_the_permission_is_refused(
+        self,
+        client,
+        settings,
+        registration,
+    ):
+        """Registered and enabled is not enough; the grant is the answer to may it.
+
+        The token is the configured credential, character for character, so a branch
+        that fell back to comparing it would answer with the exposition instead.
+        """
+        token = sign(service_claims())
+        settings.METRICS_TOKEN = token
+
+        response = scrape(client, f"Bearer {token}")
 
         assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -189,13 +201,19 @@ class TestAServiceToken:
     def test_a_refused_provider_token_is_not_tried_as_the_credential(
         self,
         client,
+        settings,
         registration,
     ):
-        """The issuer picks the branch, and a branch that refuses is the end."""
-        self.allow(registration)
-        expired = service_claims(exp=service_claims()["iat"] - 2 * LIFETIME)
+        """The issuer picks the branch, and a branch that refuses is the end.
 
-        assert refused(client, f"Bearer {sign(expired)}")
+        The expired token is the configured credential too, so the comparison that
+        never runs is the one that would have let it through.
+        """
+        self.allow(registration)
+        expired = sign(service_claims(exp=service_claims()["iat"] - 2 * LIFETIME))
+        settings.METRICS_TOKEN = expired
+
+        assert refused(client, f"Bearer {expired}")
 
     def test_the_configured_credential_still_reads_the_exposition(self, client):
         response = scrape(client, f"Bearer {CREDENTIAL}")

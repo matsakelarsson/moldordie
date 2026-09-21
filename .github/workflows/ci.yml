@@ -61,7 +61,7 @@ jobs:
       fail-fast: false
       matrix:
         script:
-          - name: Basic
+          - name: Entra & Prometheus without Django Ninja
             args: "ci_tool=Gitlab observability=prometheus identity_provider=entra"
           - name: Celery & DRF
             args: "use_celery=y rest_api=DRF"
