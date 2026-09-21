@@ -48,6 +48,10 @@ logger = logging.getLogger(__name__)
 KEY_SET_TTL = 3600.0
 REQUEST_TIMEOUT = 5.0
 REFRESH_COOLDOWN = 60.0
+# How long a discovery that failed is left failed. Discovery is a request made while
+# an unauthenticated caller waits, so what it costs has to be bounded by something
+# other than how often a caller asks: within this, the answer is the one already given.
+DISCOVERY_COOLDOWN = 60.0
 
 # The reason codes of a refusal: what the logs carry, never token material
 MALFORMED = "malformed"
@@ -65,6 +69,7 @@ NOT_AN_APP = "not_an_app"
 MISSING_ROLE = "missing_role"
 UNREGISTERED = "unregistered"
 DISABLED = "disabled"
+NOT_CONFIGURED = "not_configured"
 # The routine ones, logged at info; the rest is suspicious and logged at warning, once
 # per reason and LOG_COOLDOWN seconds, the repeats counted into the next record
 ROUTINE = frozenset({EXPIRED})
@@ -194,13 +199,40 @@ def fetch_json(url: str, timeout: float) -> dict[str, Any]:
     return document
 
 
+class NotConfigured(RuntimeError):  # noqa: N818 - a state, as the key sources read
+    """No provider to discover keys from, so no token could have come from one."""
+
+
+class Unavailable(RuntimeError):  # noqa: N818 - a state, as the key sources read
+    """The provider was asked recently and could not answer; not asked again yet."""
+
+
+class UnconfiguredKeys:
+    """The key source of a deployment that named no provider.
+
+    Reaching a provider is a request this application makes while a caller that has
+    not been authenticated waits for it, and the settings decide who that provider is.
+    Where they name nobody, no token can verify whatever is fetched, so nothing is
+    fetched: an issuer built from an empty tenant names no tenant, and is a value a
+    caller writes into a token rather than one that identifies anyone.
+    """
+
+    def signing_key(self, kid: str) -> AllowedPublicKeys:
+        raise NotConfigured(kid)
+
+
 class DiscoveredKeys:
     """The provider's keys, found through its discovery document at first use.
 
     Discovery happens on the first lookup, not when the settings load or the checks
-    run, and a failed discovery is retried on the next lookup. The key set is fetched
-    through PyJWT's JWKS client: cached for ``KEY_SET_TTL``, refreshed at most once per
-    ``REFRESH_COOLDOWN`` for an unknown key id, with no cache of single keys.
+    run. One lookup discovers however many arrive at once, and a discovery that failed
+    is not attempted again for ``DISCOVERY_COOLDOWN``: the caller it is done for is
+    unauthenticated, so a token naming a configured issuer would otherwise be enough
+    to put every worker of the deployment in an outbound request of its own.
+
+    The key set itself is fetched through PyJWT's JWKS client: cached for
+    ``KEY_SET_TTL``, refreshed at most once per ``REFRESH_COOLDOWN`` for an unknown key
+    id, with no cache of single keys.
     """
 
     def __init__(
@@ -212,17 +244,41 @@ class DiscoveredKeys:
         self.discovery_url = discovery_url
         self.fetch = fetch
         self.client: PyJWKClient | None = None
+        self.lock = threading.Lock()
+        self.failed_at: float | None = None
 
     def signing_key(self, kid: str) -> AllowedPublicKeys:
-        if self.client is None:
-            self.client = self.discover()
+        client = self.discovered()
         try:
-            key: AllowedPublicKeys = self.client.get_signing_key(kid).key
+            key: AllowedPublicKeys = client.get_signing_key(kid).key
         except PyJWKClientConnectionError:
             raise
         except PyJWKClientError as e:
             raise LookupError(kid) from e
         return key
+
+    def discovered(self) -> PyJWKClient:
+        """The client, discovered once however many callers arrive together.
+
+        The lock is what makes concurrent callers share one request rather than make
+        one each; ``failed_at`` is what makes the caller after a failure share its
+        answer rather than ask again. Both are held for the same reason: what is on
+        the other side of this is the provider, and what is on this side is a token
+        nothing has verified yet.
+        """
+        with self.lock:
+            if self.client is not None:
+                return self.client
+            failed = self.failed_at
+            if failed is not None and monotonic() - failed < DISCOVERY_COOLDOWN:
+                raise Unavailable(self.discovery_url)
+            try:
+                self.client = self.discover()
+            except Exception:
+                self.failed_at = monotonic()
+                raise
+            self.failed_at = None
+            return self.client
 
     def discover(self) -> PyJWKClient:
         document = self.fetch(self.discovery_url, REQUEST_TIMEOUT)
@@ -299,6 +355,8 @@ class ServiceVerifier:
             return self.keys.signing_key(kid)
         except LookupError as e:
             raise Rejected(UNKNOWN_KEY) from e
+        except NotConfigured as e:
+            raise Rejected(NOT_CONFIGURED) from e
         except Exception as e:
             raise Rejected(KEY_LOOKUP_FAILED) from e
 
@@ -356,11 +414,34 @@ class EntraServiceVerifier(ServiceVerifier):
 {%- endif %}
 
 
+def configured() -> bool:
+    """Whether the settings name a provider a calling service's token could name.
+
+    An audience is what a token names this application by, and without one nothing a
+    provider signed is addressed here.{% if entra %} A tenant is what its issuer names, and
+    without one the issuer identifies no tenant.{% endif %} Neither is a system check's
+    business: a check reports, and this decides whether anything is asked of the
+    network on behalf of a caller nothing has verified.
+    """
+    named = [settings.IDENTITY_SERVICE_AUDIENCE]
+    {%- if entra %}
+    named.append(settings.ENTRA_TENANT_ID)
+    {%- endif %}
+    return all(value.strip() for value in named)
+
+
+def key_source() -> KeySource:
+    """Where the provider's keys come from, or nowhere if there is no provider."""
+    if not configured():
+        return UnconfiguredKeys()
+    return DiscoveredKeys(settings.IDENTITY_SERVICE_DISCOVERY_URL)
+
+
 @functools.cache
 def service_verifier() -> ServiceVerifier:
     """The verifier of the configured provider, built once at first use: discovery
     happens then, outside the settings and the system checks."""
-    keys = DiscoveredKeys(settings.IDENTITY_SERVICE_DISCOVERY_URL)
+    keys = key_source()
     {%- if entra %}
     return EntraServiceVerifier(
         keys,

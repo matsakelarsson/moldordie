@@ -398,9 +398,17 @@ swallowed, so a burst is one record.
 The provider's key rotation needs nothing: a token naming a key id the cached set lacks
 makes the verifier fetch the set again, at most once a minute, and a key set is
 refreshed every hour regardless. A provider that cannot be reached refuses the token
-(``key_lookup_failed``) and is tried again on the next one; the discovery document is
-read when the first token arrives, never when the settings load, and read again on the
-next token if that fails.
+(``key_lookup_failed``); the discovery document is read when the first token arrives and
+never when the settings load.
+
+What reaches that request is a caller that has presented a token and nothing else, so
+two things bound what it can start. A discovery that failed is not attempted again for
+a minute, and the callers that arrive while one is in flight wait for its answer instead
+of opening a request each. And settings that name no provider to discover — an empty
+``{% if entra %}ENTRA_API_CLIENT_ID``, or an empty ``ENTRA_TENANT_ID``, whose issuer then names no
+tenant{% else %}GOOGLE_SERVICE_AUDIENCE``{% endif %} — refuse every service token with ``not_configured``, asking the
+network nothing at all. A token whose header names another algorithm is refused before
+the key id in it is looked up, for the same reason.
 
 **Permissions.** A registration holds Django permissions, granted in the admin next
 to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with
