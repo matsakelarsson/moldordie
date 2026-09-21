@@ -62,6 +62,17 @@ sh tests/test_bare.sh use_celery=y rest_api=DRF
 uv run cookiecutter . --no-input --output-dir=/tmp/debug
 ```
 
+### Compare what two revisions generate
+
+```bash
+# Every supported combination baked from main and from the working tree, drawn values masked
+uv run scripts/compare_generated.py
+# Another base, and an extra row for a fork no supported combination reaches
+uv run scripts/compare_generated.py --base HEAD~1 "use_docker=y postgresql_version=14"
+```
+
+About a minute; not part of the suite. This is how a refactor of the template is shown to leave the generated projects alone: it proves equality for the rows it baked and nothing about a row it did not bake. Put the command and its result in the pull request.
+
 ## Architecture
 
 ### Template Generation Flow
@@ -87,6 +98,7 @@ uv run cookiecutter . --no-input --output-dir=/tmp/debug
 - **`tests/test_hooks.py`** — Unit tests for the hooks: `fill_secrets` run on hand-written placeholder files through a generator the test controls, with the secrets table checked against the template's placeholder sites; `prune` run on a copy of the template tree against hand-written expected removals, and the removal rules checked for consistency over every combination of the answers they read; `place_agent_guide` run on a hand-written guide, with the order it takes in `main` asserted from the hook's source
 - **`tests/test_options.py`** — The catalogue: every option's kind against a hand-written mapping (`KINDS`), `option_names` over one kind and over several, the `option_names` global reaching a Cookiecutter environment, and the catalogue's other readers checked against it: the answers the CI integration jobs pass, the README's example session and the options page
 - **`tests/test_local_extensions.py`** — The `string_escape` filter round-tripped through the Python, TOML and YAML parsers, and loaded from `cookiecutter.json`
+- **`tests/test_compare_generated.py`** — What `scripts/compare_generated.py` decides, on hand-written input: the extra rows checked against the catalogue, and what it reports for two trees (drawn values masked in the files that hold them and nowhere else, the executable bit, a directory left empty). One test bakes, two rows from the working tree against itself: the masking is complete, and a row the hook refuses is reported, not skipped
 - **`tests/test_update_changelog.py`** — The pull request selection and grouping of `scripts/update_changelog.py`, against stand-ins for the pull requests it reads
 - **`tests/test_workflows.py`** — This repository's workflows against the files they read: every `.pre-commit-config.yaml` the auto-update workflow parses has to be YAML as it stands, before Cookiecutter renders it
 - **`tests/test_bare.sh`** / **`tests/test_docker.sh`** — Integration scripts that generate a project and run its checks: mypy, its test suite, `makemigrations --check`, Django's checks with the local settings and its deployment checks with the production settings (placeholders stand in for the secrets), `makemessages --all` (that extraction completes and updates the catalogues, nothing about the translations themselves), `tailwind build` from the command line (that the pinned CLI downloads and builds the stylesheet there) and the docs build; the Docker script also checks that the `tailwind` watcher service builds the stylesheet and stays up, and that the production image carries the stylesheet and not the CLI. They stay two scripts because their setup differs, an interpreter and OS packages against image builds (`docs/adr/0004`); a new check goes into both by hand, with the settings module explicit
