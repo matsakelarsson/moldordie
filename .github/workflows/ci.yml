@@ -67,10 +67,12 @@ jobs:
             args: "ci_tool=Gitlab observability=prometheus identity_provider=entra"
           - name: Celery, DRF & OpenTelemetry
             args: "use_celery=y rest_api=DRF observability=opentelemetry"
-          - name: Channels
-            args: "realtime=channels"
-          - name: Entra & Django-Ninja
-            args: "identity_provider=entra rest_api='Django Ninja'"
+          # The Sentry app without Celery's integration; the bare-metal job has the other arm
+          - name: Channels & Sentry
+            args: "realtime=channels use_sentry=y"
+          # No cloud provider, so nginx serves the media: the only row that builds its image
+          - name: Entra, Django-Ninja & nginx
+            args: "identity_provider=entra rest_api='Django Ninja' cloud_provider=None use_whitenoise=y"
 
     name: "Docker ${{ matrix.script.name }}"
     runs-on: ubuntu-latest
@@ -94,8 +96,8 @@ jobs:
         script:
           - name: Celery
             args: "use_celery=y"
-          - name: Celery & OpenTelemetry
-            args: "use_celery=y observability=opentelemetry"
+          - name: Celery, OpenTelemetry & Sentry
+            args: "use_celery=y observability=opentelemetry use_sentry=y"
           - name: Email Username
             args: "username_type=email ci_tool=Github project_name='Something superduper long - the great amazing project' project_slug=my_awesome_project"
           - name: Email username & DRF

@@ -78,9 +78,11 @@ docker compose -f docker-compose.local.yml run --rm \
 docker compose -f docker-compose.local.yml run --rm django python manage.py makemessages --all
 
 # Run the deployment checks against the production settings; the placeholders stand in
-# for the deployment's secrets
+# for the deployment's secrets. The DSN is empty, as the deployed environments' env files
+# declare it: the settings read it without a default, and the SDK starts without a transport
 docker compose -f docker-compose.local.yml run --rm \
   -e DJANGO_SECRET_KEY="$(openssl rand -base64 64)" \
+  -e SENTRY_DSN= \
   -e REDIS_URL=redis://redis:6379/0 \
   -e DJANGO_AWS_ACCESS_KEY_ID=x \
   -e DJANGO_AWS_SECRET_ACCESS_KEY=x \
@@ -109,6 +111,12 @@ for environment in dev test production; do
   docker compose -f "docker-compose.$environment.yml" build traefik
 done
 
+# nginx serves the media of a project without a cloud provider. Where the project has its
+# image, it builds: that is all this shows, not that nginx serves anything
+if [ -d compose/production/nginx ]; then
+  docker compose -f docker-compose.production.yml build nginx
+fi
+
 docker build -f ./compose/production/django/Dockerfile -t django-prod .
 
 # the production image carries the stylesheet its build stage built, and not the CLI
@@ -120,6 +128,7 @@ docker run --rm \
 --env-file .envs/.local/.postgres \
 --network my_awesome_project_default \
 -e DJANGO_SECRET_KEY="$(openssl rand -base64 64)" \
+-e SENTRY_DSN= \
 -e REDIS_URL=redis://redis:6379/0 \
 -e DJANGO_AWS_ACCESS_KEY_ID=x \
 -e DJANGO_AWS_SECRET_ACCESS_KEY=x \
