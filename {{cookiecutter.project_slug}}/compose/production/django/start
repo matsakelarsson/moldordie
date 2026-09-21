@@ -16,6 +16,11 @@ rm -rf "${PROMETHEUS_MULTIPROC_DIR}"
 mkdir -p "${PROMETHEUS_MULTIPROC_DIR}"
 
 exec gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker --config /app/config/gunicorn.py
+{%- elif cookiecutter.observability == 'opentelemetry' -%}
+# Each worker starts its own exporters from the post_fork hook of the configuration
+# named here, which is also why nothing above this line exports anything: collectstatic
+# is a management command, and a management command is told nothing about a component.
+exec gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker --config /app/config/gunicorn.py
 {%- else -%}
 exec gunicorn config.asgi --bind 0.0.0.0:5000 --chdir=/app -k uvicorn_worker.UvicornWorker
 {%- endif %}

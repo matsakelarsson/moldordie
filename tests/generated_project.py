@@ -97,9 +97,18 @@ SCOPES = (*DEFINITIONS, ast.Lambda, *COMPREHENSIONS)
 MUTABLE = (list, dict, set)
 
 # The ``env`` reads the reader knows, by method (None for ``env()`` itself), with the position
-# of the default among the positional arguments: ``env(var, cast, default)`` and ``env.list``
-# take a cast before it, the typed reads and ``db`` take it second.
-ENV_DEFAULT_POSITION = {None: 2, "list": 2, "str": 1, "bool": 1, "int": 1, "float": 1, "db": 1}
+# of the default among the positional arguments: ``env(var, cast, default)``, ``env.list`` and
+# ``env.dict`` take a cast before it, the typed reads and ``db`` take it second.
+ENV_DEFAULT_POSITION = {
+    None: 2,
+    "list": 2,
+    "dict": 2,
+    "str": 1,
+    "bool": 1,
+    "int": 1,
+    "float": 1,
+    "db": 1,
+}
 DATABASE_VAR = "DATABASE_URL"
 """The variable ``env.db()`` reads when its argument is omitted."""
 

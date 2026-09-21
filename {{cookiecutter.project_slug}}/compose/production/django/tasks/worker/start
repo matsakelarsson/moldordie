@@ -4,5 +4,10 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-
+{% if cookiecutter.observability == 'opentelemetry' %}
+# The task worker runs a management command and has no hook of its own to start its
+# exporters from, so the app registry starts them: this names the component, which is
+# what tells it that this process serves something ({{ cookiecutter.project_slug }}/telemetry/).
+export DJANGO_TELEMETRY_COMPONENT=taskworker
+{% endif %}
 exec python /app/manage.py db_worker

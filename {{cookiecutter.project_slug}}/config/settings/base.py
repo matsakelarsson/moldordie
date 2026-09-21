@@ -17,6 +17,7 @@
     allauth's headless API, guarded by the identity app. #}
 {%- set headless = provider and cookiecutter.rest_api == 'Django Ninja' %}
 {%- set prometheus = cookiecutter.observability == 'prometheus' %}
+{%- set opentelemetry = cookiecutter.observability == 'opentelemetry' %}
 {#- The calling services a provider issues tokens to, verified wherever something reads
     one: the API's routes, or the metrics endpoint. #}
 {%- set service_tokens = provider and (cookiecutter.rest_api == 'Django Ninja' or prometheus) %}
@@ -169,6 +170,11 @@ LOCAL_APPS = [
     "{{ cookiecutter.project_slug }}.users",
 {%- if service_tokens %}
     "{{ cookiecutter.project_slug }}.identity",
+{%- endif %}
+{%- if opentelemetry %}
+    # Exports this process's traces and metrics; its ready() starts nothing
+    # unless the environment names the component this process serves as
+    "{{ cookiecutter.project_slug }}.telemetry",
 {%- endif %}
     # Your stuff: custom apps go here
 ]
@@ -431,6 +437,28 @@ LOGGING = {
 # empty value here then refuses only the scrapes that would have presented it.
 {%- endif %}
 METRICS_TOKEN = env("DJANGO_METRICS_TOKEN", default="")
+{%- endif %}
+{%- if opentelemetry %}
+
+# TELEMETRY
+# ------------------------------------------------------------------------------
+# Where this project's traces and metrics go, read by {{ cookiecutter.project_slug }}/telemetry/.
+# Every default is off: without an endpoint nothing is exported and nothing is
+# instrumented, so a checkout, a management command and the test suite dial nowhere
+# until a deployment names a destination (docs/observability.rst).
+OTEL_SERVICE_NAME = env("OTEL_SERVICE_NAME", default="{{ cookiecutter.project_slug }}")
+# Which deployment reported, as SENTRY_ENVIRONMENT is for Sentry: the three deployed
+# environments run one settings module, so each names itself in its own env file
+OTEL_DEPLOYMENT_ENVIRONMENT = env("OTEL_DEPLOYMENT_ENVIRONMENT", default="local")
+# The collector's base address, the one the OTLP specification defines; the telemetry
+# app posts each signal to its own path under it, v1/traces and v1/metrics
+OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
+# What the collector asks callers for, as comma-separated name=value pairs
+OTEL_EXPORTER_OTLP_HEADERS = env.dict("OTEL_EXPORTER_OTLP_HEADERS", default={})
+# The authority that signed the collector's certificate, where that is a private one.
+# It is the trust anchor for the connection this project opens, and has nothing to do
+# with the certificate the site is served under
+OTEL_EXPORTER_OTLP_CERTIFICATE = env("OTEL_EXPORTER_OTLP_CERTIFICATE", default="")
 {%- endif %}
 
 REDIS_URL = env("REDIS_URL", default="redis://{% if cookiecutter.use_docker == 'y' %}redis{%else%}localhost{% endif %}:6379/0")

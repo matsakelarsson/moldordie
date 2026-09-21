@@ -1,10 +1,13 @@
-{%- set service_tokens = cookiecutter.identity_provider != 'none' -%}
+{%- set prometheus = cookiecutter.observability == 'prometheus' -%}
+{%- set celery = cookiecutter.use_celery == 'y' -%}
+{#- The scraper a provider issues tokens to: an arm of the metrics page alone. #}
+{%- set service_tokens = prometheus and cookiecutter.identity_provider != 'none' -%}
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 .. _observability:
 
 Observability
 ======================================================================
-
+{% if prometheus %}
 The project measures itself and exposes the result at ``/metrics`` in Prometheus'
 exposition format: request counts and durations from the middlewares that wrap the
 chain, connections, errors and query durations from the database backend, hits and
@@ -158,4 +161,210 @@ credential is right.
 Set ``DJANGO_METRICS_TOKEN`` in the environment the development server runs in, then read
 the endpoint with ``curl`` as above, or point a Prometheus of your own at
 ``localhost:8000``.
+{%- endif %}
+{%- else %}
+The project exports traces and metrics over OTLP: a span for every request and for
+every query it makes to PostgreSQL and to Redis{% if celery %}, and one for every Celery task{% endif %}, with
+the durations and the counts that go with them. What receives, stores and shows them
+is yours to run — this page describes what the application sends and what to point it
+at.
+
+Nothing is exported until a destination is named
+----------------------------------------------------------------------
+
+``OTEL_EXPORTER_OTLP_ENDPOINT`` is the collector's base address, and while it is unset
+the project starts no exporter and instruments no library: a checkout, a management
+command and the test suite dial nowhere. Each deployed environment names its own in
+``.envs/.<environment>/.django``, next to ``OTEL_DEPLOYMENT_ENVIRONMENT``, which says
+which deployment a span came from — all three run one settings module, so their env
+files are where they differ.
+
+Two more variables describe the connection, both commented out until a deployment
+needs them. ``OTEL_EXPORTER_OTLP_HEADERS`` is what the collector asks a caller for,
+written as comma-separated ``name=value`` pairs. ``OTEL_EXPORTER_OTLP_CERTIFICATE`` is
+the authority that signed the collector's own certificate, where that is a private
+one: it is the trust anchor for the connection this project opens, and has nothing to
+do with the certificate the site is served under.
+
+The exporters post over HTTP, to the path the protocol gives each signal:
+``/v1/traces`` and ``/v1/metrics`` under the configured address. They are told what
+the settings say rather than left to read the environment themselves, so
+``config/settings/base.py`` is the whole answer to where this project exports.
+
+Every span is exported as things stand. The SDK reads ``OTEL_TRACES_SAMPLER`` and
+``OTEL_TRACES_SAMPLER_ARG`` from the environment itself, so a deployment that cannot
+afford one span per request sets them in its env file and needs no change here::
+
+    OTEL_TRACES_SAMPLER=parentbased_traceidratio
+    OTEL_TRACES_SAMPLER_ARG=0.05
+
+Which processes export, and where each starts
+----------------------------------------------------------------------
+
+Every process that serves something, and no other. ``AppConfig.ready`` runs for every
+management command, so a project that started its exporters there would give
+``migrate``, ``collectstatic``, ``shell`` and the test runner exporters of their own.
+{% if celery %}Under Celery's prefork pool it would be worse than wasteful: ``ready`` runs in the
+parent, before the fork, and the exporters' threads do not survive it.
+{% endif %}Each process is started from its own entry point instead (``docs/adr/0020``):
+
+* the Gunicorn workers, from the ``post_fork`` hook in ``config/gunicorn.py``. It runs
+  in the worker, after the fork and before the worker loads the application, which is
+  the one moment where both conditions hold: the Django instrumentation inserts a
+  middleware into ``MIDDLEWARE``, and the handler reads that setting once, when it
+  builds its chain;
+{%- if celery %}
+* the Celery worker processes, from ``worker_process_init``, and the scheduler from
+  ``beat_init``, both in ``config/celery_app.py``. That signal belongs to the prefork
+  pool, which is the one the generated start script runs;
+{%- endif %}
+* the task worker and the development server, from ``TelemetryConfig.ready``, because
+  ``DJANGO_TELEMETRY_COMPONENT`` names the component in their start scripts. A
+  management command is told nothing, and so starts nothing.
+
+Each process reports as an instance of its own, ``<component>-<hostname>-<pid>``,
+under one service name. A deployment runs several containers of several components,
+each with workers of its own; without that they would arrive as one instance and be
+read as one process.
+
+The worker processes export as much as the web ones do. Their queries and their tasks
+are spans like any other, which is the difference from a scrape of an HTTP endpoint:
+nothing has to be reachable for a process to be measured.
+
+What is instrumented
+----------------------------------------------------------------------
+
+The libraries this project talks to, and no others: Django, psycopg and redis{% if celery %}, and
+Celery{% endif %}. They are the ``INSTRUMENTORS`` tuple in
+``{{ cookiecutter.project_slug }}/telemetry/configure.py``; adding one means pinning its
+instrumentation package and naming it there. Nothing instruments an HTTP client,
+because the project makes no outgoing request of its own.
+
+The queries are instrumented through the driver rather than through Django's database
+backend, so the ones a management command{% if celery %} or a task{% endif %} runs are measured too.
+
+The HTTP metrics carry the names of the older semantic conventions
+(``http.server.duration`` in milliseconds, ``http.server.active_requests``). The
+instrumentations read ``OTEL_SEMCONV_STABILITY_OPT_IN`` from the environment
+themselves, so a deployment whose dashboards expect the stable names
+(``http.server.request.duration``, in seconds) sets it to ``http``, or to ``http/dup``
+to emit both while the dashboards move.
+
+Logs stay on standard output, where the container runtime collects them. Exporting
+them over OTLP is a separate change: the logs SDK is still provisional, and a log line
+is worth more with a trace id in it than in a second pipeline.
+
+A span of your own
+----------------------------------------------------------------------
+
+Anything the instrumentations do not cover is a span you open::
+
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer(__name__)
+
+
+    def reconcile(order):
+        with tracer.start_as_current_span("reconcile") as span:
+            span.set_attribute("order.id", str(order.pk))
+            ...
+
+``get_tracer`` returns a tracer that does nothing while no provider is installed, so
+this costs nothing in a checkout, in a management command or in the tests.
+
+While developing
+----------------------------------------------------------------------
+
+{% if cookiecutter.use_docker == 'y' -%}
+The local Compose file runs a collector that prints what arrives::
+
+    docker compose -f docker-compose.local.yml logs -f otel-collector
+
+``.envs/.local/.django`` points the application at it and
+``compose/local/otel-collector/config.yml`` is the configuration it reads: an OTLP
+receiver and a debug exporter, so nothing leaves this machine and nothing is kept. It
+publishes no port, because the application reaches it by service name.
+
+A request that produces no span means the exporters never started: the development
+server starts them from ``DJANGO_TELEMETRY_COMPONENT``, which ``compose/local/django/start``
+sets, so a command run with ``just manage`` exports nothing on purpose.
+{%- else -%}
+Run a collector of your own and set ``OTEL_EXPORTER_OTLP_ENDPOINT`` to its address in
+the environment the development server runs in, together with
+``DJANGO_TELEMETRY_COMPONENT=web``, which is what tells the app registry that this
+process serves something. Without that variable a ``runserver`` exports nothing, for
+the same reason ``migrate`` does not.
+{%- endif %}
+
+Collecting a deployment
+----------------------------------------------------------------------
+
+The application posts to one address; what stands there is the deployment's to choose.
+A collector between the application and wherever the data is stored is the usual
+arrangement, because it is where a deployment puts what it does not want in the
+application: the credentials of the store, the sampling it can afford, and the
+batching. A collector of its own also means the application's exporters talk to
+something on the same network, which is the connection it is easiest to secure.
+
+.. code-block:: yaml
+
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+            tls:
+              cert_file: /etc/otelcol/collector.crt
+              key_file: /etc/otelcol/collector.key
+            auth:
+              authenticator: bearertokenauth
+
+    extensions:
+      # In the contrib distribution; this is the other side of
+      # OTEL_EXPORTER_OTLP_HEADERS
+      bearertokenauth:
+        scheme: Bearer
+        token: ${env:COLLECTOR_TOKEN}
+
+    processors:
+      batch: {}
+
+    exporters:
+      otlphttp:
+        endpoint: https://where-you-keep-it.example.com
+
+    service:
+      extensions: [bearertokenauth]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp]
+
+The application then reads::
+
+    OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.internal.example.com:4318
+    OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer the-collectors-credential
+    OTEL_EXPORTER_OTLP_CERTIFICATE=/etc/ssl/certs/collector-ca.crt
+
+Scaling the application changes nothing about this. The exporters push, so a new
+container is a new instance that starts reporting on its own, and nothing has to
+discover it.
+
+When nothing arrives
+----------------------------------------------------------------------
+
+The exporters log their failures and carry on: a collector that is down costs the
+application nothing but the log lines. Read them first — a refused connection, a 401
+and a certificate that does not verify all say plainly which of the three variables is
+wrong.
+
+Silence with nothing in the log is the other case, and it means no exporter was
+started. Either the endpoint is unset in that environment's env file, or the process
+is one that was never meant to export: a management command, or a serving process
+whose start script does not name a component.
 {%- endif %}

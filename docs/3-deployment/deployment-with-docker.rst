@@ -88,6 +88,8 @@ The `extra` parameter allows you to send additional information about the contex
 
 With ``observability=prometheus``, the application exposes its metrics at ``/metrics``, to a scrape that presents ``DJANGO_METRICS_TOKEN`` as a bearer token. Point your own Prometheus at every replica rather than at the proxy in front of them — a scrape that arrives through Traefik describes whichever replica answered it — and read the generated ``docs/observability.rst`` for the scrape configuration and for what Gunicorn's multiprocess mode changes about the exposition.
 
+With ``observability=opentelemetry``, every process that serves something exports its traces and metrics over OTLP to the collector ``OTEL_EXPORTER_OTLP_ENDPOINT`` names in that environment's ``.django`` file, and exports nothing while it is unset. The exporters push, so scaling the application needs no change: a new container reports as an instance of its own. The generated ``docs/observability.rst`` has the collector's configuration and what each process starts from.
+
 You will probably also need to setup the Mail backend, for example by adding a `Mailgun`_ API key and a `Mailgun`_ sender domain, otherwise, the account creation view will crash and result in a 500 error when the backend attempts to send an email to the account owner.
 
 .. _sentry.io: https://sentry.io/welcome

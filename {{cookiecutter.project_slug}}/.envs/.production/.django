@@ -79,6 +79,17 @@ SENTRY_ENVIRONMENT=production
 # The credential a scrape presents to /metrics. No token, no metrics.
 DJANGO_METRICS_TOKEN=!!!SET DJANGO_METRICS_TOKEN!!!
 {% endif %}
+{% if cookiecutter.observability == 'opentelemetry' %}
+# Telemetry
+# ------------------------------------------------------------------------------
+# Where this deployment's traces and metrics go; nothing is exported until it is set
+OTEL_EXPORTER_OTLP_ENDPOINT=
+# Which deployment they came from
+OTEL_DEPLOYMENT_ENVIRONMENT=production
+# What the collector asks callers for, and the authority that signed its certificate
+# OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer the-collectors-credential
+# OTEL_EXPORTER_OTLP_CERTIFICATE=/etc/ssl/certs/collector-ca.crt
+{% endif %}
 
 # Redis
 # ------------------------------------------------------------------------------

@@ -65,6 +65,18 @@ dependencies = [
 {%- endif %}
   "gunicorn==26.2.0",
   "hiredis==3.4.1",
+{%- if cookiecutter.observability == 'opentelemetry' %}
+  "opentelemetry-exporter-otlp-proto-http==1.44.0",
+{%- if cookiecutter.use_celery == 'y' %}
+  "opentelemetry-instrumentation-celery==0.65b0",
+{%- endif %}
+  # The asgi extra is not optional here: without it the Django instrumentation
+  # silently ignores an ASGI request, and every request this project serves is one
+  "opentelemetry-instrumentation-django[asgi]==0.65b0",
+  "opentelemetry-instrumentation-psycopg==0.65b0",
+  "opentelemetry-instrumentation-redis==0.65b0",
+  "opentelemetry-sdk==1.44.0",
+{%- endif %}
 {%- if cookiecutter.observability == 'prometheus' %}
   "prometheus-client==0.26.0",
 {%- endif %}
@@ -304,6 +316,13 @@ module = [
   "django_prometheus.*",
   {%- endif %}
   "environ.*",
+  {%- if cookiecutter.observability == 'opentelemetry' %}
+  {%- if cookiecutter.use_celery == 'y' %}
+  "opentelemetry.instrumentation.celery.*",
+  {%- endif %}
+  # The SDK, the exporter and the other instrumentations ship py.typed; these do not
+  "opentelemetry.instrumentation.django.*",
+  {%- endif %}
 ]
 ignore_missing_imports = true
 

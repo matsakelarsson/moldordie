@@ -6,4 +6,8 @@ set -o nounset
 
 
 python manage.py migrate
+{% if cookiecutter.observability == 'opentelemetry' -%}
+# Named after the migration above, so that command exports nothing of its own
+export DJANGO_TELEMETRY_COMPONENT=web
+{% endif -%}
 exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html' --reload-include '*.css' --timeout-graceful-shutdown 1

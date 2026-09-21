@@ -1,8 +1,9 @@
+{%- set prometheus = cookiecutter.observability == 'prometheus' -%}
 """Gunicorn's configuration, passed as ``--config /app/config/gunicorn.py``.
 
 Named by path rather than as a module, so Gunicorn executes this file and the master
 process imports no part of the project to read it.
-
+{% if prometheus %}
 Each worker keeps its own metrics, so the exposition of one worker would describe a
 quarter of the traffic. The Python client answers that with multiprocess mode: every
 process writes its samples into ``PROMETHEUS_MULTIPROC_DIR`` and the exporter reads
@@ -13,10 +14,20 @@ Python starts, because ``prometheus_client`` reads it when it is imported.
 What is left to do here is the other end of a worker's life. A worker that exits
 leaves its samples behind, which is what keeps the container's counters whole; only
 a gauge declared with one of the ``live`` multiprocess modes has to forget it.
+{%- else %}
+A worker exports traces and metrics of its own, and it has to start doing so before it
+loads the application: the Django instrumentation inserts a middleware into
+``MIDDLEWARE``, and the handler reads that setting once, when it builds its chain.
+``post_fork`` runs in the worker, after the fork and before the application is loaded,
+which is the one moment where both hold (``docs/adr/0020``).
+
+The arbiter starts nothing. It answers no request, and the exporters' threads would
+not survive the fork into a worker anyway.
+{%- endif %}
 """
 
 from typing import Any
-
+{% if prometheus %}
 from prometheus_client import multiprocess
 
 
@@ -33,3 +44,16 @@ def child_exit(server: Any, worker: Any) -> None:
     """
     # prometheus_client ships a py.typed marker but annotates this function with nothing
     multiprocess.mark_process_dead(worker.pid)  # type: ignore[no-untyped-call]
+{%- else %}
+
+def post_fork(server: Any, worker: Any) -> None:
+    """Start this worker's exporters, in the worker and before it loads the application.
+
+    Imported here rather than at the top of the file: the arbiter reads this
+    configuration, and nothing of the project belongs in the process that never
+    serves a request.
+    """
+    from {{ cookiecutter.project_slug }}.telemetry.configure import configure  # noqa: PLC0415
+
+    configure("web")
+{%- endif %}

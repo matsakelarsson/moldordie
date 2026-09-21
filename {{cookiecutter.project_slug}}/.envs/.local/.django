@@ -39,3 +39,12 @@ CELERY_FLOWER_PASSWORD=!!!SET CELERY_FLOWER_PASSWORD!!!
 # so compose/local/prometheus/prometheus.yml can name it. Deployments draw their own.
 DJANGO_METRICS_TOKEN=development-metrics-token
 {%- endif %}
+{%- if cookiecutter.observability == 'opentelemetry' %}
+
+# Telemetry
+# ------------------------------------------------------------------------------
+# The collector of this Compose file, which prints what arrives. A deployment names
+# one of its own, and each names a different deployment.
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_DEPLOYMENT_ENVIRONMENT=local
+{%- endif %}

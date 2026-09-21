@@ -136,6 +136,8 @@ observability:
     1. none, so no telemetry dependencies and no endpoint
     2. ``prometheus``, Django metrics through `django-prometheus`_, exposed for scraping at
        ``/metrics`` behind a credential the scraper presents
+    3. ``opentelemetry``, traces and metrics exported with OpenTelemetry_ over OTLP to a
+       collector the deployment names, started in each process that serves something
 
 use_whitenoise:
     Indicates whether the project should be configured to use WhiteNoise_.
@@ -194,6 +196,7 @@ debug:
 
 .. _Sentry: https://github.com/getsentry/sentry
 .. _django-prometheus: https://github.com/django-commons/django-prometheus
+.. _OpenTelemetry: https://opentelemetry.io/docs/languages/python/
 
 .. _WhiteNoise: https://github.com/evansd/whitenoise
 
