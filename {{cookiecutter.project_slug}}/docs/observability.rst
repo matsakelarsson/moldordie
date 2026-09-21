@@ -243,12 +243,24 @@ because the project makes no outgoing request of its own.
 The queries are instrumented through the driver rather than through Django's database
 backend, so the ones a management command{% if celery %} or a task{% endif %} runs are measured too.
 
-The HTTP metrics carry the names of the older semantic conventions
-(``http.server.duration`` in milliseconds, ``http.server.active_requests``). The
-instrumentations read ``OTEL_SEMCONV_STABILITY_OPT_IN`` from the environment
-themselves, so a deployment whose dashboards expect the stable names
-(``http.server.request.duration``, in seconds) sets it to ``http``, or to ``http/dup``
-to emit both while the dashboards move.
+An incoming call from another service already continues that service's trace: the
+Django instrumentation reads the ``traceparent`` header off the request and makes the
+request span a child of the span that made the call. The outgoing half is the one this
+project does not have, because it makes no HTTP call of its own. A service that calls
+another one pins the instrumentation of the client it uses —
+``opentelemetry-instrumentation-httpx`` or ``-requests`` — and names it in
+``INSTRUMENTORS``; that is what writes the header the other side reads. Until then a
+call this project makes starts a second trace on the other side rather than continuing
+this one.
+
+The attribute names are the stable semantic conventions: ``http.request.method`` and
+``http.response.status_code`` on a request, ``db.system.name`` and ``db.query.text``
+on a query, and ``http.server.request.duration`` in seconds for the metric. The
+instrumentations emit the older names unless ``OTEL_SEMCONV_STABILITY_OPT_IN`` says
+otherwise, so ``telemetry/configure.py`` sets it before it instruments anything; a
+deployment whose dashboards still read the old names sets
+``OTEL_SEMCONV_STABILITY_OPT_IN=http/dup,database/dup`` in its env file, which emits
+both while they move.
 
 Logs stay on standard output, where the container runtime collects them. Exporting
 them over OTLP is a separate change: the logs SDK is still provisional, and a log line
@@ -355,16 +367,39 @@ Scaling the application changes nothing about this. The exporters push, so a new
 container is a new instance that starts reporting on its own, and nothing has to
 discover it.
 
-When nothing arrives
+When the collector is down
 ----------------------------------------------------------------------
 
-The exporters log their failures and carry on: a collector that is down costs the
-application nothing but the log lines. Read them first — a refused connection, a 401
-and a certificate that does not verify all say plainly which of the three variables is
-wrong.
+Nothing the application serves changes. The exporters run on threads of their own, so
+a request never waits for one: with the collector refusing connections this project
+answers in the time it takes without telemetry. A batch is retried with a growing
+backoff and then abandoned with one line at ``ERROR``; the queue is bounded and drops
+what it cannot hold rather than growing; and exporting resumes by itself when the
+collector comes back, with no restart.
 
-Silence with nothing in the log is the other case, and it means no exporter was
-started. Either the endpoint is unset in that environment's env file, or the process
-is one that was never meant to export: a management command, or a serving process
-whose start script does not name a component.
+So read the log first when nothing arrives. A refused connection, a ``401`` and a
+certificate that does not verify each say plainly which of the three variables is
+wrong. Silence with nothing in the log is the other case, and means no exporter was
+started at all: either the endpoint is unset in that environment's env file, or the
+process was never meant to export — a management command, or a serving process whose
+start script names no component.
+
+What a restart loses
+----------------------------------------------------------------------
+
+A web worker that is stopped loses what it has buffered: up to one batch of spans and
+up to one interval of measurements. Gunicorn's uvicorn worker re-raises the signal it
+was sent once it has stopped serving, which ends the process before Gunicorn's own
+exit hooks or the SDK's ``atexit`` flush can run. A process that exits normally — the
+task worker, a management command that opened spans of its own — does flush.
+
+Both windows are the SDK's own and are read from the environment, so a deployment that
+cannot afford them shortens them in its env file::
+
+    OTEL_BSP_SCHEDULE_DELAY=2000      # milliseconds between exports of a span batch
+    OTEL_METRIC_EXPORT_INTERVAL=15000
+
+A restart therefore costs the last seconds before it and nothing else. What was
+already exported is at the collector, and the process that comes up is a new instance
+whose counters start from zero there.
 {%- endif %}

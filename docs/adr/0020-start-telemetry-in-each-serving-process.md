@@ -69,5 +69,16 @@ web container starts its exporters from a Gunicorn hook, so `compose/production/
 has to pass `--config /app/config/gunicorn.py` for the arm to do anything, and a deployment that
 replaces that command loses the traces silently — the generated documentation says where to
 look when nothing arrives. Without Docker the development server has no start script, so a
-developer names the component themselves. Logs stay on standard output: exporting them is a
-separate change, and a log line is worth more with a trace id in it than in a second pipeline.
+developer names the component themselves.
+
+Starting per process also means stopping per process, and a web worker cannot: Gunicorn's
+uvicorn worker re-raises the signal it was sent once it has stopped serving, which ends the
+process before Gunicorn's exit hooks or the SDK's `atexit` flush run. A stopped worker
+therefore loses up to one batch of spans and one interval of measurements. Both windows are
+the SDK's and are read from the environment, so a deployment narrows them without a change
+here; the alternative, an ASGI lifespan wrapper in `config/asgi.py`, would buy the web
+container alone what the task and Celery workers already get from exiting normally, and is
+protocol plumbing in a file two options already fork.
+
+Logs stay on standard output: exporting them is a separate change, and a log line is worth
+more with a trace id in it than in a second pipeline.

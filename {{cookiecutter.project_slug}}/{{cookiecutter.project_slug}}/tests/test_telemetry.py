@@ -88,6 +88,35 @@ def test_the_instrumented_libraries_are_the_ones_the_project_uses(settings, expo
     }
 
 
+def test_the_stable_conventions_are_what_it_speaks(
+    settings,
+    exported,
+    monkeypatch,
+):
+    """The instrumentations emit the older attribute names unless told otherwise, and
+    a project generated today has no dashboard that reads those."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+    monkeypatch.delenv(telemetry.SEMANTIC_CONVENTIONS, raising=False)
+
+    telemetry.configure(COMPONENT)
+
+    assert os.environ[telemetry.SEMANTIC_CONVENTIONS] == telemetry.STABLE_CONVENTIONS
+
+
+def test_a_deployment_may_choose_the_conventions_itself(
+    settings,
+    exported,
+    monkeypatch,
+):
+    """Emitting both is how a deployment moves dashboards that read the old names."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+    monkeypatch.setenv(telemetry.SEMANTIC_CONVENTIONS, "http/dup,database/dup")
+
+    telemetry.configure(COMPONENT)
+
+    assert os.environ[telemetry.SEMANTIC_CONVENTIONS] == "http/dup,database/dup"
+
+
 def test_nothing_is_exported_without_a_destination(settings, exported):
     """Which is what keeps a checkout, a command and this suite dialling nowhere."""
     settings.OTEL_EXPORTER_OTLP_ENDPOINT = ""

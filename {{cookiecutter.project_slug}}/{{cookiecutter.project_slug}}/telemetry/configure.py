@@ -44,6 +44,14 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 # it for the processes that have no hook of their own to start from.
 COMPONENT_VARIABLE = "DJANGO_TELEMETRY_COMPONENT"
 
+# The semantic conventions the instrumentations speak. They read this variable when
+# they are asked to instrument, and emit the older attribute names without it; a
+# project generated today has no dashboard reading those, so it starts on the stable
+# ones. A deployment moving dashboards that do sets "http/dup,database/dup" in its env
+# file, which emits both, and is free to set anything else.
+SEMANTIC_CONVENTIONS = "OTEL_SEMCONV_STABILITY_OPT_IN"
+STABLE_CONVENTIONS = "http,database"
+
 # What the resource says this process is, under the names the specification gives
 SERVICE_NAME = "service.name"
 SERVICE_INSTANCE_ID = "service.instance.id"
@@ -164,6 +172,8 @@ def configure(component: str) -> bool:
     _started["component"] = component
     trace.set_tracer_provider(tracer_provider(component, telemetry_settings))
     metrics.set_meter_provider(meter_provider(component, telemetry_settings))
+    # Read by the first instrumentation to be asked, and once for the process
+    os.environ.setdefault(SEMANTIC_CONVENTIONS, STABLE_CONVENTIONS)
     for instrumentor in INSTRUMENTORS:
         instrumentor().instrument()
     return True
