@@ -136,8 +136,12 @@ def connection(signal: str, telemetry_settings: TelemetrySettings) -> dict[str, 
     return {
         "endpoint": f"{base}/v1/{signal}",
         "headers": dict(telemetry_settings.OTEL_EXPORTER_OTLP_HEADERS),
-        # No certificate leaves the exporter the trust store of the container
-        "certificate_file": telemetry_settings.OTEL_EXPORTER_OTLP_CERTIFICATE or None,
+        # No certificate of a deployment's own verifies against the authorities the
+        # image already trusts. True rather than None, because anything falsy sends
+        # the exporter to the environment for an answer of its own, and an empty
+        # OTEL_EXPORTER_OTLP_CERTIFICATE — the variable this setting is read from —
+        # arrives at requests as verify="", which turns verification off entirely.
+        "certificate_file": telemetry_settings.OTEL_EXPORTER_OTLP_CERTIFICATE or True,
     }
 
 

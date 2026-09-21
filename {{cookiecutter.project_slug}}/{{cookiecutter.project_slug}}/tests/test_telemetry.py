@@ -24,6 +24,7 @@ from celery.signals import worker_process_init
 from django.apps import AppConfig
 from opentelemetry import metrics
 from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 {%- if celery %}
 from opentelemetry.instrumentation.celery import CeleryInstrumentor
 {%- endif %}
@@ -184,11 +185,33 @@ def test_the_collector_is_told_what_it_asks_of_a_caller(settings):
     assert connection["certificate_file"] == settings.OTEL_EXPORTER_OTLP_CERTIFICATE
 
 
-def test_no_certificate_of_its_own_leaves_the_trust_store_of_the_container(settings):
+def test_no_certificate_of_its_own_verifies_against_the_trusted_authorities(settings):
     settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
     settings.OTEL_EXPORTER_OTLP_CERTIFICATE = ""
 
-    assert telemetry.connection("traces", settings)["certificate_file"] is None
+    assert telemetry.connection("traces", settings)["certificate_file"] is True
+
+
+def test_an_empty_certificate_in_the_environment_still_verifies(settings, monkeypatch):
+    """What the exporter is told has to be what it uses.
+
+    Anything falsy sends it to the environment for an answer of its own, and what it
+    reads there is the variable this setting is read from. A deployment that writes
+    ``OTEL_EXPORTER_OTLP_CERTIFICATE=`` — the same empty idiom the env file uses for
+    the endpoint — would otherwise post to the collector, with whatever credential
+    ``OTEL_EXPORTER_OTLP_HEADERS`` carries, over a connection it never verified.
+    """
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CERTIFICATE", "")
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+    settings.OTEL_EXPORTER_OTLP_CERTIFICATE = ""
+
+    exporter = OTLPSpanExporter(**telemetry.connection("traces", settings))
+
+    # What the exporter hands requests as ``verify``, and it exposes it nowhere
+    # else. Anything falsy there is what selects ``CERT_NONE``, so the property
+    # this asserts is the one that decides, rather than the value carrying it:
+    # the exporter is annotated as taking a path, and True is not one.
+    assert exporter._certificate_file  # noqa: SLF001
 
 
 class Recording:
