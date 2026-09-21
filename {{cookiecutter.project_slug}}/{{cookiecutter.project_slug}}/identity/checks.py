@@ -1,4 +1,9 @@
+{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' -%}
+{%- if headless -%}
 """System checks of the identity app: the frontend settings agree with each other."""
+{%- else -%}
+"""System checks of the identity app: a calling service has an audience to name."""
+{%- endif %}
 
 from __future__ import annotations
 
@@ -7,10 +12,10 @@ from typing import Any
 
 from django.conf import settings
 from django.core import checks
-
+{% if headless %}
 from .frontend import frontend_origins
 from .frontend import origin
-
+{% endif %}
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -21,18 +26,19 @@ def check_service_settings(
     app_configs: Sequence[AppConfig] | None,
     **kwargs: Any,
 ) -> list[checks.CheckMessage]:
-    """Calling services need the API's registration; an empty one is reported."""
+    """A service's token names this application; an empty registration is reported."""
     if settings.ENTRA_API_CLIENT_ID.strip():
         return []
     return [
         checks.Warning(
             "ENTRA_API_CLIENT_ID is empty, so no calling service's token can name "
-            "this API as its audience.",
+            "this application as its audience.",
             hint="Set it in the environment; see docs/authentication.rst.",
             id="identity.W001",
         ),
     ]
 {% endif %}
+{%- if headless %}
 
 def check_frontend_url(
     app_configs: Sequence[AppConfig] | None,
@@ -49,3 +55,4 @@ def check_frontend_url(
             id="identity.E001",
         ),
     ]
+{% endif -%}

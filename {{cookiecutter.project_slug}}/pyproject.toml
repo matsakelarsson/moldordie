@@ -69,7 +69,7 @@ dependencies = [
   "prometheus-client==0.26.0",
 {%- endif %}
   "psycopg[c]==3.3.5",
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
   "pyjwt[crypto]==2.14.0",
 {%- endif %}
   "redis==8.1.0",

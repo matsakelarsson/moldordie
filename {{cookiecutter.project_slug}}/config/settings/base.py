@@ -17,6 +17,9 @@
     allauth's headless API, guarded by the identity app. #}
 {%- set headless = provider and cookiecutter.rest_api == 'Django Ninja' %}
 {%- set prometheus = cookiecutter.observability == 'prometheus' %}
+{#- The calling services a provider issues tokens to, verified wherever something reads
+    one: the API's routes, or the metrics endpoint. #}
+{%- set service_tokens = provider and (cookiecutter.rest_api == 'Django Ninja' or prometheus) %}
 """Base settings to build other settings files upon."""
 
 import os
@@ -164,7 +167,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "{{ cookiecutter.project_slug }}.users",
-{%- if headless %}
+{%- if service_tokens %}
     "{{ cookiecutter.project_slug }}.identity",
 {%- endif %}
     # Your stuff: custom apps go here
@@ -420,8 +423,13 @@ LOGGING = {
 # METRICS
 # ------------------------------------------------------------------------------
 # The credential a scrape presents, as a bearer token. Prometheus is a machine, so
-# the endpoint takes no session: no token, no metrics ({{ cookiecutter.project_slug }}/metrics.py).
+# the endpoint takes no session{% if not service_tokens %}: no token, no metrics{% endif %} ({{ cookiecutter.project_slug }}/metrics.py).
 # Each deployed environment draws its own; the local one is a development value.
+{%- if service_tokens %}
+# A scraper the provider issues tokens to presents one of those instead, and needs no
+# value here; it holds the identity.read_metrics permission on its registration. An
+# empty value here then refuses only the scrapes that would have presented it.
+{%- endif %}
 METRICS_TOKEN = env("DJANGO_METRICS_TOKEN", default="")
 {%- endif %}
 
@@ -590,6 +598,8 @@ HEADLESS_FRONTEND_URLS = {
     "account_signup": FRONTEND_URL + "/account/signup",
     "socialaccount_login_error": FRONTEND_URL + "/account/provider/callback",
 }
+{%- endif %}
+{%- if service_tokens %}
 # The identity app: the provider-issued tokens of calling services
 # ------------------------------------------------------------------------------
 {%- if entra %}

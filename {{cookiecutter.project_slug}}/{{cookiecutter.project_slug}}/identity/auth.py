@@ -17,22 +17,22 @@ Each hands the principal to the route as ``request.auth``: the ``User``, or the
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING
 from typing import cast
 
 from allauth.headless.contrib.ninja.security import JWTTokenAuth
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
-from jwt.utils import base64url_decode
 from ninja.security import SessionAuth
 from ninja.security.base import AuthBase
 
 from .verification import BAD_ISSUER
+from .verification import MISSING
 from .verification import ROUTER
 from .verification import Rejected
 from .verification import log_rejection
 from .verification import service_verifier
+from .verification import unverified_issuer
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -41,11 +41,8 @@ if TYPE_CHECKING:
 
     from .models import ServiceRegistration
 
-MISSING = object()
 # An Authorization header is a scheme and a credential
 SCHEME_AND_CREDENTIAL = 2
-# A JWS in compact serialisation: header, payload, signature
-JWS_SEGMENTS = 3
 
 
 def bearer_token(request: HttpRequest) -> str | None:
@@ -54,20 +51,6 @@ def bearer_token(request: HttpRequest) -> str | None:
     if len(parts) != SCHEME_AND_CREDENTIAL or parts[0].lower() != "bearer":
         return None
     return parts[1]
-
-
-def unverified_issuer(token: str) -> object:
-    """The token's ``iss`` claim as the token states it; ``MISSING`` without one."""
-    segments = token.split(".")
-    if len(segments) != JWS_SEGMENTS:
-        return MISSING
-    try:
-        claims = json.loads(base64url_decode(segments[1].encode()))
-    except ValueError:
-        return MISSING
-    if not isinstance(claims, dict):
-        return MISSING
-    return claims.get("iss", MISSING)
 
 
 class UserAuth(AuthBase):

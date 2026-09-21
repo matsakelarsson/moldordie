@@ -30,6 +30,7 @@ from django.conf import settings
 from jwt import PyJWKClient
 from jwt import PyJWKClientConnectionError
 from jwt import PyJWKClientError
+from jwt.utils import base64url_decode
 
 from .models import ServiceRegistration
 
@@ -82,6 +83,29 @@ PYJWT_REASONS = (
     (jwt.InvalidSignatureError, BAD_SIGNATURE),
     (jwt.InvalidTokenError, MALFORMED),
 )
+
+# A JWS in compact serialisation: header, payload, signature
+JWS_SEGMENTS = 3
+# What ``unverified_issuer`` answers for a credential that names no issuer
+MISSING = object()
+
+
+def unverified_issuer(token: str) -> object:
+    """The token's ``iss`` claim as the token states it; ``MISSING`` without one.
+
+    Nothing is trusted here: a caller reads the issuer to pick which branch verifies the
+    token, and that branch checks the issuer itself against the settings.
+    """
+    segments = token.split(".")
+    if len(segments) != JWS_SEGMENTS:
+        return MISSING
+    try:
+        claims = json.loads(base64url_decode(segments[1].encode()))
+    except ValueError:
+        return MISSING
+    if not isinstance(claims, dict):
+        return MISSING
+    return claims.get("iss", MISSING)
 
 
 class Rejected(Exception):  # noqa: N818 - an adjective, as the policies read it

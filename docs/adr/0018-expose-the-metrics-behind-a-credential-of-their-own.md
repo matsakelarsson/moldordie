@@ -43,8 +43,9 @@ discover every replica rather than to scrape the address in front of them.
   and how long the database took, to anyone who asks.
 - **A provider-issued service token**: where the project verifies Entra's or Google's tokens
   already, that is the credential a corporate deployment would rather present. It cannot be
-  the only mechanism, because `identity/verification.py` is generated only with Django Ninja
-  and a provider; widening it is its own change.
+  the only mechanism, because a deployment may have chosen no provider at all, and
+  `identity/verification.py` was then generated only with Django Ninja and a provider;
+  widening it is its own change, since taken in `docs/adr/0019`.
 
 ## Consequences
 

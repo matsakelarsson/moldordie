@@ -1,3 +1,5 @@
+{%- set service_tokens = cookiecutter.identity_provider != 'none' -%}
+{%- set entra = cookiecutter.identity_provider == 'entra' -%}
 .. _observability:
 
 Observability
@@ -13,8 +15,14 @@ The credential
 ----------------------------------------------------------------------
 
 A scrape is a machine, not a visitor, so the endpoint takes a bearer token and never a
-session: no account, group or browser login decides whether a scrape succeeds, and a
-deployment that configured no token has authorised nobody, so every request is refused.
+session: no account, group or browser login decides whether a scrape succeeds.
+{% if service_tokens -%}
+Two credentials are accepted and the token itself says which it is, so a deployment
+picks either and needs no scrape to hold both.
+{%- else -%}
+A deployment that configured no token has authorised nobody, so every request is
+refused.
+{%- endif %}
 
 Each deployed environment drew its own token when the project was generated, as
 ``DJANGO_METRICS_TOKEN`` in ``.envs/.<environment>/.django``; a token that reads ``dev``
@@ -24,7 +32,44 @@ development value and not a secret, which is also why the local Prometheus is pu
 to the loopback interface alone::
 
     curl -H "Authorization: Bearer $DJANGO_METRICS_TOKEN" http://localhost:8000/metrics
+{% if service_tokens %}
+A scraper the provider knows
+----------------------------------------------------------------------
 
+A deployment whose scraper has an identity at {% if entra %}the tenant{% else %}Google{% endif %} needs no drawn token at
+all. Register the scraper as a calling service and grant its registration the
+``identity.read_metrics`` permission in the admin (:ref:`authentication`): a registered
+service without that permission is refused with ``403``, because a service the provider
+vouches for is not by that alone a service this project lets read its metrics.
+{% if entra %}
+Prometheus obtains its own tokens from the client credentials of the scraper's app
+registration:
+
+.. code-block:: yaml
+
+    scrape_configs:
+      - job_name: {{ cookiecutter.project_slug }}
+        metrics_path: /metrics
+        oauth2:
+          client_id: <the scraper's application (client) id>
+          client_secret_file: /etc/prometheus/scraper-secret
+          token_url: https://login.microsoftonline.com/<tenant id>/oauth2/v2.0/token
+          scopes:
+            - api://<this application's id>/.default
+        static_configs:
+          - targets: ['django:5000']
+{% else %}
+Google's identity tokens last an hour and Prometheus mints none of its own, so the
+token has to reach it as a file it re-reads (``authorization.credentials_file``), kept
+fresh by whatever runs beside it: the metadata server on an instance the service
+account is attached to, a sidecar, a periodic job. Where that is more machinery than a
+drawn token is worth, use ``DJANGO_METRICS_TOKEN`` instead.
+{% endif %}
+Neither credential falls back to the other: a token naming a configured issuer is
+verified and never compared with ``DJANGO_METRICS_TOKEN``, and anything else is only
+compared with it. A deployment that authorises its scrapers as services can leave that
+variable empty, and one that has no service identities can leave the registrations so.
+{% endif %}
 Scraping a deployment
 ----------------------------------------------------------------------
 

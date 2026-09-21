@@ -42,8 +42,11 @@ DJANGO_ACCOUNT_ALLOW_REGISTRATION=True
 DJANGO_HEADLESS_JWT_PRIVATE_KEY=!!!SET DJANGO_HEADLESS_JWT_PRIVATE_KEY!!!
 DJANGO_FRONTEND_ORIGINS=
 DJANGO_FRONTEND_URL=
+{%- endif %}
+{%- if cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
 {%- if cookiecutter.identity_provider == 'entra' %}
-# Calling services: the API's app registration, and the app role a service must hold
+# Calling services: the registration a service's token must name as its audience, and
+# the app role it must hold
 ENTRA_API_CLIENT_ID=
 # ENTRA_SERVICE_ROLE=Service.Access
 {%- else %}

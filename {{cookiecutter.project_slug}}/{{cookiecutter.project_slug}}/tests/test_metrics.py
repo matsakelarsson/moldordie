@@ -1,7 +1,15 @@
+{%- set service_tokens = cookiecutter.identity_provider != 'none' -%}
 """The metrics endpoint: what a scrape must present, and what it reads.
 
+{% if service_tokens -%}
+The tests of the configured credential carry no ``django_db`` mark: that path opens no
+transaction and reads no table, so a query would be a mistake and these are where it
+would show. The tests of a calling service's token do carry it, because a registration
+and the permissions it holds are rows.
+{%- else -%}
 No test here carries the django_db mark. The endpoint opens no transaction and reads no
 table, so a query would be a mistake, and these tests are where it would show.
+{%- endif %}
 """
 
 from __future__ import annotations
@@ -9,15 +17,31 @@ from __future__ import annotations
 from http import HTTPStatus
 from types import SimpleNamespace
 
+{% if service_tokens -%}
+import pytest
+from django.contrib.auth.models import Permission
+{% endif -%}
 from django.urls import reverse
 from prometheus_client import multiprocess
 
 from config import gunicorn
+{%- if service_tokens %}
+from {{ cookiecutter.project_slug }}.identity.models import ServiceRegistration
+from {{ cookiecutter.project_slug }}.identity.tests import services
+from {{ cookiecutter.project_slug }}.identity.tests.services import LIFETIME
+from {{ cookiecutter.project_slug }}.identity.tests.services import SUBJECT
+from {{ cookiecutter.project_slug }}.identity.tests.services import service_claims
+from {{ cookiecutter.project_slug }}.identity.tests.services import sign
+{%- endif %}
 
 CREDENTIAL = "the-credential-of-this-environment"
 BEFORE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
 AFTER = "django_prometheus.middleware.PrometheusAfterMiddleware"
 ENGINE = "django_prometheus.db.backends.postgresql"
+{%- if service_tokens %}
+# An issuer no branch verifies, so the credential is all that is left to compare
+FOREIGN_ISSUER = "https://issuer.example.com"
+{%- endif %}
 
 
 def scrape(client, credential=None):
@@ -56,8 +80,8 @@ def test_a_scrape_with_the_wrong_credential_is_refused(client, settings):
     assert refused(client, "Bearer crédential")
 
 
-def test_an_unset_token_refuses_every_scrape(client, settings):
-    """A deployment that configured no credential has authorised nobody."""
+def test_an_unset_token_authorises_no_credential(client, settings):
+    """A deployment that configured no credential has authorised nobody through one."""
     settings.METRICS_TOKEN = ""
 
     assert refused(client, "Bearer ")
@@ -107,3 +131,110 @@ def test_the_worker_exit_hook_reports_the_worker_that_left(monkeypatch):
     gunicorn.child_exit(server=object(), worker=SimpleNamespace(pid=4242))
 
     assert reported == [4242]
+{%- if service_tokens %}
+
+
+@pytest.mark.django_db
+class TestAServiceToken:
+    """A scraper the identity provider knows presents its own token instead.
+
+    The registration has to hold ``identity.read_metrics``: the project decides what a
+    service may read, and the provider only decides which service is calling.
+    """
+
+    @pytest.fixture(autouse=True)
+    def keys(self, settings, monkeypatch):
+        """Verify against an in-memory key source, with a credential configured too."""
+        settings.METRICS_TOKEN = CREDENTIAL
+        return services.configure(settings, monkeypatch)
+
+    @pytest.fixture
+    def registration(self):
+        return ServiceRegistration.objects.create(name="Prometheus", subject=SUBJECT)
+
+    def allow(self, registration):
+        """Grant the registration the permission to read the metrics."""
+        registration.permissions.add(
+            Permission.objects.get(
+                content_type__app_label="identity",
+                codename="read_metrics",
+            ),
+        )
+
+    def test_a_service_that_may_read_the_metrics_reads_them(self, client, registration):
+        self.allow(registration)
+
+        response = scrape(client, f"Bearer {sign(service_claims())}")
+
+        assert response.status_code == HTTPStatus.OK
+        exposition = response.content.decode()
+        assert "django_http_requests_before_middlewares_total" in exposition
+
+    def test_a_service_without_the_permission_is_refused(
+        self,
+        client,
+        settings,
+        registration,
+    ):
+        """Registered and enabled is not enough; the grant is the answer to may it.
+
+        The token is the configured credential, character for character, so a branch
+        that fell back to comparing it would answer with the exposition instead.
+        """
+        token = sign(service_claims())
+        settings.METRICS_TOKEN = token
+
+        response = scrape(client, f"Bearer {token}")
+
+        assert response.status_code == HTTPStatus.FORBIDDEN
+
+    def test_an_unregistered_service_is_refused(self, client):
+        assert refused(client, f"Bearer {sign(service_claims())}")
+
+    def test_a_disabled_registration_is_refused(self, client, registration):
+        self.allow(registration)
+        registration.enabled = False
+        registration.save()
+
+        assert refused(client, f"Bearer {sign(service_claims())}")
+
+    def test_a_refused_provider_token_is_not_tried_as_the_credential(
+        self,
+        client,
+        settings,
+        registration,
+    ):
+        """The issuer picks the branch, and a branch that refuses is the end.
+
+        The expired token is the configured credential too, so the comparison that
+        never runs is the one that would have let it through.
+        """
+        self.allow(registration)
+        expired = sign(service_claims(exp=service_claims()["iat"] - 2 * LIFETIME))
+        settings.METRICS_TOKEN = expired
+
+        assert refused(client, f"Bearer {expired}")
+
+    def test_the_configured_credential_still_reads_the_exposition(self, client):
+        response = scrape(client, f"Bearer {CREDENTIAL}")
+
+        assert response.status_code == HTTPStatus.OK
+
+    def test_an_unset_credential_leaves_a_service_token_alone(
+        self,
+        client,
+        settings,
+        registration,
+    ):
+        """A deployment may authorise its services and draw no credential at all."""
+        self.allow(registration)
+        settings.METRICS_TOKEN = ""
+
+        response = scrape(client, f"Bearer {sign(service_claims())}")
+
+        assert response.status_code == HTTPStatus.OK
+
+    def test_a_token_of_another_issuer_is_only_the_credential(self, client):
+        """No branch verifies it, so it is compared with the credential and refused."""
+        assert refused(client, f"Bearer {sign(service_claims(iss=FOREIGN_ISSUER))}")
+{%- endif %}

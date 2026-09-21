@@ -1,6 +1,10 @@
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 {%- set provider = 'Microsoft Entra ID' if entra else 'Google' -%}
 {%- set headless = cookiecutter.rest_api == 'Django Ninja' -%}
+{%- set metrics = cookiecutter.observability == 'prometheus' -%}
+{%- set service_tokens = headless or metrics -%}
+{#- Where a calling service's token is read, for the examples that present one. #}
+{%- set probe = '/api/principal/' if headless else '/metrics' -%}
 .. _authentication:
 
 Authentication
@@ -282,37 +286,46 @@ in again over keeping it for long. The session token of a pending flow is short-
 belongs in memory.
 
 {% endif -%}
-{% if headless -%}
+{% if service_tokens -%}
 Calling services
 ----------------------------------------------------------------------
 
-A service that calls the API, a batch job or another application, presents a token
-{% if entra %}the tenant{% else %}Google{% endif %} issued for it, as ``Authorization: Bearer``. The project verifies
-the token against the provider's published keys, applies the provider's rules and
-looks the caller up among the *service registrations* of the admin: a valid signature
-alone authorises nothing, an unregistered or disabled service is refused with ``401``,
-and a service is never a user. Each calling service has one identity of its own;
-services do not share one. The example endpoint ``GET /api/principal/`` answers who is
-calling, ``{"kind": "service", "name": ...}`` for a service and
-``{"kind": "user", "name": ...}`` for a user; the users routes stay user-only.
+A service that calls this project, a batch job, a scraper or another application,
+presents a token {% if entra %}the tenant{% else %}Google{% endif %} issued for it, as ``Authorization: Bearer``. The project
+verifies the token against the provider's published keys, applies the provider's rules
+and looks the caller up among the *service registrations* of the admin: a valid
+signature alone authorises nothing, an unregistered or disabled service is refused with
+``401``, and a service is never a user. Each calling service has one identity of its
+own; services do not share one.
+{% if headless -%}
+The example endpoint ``GET /api/principal/`` answers who is calling,
+``{"kind": "service", "name": ...}`` for a service and ``{"kind": "user", "name": ...}``
+for a user; the users routes stay user-only.
+{% endif -%}
+{% if metrics -%}
+``GET /metrics`` reads one too: a scraper registered as a service, holding the
+``identity.read_metrics`` permission, needs no credential of the project's own
+(:ref:`observability`).
+{% endif -%}
 {% if entra %}
-**Registering the API.** In the Microsoft Entra admin center, create a second app
-registration for the API itself (the login registration stays what it is):
+**Registering this application.** In the Microsoft Entra admin center, create a
+second app registration for the application itself (the login registration stays what
+it is):
 
 #. Under *Expose an API*, set the application ID URI (``api://<client id>``), and in
    the manifest set ``api.requestedAccessTokenVersion`` to ``2``, so that the tokens
-   issued for the API carry the v2.0 issuer the project accepts.
+   issued for it carry the v2.0 issuer the project accepts.
 #. Under *App roles*, add a role for applications, value ``Service.Access`` (or set
    ``ENTRA_SERVICE_ROLE`` to the value you choose), allowed member type *Applications*.
 #. Under *Token configuration*, add the optional claim ``idtyp`` to the access token:
    the project refuses a token that does not say it was issued to an application.
-#. In *Enterprise applications*, open the API's service principal and set *Assignment
+#. In *Enterprise applications*, open that service principal and set *Assignment
    required* to *Yes*, so that only assigned services obtain a token for it.
 #. Set ``ENTRA_API_CLIENT_ID`` to the registration's application (client) id: the
    audience a service's token must name. An empty one is reported by the checks.
 
 **Registering a service.** Each calling service gets its own app registration with a
-client secret or certificate; under its *API permissions*, add the API's
+client secret or certificate; under its *API permissions*, add this application's
 ``Service.Access`` application permission and grant admin consent, which assigns the
 role. Then, in the project's admin under *Service registrations*, add the service with
 its name and, as the subject, the *Object ID* of its service principal (the enterprise
@@ -323,11 +336,11 @@ afterwards: a new identity is a new registration.
 
     az login --service-principal --tenant <tenant id> \
         --username <the service's client id> --password <its secret>
-    TOKEN="$(az account get-access-token --scope api://<the API's client id>/.default \
+    TOKEN="$(az account get-access-token --scope api://<this application's id>/.default \
         --query accessToken --output tsv)"
-    curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
+    curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}{{ probe }}
 
-The project checks the token's issuer (the tenant's v2.0 endpoint), audience (the API),
+The project checks the token's issuer (the tenant's v2.0 endpoint), its audience, the
 tenant, ``idtyp`` (``app``), the role, and finally the registration for the token's
 ``oid``. Signing keys are read from the tenant's discovery endpoint when the first
 token arrives, and refreshed when a token names a key id the cached set lacks.
@@ -362,7 +375,7 @@ identity is a new registration.
       TOKEN="$(gcloud auth print-identity-token \
           --impersonate-service-account=billing@project.iam.gserviceaccount.com \
           --audiences=https://{{ cookiecutter.domain_name }})"
-      curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}/api/principal/
+      curl --header "Authorization: Bearer $TOKEN" https://{{ cookiecutter.domain_name }}{{ probe }}
 
 The project checks the token's issuer (``https://accounts.google.com``, with or without
 the scheme), its audience and finally the registration for the token's ``sub``. An
@@ -376,9 +389,9 @@ refused from the next request on, whatever Google still issues.
 {% endif %}
 **Diagnostics.** A refused token is one log record of the ``identity.verification``
 logger with fixed codes and nothing from the token: the branch that refused
-(``branch=service``, the verifier, or ``branch=router``, when the token's issuer
-matched no branch) and the reason, ``reason=expired`` at info, the routine case, and
-the suspicious ones at warning (``bad_issuer``, ``bad_audience``, ``bad_signature``,
+(``branch=service``, the verifier{% if headless %}, or ``branch=router``, when the token's
+issuer matched no branch{% endif %}) and the reason, ``reason=expired`` at info, the routine
+case, and the suspicious ones at warning (``bad_issuer``, ``bad_audience``, ``bad_signature``,
 ``unknown_key``, ``key_lookup_failed``, ``unregistered``, ``disabled``, ...). A warning
 repeats for the same codes at most once a minute, and then says how many the minute
 swallowed, so a burst is one record.
@@ -391,8 +404,14 @@ next token if that fails.
 
 **Permissions.** A registration holds Django permissions, granted in the admin next
 to the users' (*Service registrations*, *Permissions*), and answers ``has_perm`` with
-the full ``app_label.codename`` like a user does; a disabled registration holds none. A
-route both users and services may call, one under ``either_auth``, asks for a
+the full ``app_label.codename`` like a user does; a disabled registration holds none.
+{% if metrics -%}
+The metrics endpoint asks for one: a scraper holds ``identity.read_metrics`` or reads
+nothing, and a registered service without it is refused with ``403`` where an unusable
+token is ``401``. Registering a service is not authorising it.
+{% endif -%}
+{% if headless -%}
+A route both users and services may call, one under ``either_auth``, asks for a
 permission with ``require_permission`` from ``identity/permissions.py``, which answers
 ``403`` for a caller that lacks it, a user or a service alike, where missing or invalid
 credentials are the policy's ``401``:
@@ -404,10 +423,11 @@ credentials are the policy's ``401``:
         require_permission(request, "reports.view_report")
         ...
 
+{% endif -%}
 A permission says what a caller may do, not which rows it may see. The data-access
 boundary, which records a service or a user may read or change, is the project's to
-add to its own models and queries (the users API, for one, answers only the caller's
-own row); these permissions do not enforce it.
+add to its own models and queries{% if headless %} (the users API, for one, answers only the caller's
+own row){% endif %}; these permissions do not enforce it.
 {% endif -%}
 Smoke test
 ----------------------------------------------------------------------
