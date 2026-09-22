@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,8 @@ from local_extensions import OPTIONS
 from local_extensions import option_names
 from tests.answers import complete_answers
 from tests.answers import unknown_answers
+from tests.citations import Allowance
+from tests.citations import citations
 from tests.generated_project import NO_DEFAULT
 from tests.generated_project import EnvRead
 from tests.generated_project import Expression
@@ -28,6 +31,7 @@ from tests.removal_coverage import MOST_CHANGED_ANSWERS
 from tests.removal_coverage import coverage_gaps
 from tests.removal_coverage import fewest_answers_keeping
 from tests.removal_coverage import paths_kept
+from tests.removal_coverage import removed_paths
 
 PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
@@ -426,6 +430,50 @@ def test_project_generation(bake, hostile_context, context_override):
 
     assert project.files()
     check_files(project)
+
+
+# The project template, which says of a path the removal rules list whether it is a directory.
+TEMPLATE = Path(__file__).resolve().parent.parent / "{{cookiecutter.project_slug}}"
+
+# Citations of a removed path that send nobody anywhere, each with its reason. File and path
+# are written as the removal rules write paths, ``{project_slug}`` standing for the package.
+# Whether an allowance is still needed is not enforced, because every combination is a test of
+# its own under the bake's grouping (docs/adr/0002); ``citations`` reports the unused ones.
+ALLOWED_CITATIONS = [
+    Allowance(".dockerignore", ".gitlab-ci.yml", "an ignore file lists what stays out of an image, there or not"),
+]
+
+
+def as_generated(path: str, package: str) -> str:
+    """A path written as the removal rules write them, as a generated project spells it: the
+    package by its name, and a directory, which the template tree tells from a file, with its slash."""
+    is_directory = (TEMPLATE / path.format(project_slug="{{cookiecutter.project_slug}}")).is_dir()
+    return path.format(project_slug=package) + ("/" if is_directory else "")
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_no_file_cites_a_path_its_answers_removed(bake, context_override):
+    """No file of a generated project sends its reader to a path the project's own answers
+    deleted: the removal rules say which those are, for every combination (docs/adr/0021).
+    A citation found here is forked on the answers in the template, or, if it is a listing
+    that sends nobody anywhere, allowed above with its reason.
+    """
+    project = bake(context_override)
+    files = {str(path): project.text(path) for path in project.files() if not is_binary(str(project.root / path))}
+    answers = complete_answers(context_override)
+    removed = [as_generated(path, project.package) for path in removed_paths(REMOVALS, answers)]
+    allowed = [
+        replace(
+            allowance,
+            file=as_generated(allowance.file, project.package),
+            path=as_generated(allowance.path, project.package),
+        )
+        for allowance in ALLOWED_CITATIONS
+    ]
+
+    cited, _ = citations(files, removed, allowed, package=project.package)
+
+    assert not cited, "\n".join(f"{citation.file} cites {citation.path}" for citation in cited)
 
 
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
@@ -1972,17 +2020,13 @@ def test_telemetry_wiring(bake, context, observability):
     assert project.env("local", "django")["OTEL_EXPORTER_OTLP_ENDPOINT"].endswith(f":{port}")
 
 
-# What a project generated with the default answer to use_docker does not have. The two
-# wiring tests above answer it "y", so the tree a default project starts from is this one.
-PRUNED_BY_NO_DOCKER = ("compose/", "docker-compose.")
-
-
 @pytest.mark.parametrize("observability", ["prometheus", "opentelemetry"])
 def test_an_arm_that_measures_starts_without_docker(bake, context, observability):
     """The Compose files that start a deployed container are pruned with use_docker=n,
-    and both arms are still generated whole. What is left has to be startable: nothing
-    sends a reader to a file this tree does not have, the configuration Gunicorn is
-    given is still here, and the page says what the process that starts it has to do.
+    and both arms are still generated whole. What is left has to be startable: the
+    configuration Gunicorn is given is still here, and the page says what the process
+    that starts it has to do. That nothing sends a reader to a file this tree does not
+    have is ``test_no_file_cites_a_path_its_answers_removed``, for every combination.
     """
     context["observability"] = observability
     context["use_docker"] = "n"
@@ -1990,14 +2034,6 @@ def test_an_arm_that_measures_starts_without_docker(bake, context, observability
 
     assert not (project.root / "compose").exists()
     assert (project.root / "config" / "gunicorn.py").exists()
-
-    offenders = []
-    for path in project.files():
-        if is_binary(str(project.root / path)):
-            continue
-        content = project.text(path)
-        offenders.extend(f"{path}: {pruned}" for pruned in PRUNED_BY_NO_DOCKER if pruned in content)
-    assert offenders == []
 
     # Nothing else tells Gunicorn where its hooks are, so the page has to
     page = project.text(Path("docs") / "observability.rst")

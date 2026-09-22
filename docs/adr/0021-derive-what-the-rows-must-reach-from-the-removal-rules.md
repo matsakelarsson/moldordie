@@ -47,6 +47,26 @@ What "a CI row reaches a path" proves is narrow, in the terms of ADR 0004: the c
 row's script ran on a project that has the path. It does not show that those checks execute
 the file, or that a service it configures works.
 
+The rules also say, for one combination, which paths its project does not have, so no
+generated file may cite one of them (`test_no_file_cites_a_path_its_answers_removed`, at the
+bake, sharing each combination's tree). Citations of Compose paths in a tree generated
+without Docker reached review instead of a test (#95), and the check that pull request added
+covered two hand-listed prefixes in two arms. Now the removed paths are derived from the
+rules for every supported combination, each taken as written and, inside the project
+package, relative to it as well. A top-level directory is matched with its trailing slash,
+because its bare name may be prose (`docker compose up`); a directory below the top is a
+path however it ends and is matched with or without it; the template tree says which listed
+paths are directories. A file is matched by its whole name, bounded by what cannot continue
+a path, a full stop that ends a sentence allowed; a path inside an image (`/app/config/...`)
+is the same file, a segment of a web address is not. Only text files are read. What the
+rules list is not quite the tree: the hook recreates `.github/` for Copilot's guide after
+pruning, and the Channels cleanup is not a rule, so a citation of either would be judged
+wrongly; none exists. A citation is fixed in the template by forking it on the answers,
+unless it is a listing that sends nobody anywhere, which is allowed by hand with its reason;
+the first is the Docker ignore file naming the GitLab CI file. Unused allowances are
+reported by the function, not enforced, because each combination is a test of its own under
+the bake's grouping (ADR 0002).
+
 ## Considered options
 
 - **Hand-kept paired rows under a comment**, the previous state: the comment above
