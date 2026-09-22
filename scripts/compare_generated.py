@@ -30,7 +30,6 @@ import difflib
 import io
 import json
 import os
-import shlex
 import subprocess
 import sys
 import tarfile
@@ -41,7 +40,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root, when run as a script
 
-from local_extensions import OPTIONS
+from tests.answers import parse_answers
+from tests.answers import unknown_answers
 from tests.test_cookiecutter_generation import HOSTILE_ANSWERS
 from tests.test_cookiecutter_generation import RE_DRAWN_VALUE
 from tests.test_cookiecutter_generation import SECRET_FILES
@@ -55,23 +55,13 @@ MASK = "<drawn>"
 def parse_row(text: str) -> dict[str, str]:
     """The answers of one extra row: a group of ``name=value``, each an option of the catalogue.
 
-    The check is the one the CI rows get in ``tests/test_options.py``: an option the catalogue
-    does not have, or a choice the option does not offer, is an error rather than a bake of the
+    Read and checked as the CI rows are (``tests/answers.py``): an option the catalogue does
+    not have, or a choice the option does not offer, is an error rather than a bake of the
     default project.
     """
-    answers = {}
-    for token in shlex.split(text):
-        name, separator, value = token.partition("=")
-        if not separator:
-            msg = f"{token!r} is not name=value"
-            raise ValueError(msg)
-        if name not in OPTIONS:
-            msg = f"{name!r} is not an option"
-            raise ValueError(msg)
-        if OPTIONS[name].choices and value not in OPTIONS[name].choices:
-            msg = f"{value!r} is not a choice of {name}"
-            raise ValueError(msg)
-        answers[name] = value
+    answers = parse_answers(text)
+    if complaints := unknown_answers(answers):
+        raise ValueError("; ".join(complaints))
     return answers
 
 

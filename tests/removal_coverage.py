@@ -48,6 +48,17 @@ def paths_kept(rules: Sequence[Rule], rows: Iterable[Answers]) -> dict[str, bool
     return {path: any(survives(path, removed) for removed in removed_by_row) for _, paths in rules for path in paths}
 
 
+def coverage_gaps(kept: Mapping[str, bool], exemptions: Mapping[str, str]) -> tuple[list[str], list[str]]:
+    """The paths of ``kept`` that no row keeps and no exemption excuses, and the stale exemptions.
+
+    ``exemptions`` maps a path to the reason some rows may go without it. One is stale when it
+    excuses nothing: a row keeps its path after all, or no rule lists the path any more.
+    """
+    gaps = [path for path, is_kept in kept.items() if not is_kept and path not in exemptions]
+    stale = [path for path in exemptions if kept.get(path, True)]
+    return gaps, stale
+
+
 def fewest_answers_keeping(
     path: str,
     rules: Sequence[Rule],
