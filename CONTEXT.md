@@ -71,7 +71,8 @@ another listed path, so the rules can be applied in any order; `tests/test_hooks
 every combination of the answers the rules read, and that every listed path exists in the template.
 The rules are also the statement of what the supported combinations must reach: a combination
 **keeps** a path when no rule that holds for its context lists the path or a directory above it,
-and every listed path is kept by some combination (`docs/adr/0021`).
+and every listed path is kept by some combination; and, per combination, of what the rules
+removed from its project, which no generated file may cite (`docs/adr/0021`).
 
 _Avoid_: manifest, cleanup function, `remove_*` helper.
 
