@@ -51,7 +51,7 @@ _These features can be enabled during initial project setup._
 Let's pretend you want to create a Django project called "redditclone". Rather than using `startproject`
 and then editing the results to include your name, email, and various configuration issues that always get forgotten until the worst possible moment, get [cookiecutter](https://github.com/cookiecutter/cookiecutter) to do all the work.
 
-Run Cookiecutter against this repo. `uvx` fetches it for the one run:
+Run Cookiecutter against this repo (2.2.0 or later: the template keeps the deployed environments' files in a shared `templates` directory, which older releases do not read). `uvx` fetches it for the one run:
 
     uvx cookiecutter https://github.com/matsakelarsson/moldordie
 

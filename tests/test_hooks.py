@@ -28,6 +28,8 @@ from tests.removal_coverage import removed_paths
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATE = REPO / "{{cookiecutter.project_slug}}"
+# The shared source (a term in CONTEXT.md): what a deployed environment's files are rendered from
+SHARED_SOURCE = REPO / "templates"
 SLUG_PLACEHOLDER = "{{cookiecutter.project_slug}}"
 PROJECT_SLUG = "my_test_project"
 
@@ -105,6 +107,8 @@ RANDOM_IN_DEBUG = {
     ("config/settings/test.py", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
 }
 PLACEHOLDER = re.compile(r"!!!SET (\w+)!!!")
+# What a stub includes from the shared source
+INCLUDE = re.compile(r"""\{%-?\s*include\s+["']([^"']+)["']""")
 
 
 def unfilled_project(root, *, with_celery, with_headless, with_metrics=True):
@@ -143,13 +147,24 @@ class CountingDraw:
 
 
 def test_placeholder_sites_are_those_of_the_template():
-    """The hand-written sites are the template's, so the tests below fill what generation fills."""
+    """The hand-written sites are the template's, so the tests below fill what generation fills.
+
+    A deployed environment's env files are stubs that include the shared source for their
+    kind, so their sites are the source's; a stub carrying a placeholder of its own would be
+    filled twice, and fails here.
+    """
     found = {}
     for path in TEMPLATE.rglob("*"):
         if path.is_file() and "__pycache__" not in path.parts:
             names = PLACEHOLDER.findall(path.read_text(errors="ignore"))
             if names:
                 found[path.relative_to(TEMPLATE).as_posix()] = tuple(names)
+    for environment in DEPLOYED_ENVIRONMENTS:
+        for service in ("django", "postgres"):
+            stub = f".envs/.{environment}/.{service}"
+            assert stub not in found, f"{stub} carries a placeholder of its own"
+            [included] = INCLUDE.findall((TEMPLATE / stub).read_text())
+            found[stub] = tuple(PLACEHOLDER.findall((SHARED_SOURCE / included).read_text()))
     assert found == PLACEHOLDER_SITES
 
 
@@ -323,7 +338,7 @@ def test_write_example_dotenv_merges_the_files_and_unsets_the_drawn_values(tmp_p
 
 def test_write_example_dotenv_runs_before_the_secrets_are_filled():
     """Afterwards the placeholders are gone and the example would carry the drawn values."""
-    source = REPO / "{{cookiecutter.project_slug}}" / ".envs" / ".production" / ".django"
+    source = SHARED_SOURCE / "deployed" / "django.env"
     assert "!!!SET DJANGO_SECRET_KEY!!!" in source.read_text(), source
     body = (REPO / "hooks" / "post_gen_project.py").read_text().partition("def main(context):")[2]
     assert body.index("write_example_dotenv(root)") < body.index("fill_secrets(root, context)")

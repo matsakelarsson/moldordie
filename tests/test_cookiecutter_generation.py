@@ -1026,11 +1026,10 @@ def test_docker_compose_files_match_use_docker(bake, context, use_docker):
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_deployed_environments_declare_the_same_variables(bake, context_override):
     """The deployed environments run one settings module, so their env files agree on what
-    they declare and differ only in the values: their own hosts, secrets and Sentry name.
+    they declare and differ only in the values: their own hosts, secrets, and the name each
+    reports as. The env files are generated whatever the answers (docs/adr/0014).
     """
     project = bake(context_override)
-    if not (project.root / ".envs").exists():
-        pytest.skip("the env files are pruned without Docker when the local ones are not kept")
 
     for service in ("django", "postgres"):
         declared = {environment: set(project.env(environment, service)) for environment in DEPLOYED_ENVIRONMENTS}
@@ -1039,12 +1038,27 @@ def test_deployed_environments_declare_the_same_variables(bake, context_override
     for environment in DEPLOYED_ENVIRONMENTS:
         django = project.env(environment, "django")
         assert django["DJANGO_SETTINGS_MODULE"] == "config.settings.production"
-        # Sentry is told which deployment reported, so each environment names itself.
-        if "SENTRY_ENVIRONMENT" in django:
-            assert django["SENTRY_ENVIRONMENT"] == environment
+        # Sentry and the collector are told which deployment reported, so each names itself.
+        for variable in ("SENTRY_ENVIRONMENT", "OTEL_DEPLOYMENT_ENVIRONMENT"):
+            if variable in django:
+                assert django[variable] == environment, variable
 
     hosts = {project.env(environment, "django")["DJANGO_ALLOWED_HOSTS"] for environment in DEPLOYED_ENVIRONMENTS}
     assert len(hosts) == len(DEPLOYED_ENVIRONMENTS), hosts
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_the_shared_source_leaves_no_trace_in_a_generated_project(bake, context_override):
+    """A deployed environment's files are rendered from a shared source outside the project
+    template (docs/adr/0023): the source directory is never generated, and nothing that
+    includes it is left unrendered."""
+    project = bake(context_override)
+
+    assert not (project.root / "templates").exists()
+    for environment in DEPLOYED_ENVIRONMENTS:
+        for service in ("django", "postgres"):
+            text = project.text(f".envs/.{environment}/.{service}")
+            assert "{%" not in text, f"{environment}/{service} was not rendered"
 
 
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
