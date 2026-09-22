@@ -15,24 +15,29 @@ commit that added a deployment variable applied one hunk three times, and two ge
 tests existed only to police the copies, partly: `OTEL_DEPLOYMENT_ENVIRONMENT` differed per
 environment and was asserted nowhere.
 
-A deployed environment's env files are written once, in the **shared source**: the
-`templates` directory at the repository root, which Cookiecutter's loader searches beside
-the project template and never renders as output (Cookiecutter 2.2.0, "templates
-inheritance"; the README states the minimum). The three environments' env files stay in the
+Each kind of file a deployed environment owns is written once, in the **shared source**:
+the `templates` directory at the repository root, which Cookiecutter's loader searches
+beside the project template and never renders as output (Cookiecutter 2.2.0, "templates
+inheritance"; the README states the minimum). The three environments' files stay in the
 project template under their present paths, so the removal rules do not change, and each
 becomes a stub of two statements: it names its environment and includes the source for its
 kind, with Jinja's whitespace control so that the rendered bytes are the source's. What an
 environment differs in is one table in the shared source, `templates/deployed/environments`,
 keyed by the name: the host it answers for (a prefix for `dev` and `test`, the apex for
-production) and whether the apex also answers as `www`, which the routers read once they
-take the same mechanism. Everything else derives from the name: the names Sentry and
-OpenTelemetry report as, the allowed hosts (production keeps its leading-dot form) and the
-commented audience.
+production) and whether the apex also answers as `www`. Everything else derives from the
+name: the names Sentry and OpenTelemetry report as, the allowed hosts (production keeps its
+leading-dot form), the commented audience, the env-file paths, the volume names, the image
+names and Traefik's build argument. The routers take the host from the table, and production's
+apex also answers as `www` when the domain is an apex, which no prefixed host is.
 
 The generated project does not change by a byte. `scripts/compare_generated.py` baked every
 supported combination, plain and hostile, from the commit before and from the working tree:
-all 90 the same. The Compose files and the routers, still three copies each at this
-decision, are the next step on the same mechanism.
+all 90 the same for the env files, then all 96 the same for the Compose files and the
+routers, with three extra rows for the forks no supported combination reaches (Docker with
+an older PostgreSQL, Docker with a subdomain as the domain name, and the subdomain with
+Celery and nginx, which renders every router). ADR 0013 counted a routing change as three
+router files rather than one; in the template it is one now, and the generated tree still
+has three.
 
 ## Considered options
 
@@ -49,11 +54,12 @@ decision, are the next step on the same mechanism.
 
 ## Consequences
 
-A contributor adding a deployment variable writes it once, in `templates/deployed/`, and the
-three environments cannot disagree about it. Adding a deployed environment takes its env-file
+A contributor adding a deployment variable, a service, a volume or a router writes it once,
+in `templates/deployed/`, and the three environments cannot disagree about it; the
+generation tests hold the generated tree to that, as a developer sees it: the three Compose
+files declare the same services and volumes. Adding a deployed environment takes its four
 stubs, a row of the table, its name in the hook's `DEPLOYED_ENVIRONMENTS` and in the tests'
-hand-written tuple, and, until the Compose files and routers follow, a copy of each of those
-with the path of the Compose file in the removal rules. The shared source is Jinja, not dotenv or YAML, so this repository's
+hand-written tuple. The shared source is Jinja, not dotenv or YAML, so this repository's
 pre-commit hooks and ruff leave it alone, as they do the project template: a whitespace
 fixer would change the rendered bytes. The hook tests' check of the placeholder sites reads
 the shared source for the deployed environments' files and fails if a stub carries a

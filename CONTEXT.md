@@ -50,10 +50,11 @@ an environment: `config/settings/test.py` is the settings the generated suite ru
 deployment uses it. No env file is in version control, so what a deployment supplies is declared
 in the **example**, `.env.example`: the production env files merged with every drawn value left
 unset, written by the hook before the secrets are filled (`docs/adr/0014`). In the template, a
-deployed environment's env files are stubs that name their environment and include the **shared
+deployed environment's files are stubs that name their environment and include the **shared
 source** for their kind: the `templates` directory at the repository root, which Cookiecutter
-reads and never renders as output, holding one source per kind of file written there and one
-table of what an environment differs in (`docs/adr/0023`).
+reads and never renders as output, holding one source per kind of file (the Django and Postgres
+env files, the Compose file, the Traefik routers) and one table of what an environment differs
+in (`docs/adr/0023`).
 
 _Avoid_: stage, tier, staging (for `test`); a settings module per deployment; treating the
 example as a file to edit by hand; adding a variable to one environment's stub.
