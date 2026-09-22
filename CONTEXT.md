@@ -110,7 +110,8 @@ every test that bakes them gets the same tree, so no test modifies it: a tool th
 files runs on a copy. The hostile free-text answers are a bake of their own. Under xdist a
 process is a worker: the tests parametrized over the combinations are grouped so that one
 worker runs a combination's, and the hand-written tests bake on the worker that runs them
-(`docs/adr/0002`).
+(`docs/adr/0002`). `scripts/compare_generated.py` bakes outside the tests, a Cookiecutter
+process per project and revision, to compare the trees two revisions generate.
 
 _Avoid_: generating a project per test; result (pytest-cookies' object, which the fixture keeps
 to itself).

@@ -63,7 +63,8 @@ FRONTEND_TOOLCHAIN_TOKENS = [
 ]
 
 # A value the post-generation hook drew: a run of letters and digits longer than any word.
-# Masked before a scan for forbidden words, which a random run could otherwise spell.
+# Masked before a scan for forbidden words, which a random run could otherwise spell, and by
+# scripts/compare_generated.py before it compares two bakes.
 RE_DRAWN_VALUE = re.compile(r"[A-Za-z0-9]{32,}")
 # The frontends this template removed, as no generated file may spell them any more: their
 # names, the component syntax, the filters, settings, attributes and custom properties, the
@@ -142,30 +143,37 @@ def auto_fixable(test):
     return pytest.mark.auto_fixable(pytest.mark.skipif(not AUTOFIXABLE_STYLES, reason="auto-fixable")(test))
 
 
+# The free-text answers the hand-written tests bake with, and the same with the characters
+# that end or escape a string. They are data, not only fixtures, because
+# scripts/compare_generated.py bakes the hostile answers too.
+FREE_TEXT_ANSWERS = {
+    "project_name": "My Test Project",
+    "project_slug": "my_test_project",
+    "author_name": "Test Author",
+    "email": "test@example.com",
+    "description": "A short description of the project.",
+    "domain_name": "example.com",
+    "version": "0.1.0",
+    "timezone": "UTC",
+}
+HOSTILE_ANSWERS = {
+    **FREE_TEXT_ANSWERS,
+    "project_name": 'My "Test" Project\\',
+    "description": 'She said "hi" & <left> C:\\path, it\'s fine.',
+    "author_name": 'Tess "Quoted" O\'Brien',
+    "email": '"Tess O\'Brien"@example.com',
+}
+
+
 @pytest.fixture
 def context():
-    return {
-        "project_name": "My Test Project",
-        "project_slug": "my_test_project",
-        "author_name": "Test Author",
-        "email": "test@example.com",
-        "description": "A short description of the project.",
-        "domain_name": "example.com",
-        "version": "0.1.0",
-        "timezone": "UTC",
-    }
+    return dict(FREE_TEXT_ANSWERS)
 
 
 @pytest.fixture
-def hostile_context(context):
+def hostile_context():
     """The context with free-text answers built from the characters that end or escape a string."""
-    return {
-        **context,
-        "project_name": 'My "Test" Project\\',
-        "description": 'She said "hi" & <left> C:\\path, it\'s fine.',
-        "author_name": 'Tess "Quoted" O\'Brien',
-        "email": '"Tess O\'Brien"@example.com',
-    }
+    return dict(HOSTILE_ANSWERS)
 
 
 @pytest.fixture(scope="session")
@@ -605,7 +613,8 @@ def test_trim_domain_email(bake, context):
 # env files, Compose file and Traefik routers, and all three run config/settings/production.py.
 DEPLOYED_ENVIRONMENTS = ("dev", "test", "production")
 
-# The generated files that hold a secret drawn on each bake, so two bakes never agree on them.
+# The generated files that hold a secret drawn on each bake, so two bakes never agree on them;
+# scripts/compare_generated.py masks the drawn values in these files and in no other.
 SECRET_FILES = {
     ".envs/.local/.django",
     ".envs/.local/.postgres",

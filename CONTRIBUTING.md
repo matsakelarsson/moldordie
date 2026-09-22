@@ -57,6 +57,22 @@ All arguments to these scripts will be passed to the `cookiecutter` CLI, letting
 $ sh tests/test_bare.sh use_celery=y
 ```
 
+### Compare what two revisions generate
+
+A change that rearranges the template without meaning to change the generated projects (moving text into a shared source, renaming a Jinja variable, reordering a fork) is proved by comparing the output, not by reading the diff of the template:
+
+```bash
+$ uv run scripts/compare_generated.py
+```
+
+It bakes every supported combination of the generation tests from `main` (or `--base <revision>`) and from your working tree as it stands, with the default and with the hostile free-text answers, masks the values drawn on generation, and lists every file that differs, is missing, is new or changed its executable bit, with a unified diff. It exits non-zero if anything differs or a bake fails. A fork that no supported combination reaches is compared by passing the answers that reach it, one quoted group per row:
+
+```bash
+$ uv run scripts/compare_generated.py "use_docker=y postgresql_version=14"
+```
+
+Run it before each commit of such a change and put the command and its result in the pull request. What it proves is narrow: the rows it baked generate the same trees from both revisions. It says nothing about a row it did not bake. It takes about a minute, because it bakes every row twice, so it is not part of the test suite or of CI.
+
 ## Submitting a pull request
 
 Once you're happy with your changes and they look ok locally, push and send [a pull request][submit-a-pr] to the main repo, which will trigger the tests on GitHub actions. If they fail, try to fix them. A maintainer should take a look at your change and give you feedback or merge it.
