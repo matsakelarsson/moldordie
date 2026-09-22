@@ -11,8 +11,10 @@ import pytest
 from hooks.post_gen_project import AGENT_FILES
 from hooks.post_gen_project import AGENT_GUIDE
 from hooks.post_gen_project import ALPHANUMERIC
+from hooks.post_gen_project import DEPLOYED_ENVIRONMENTS as HOOK_DEPLOYED_ENVIRONMENTS
 from hooks.post_gen_project import REMOVALS
 from hooks.post_gen_project import SECRETS
+from hooks.post_gen_project import env_file
 from hooks.post_gen_project import fill_secrets
 from hooks.post_gen_project import place_agent_guide
 from hooks.post_gen_project import prune
@@ -49,37 +51,28 @@ ENVIRONMENTS = ("local", *DEPLOYED_ENVIRONMENTS)
 # The placeholder sites of the template by file, in file order, as rendered with Celery,
 # with Django Ninja and an identity provider, and with metrics; the Flower ones are not
 # rendered without Celery, the headless key without Ninja and a provider, and the metrics
-# token without django-prometheus.
+# token without django-prometheus. The deployed environments' env files are alike, so their
+# sites are stated once and expanded over the tuple above.
+DEPLOYED_DJANGO_SITES = (
+    "DJANGO_SECRET_KEY",
+    "DJANGO_ADMIN_URL",
+    "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+    "DJANGO_METRICS_TOKEN",
+    "CELERY_FLOWER_USER",
+    "CELERY_FLOWER_PASSWORD",
+)
+POSTGRES_SITES = ("POSTGRES_USER", "POSTGRES_PASSWORD")
 PLACEHOLDER_SITES = {
     ".envs/.local/.django": ("CELERY_FLOWER_USER", "CELERY_FLOWER_PASSWORD"),
-    ".envs/.local/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
-    ".envs/.dev/.django": (
-        "DJANGO_SECRET_KEY",
-        "DJANGO_ADMIN_URL",
-        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
-        "DJANGO_METRICS_TOKEN",
-        "CELERY_FLOWER_USER",
-        "CELERY_FLOWER_PASSWORD",
-    ),
-    ".envs/.dev/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
-    ".envs/.test/.django": (
-        "DJANGO_SECRET_KEY",
-        "DJANGO_ADMIN_URL",
-        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
-        "DJANGO_METRICS_TOKEN",
-        "CELERY_FLOWER_USER",
-        "CELERY_FLOWER_PASSWORD",
-    ),
-    ".envs/.test/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
-    ".envs/.production/.django": (
-        "DJANGO_SECRET_KEY",
-        "DJANGO_ADMIN_URL",
-        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
-        "DJANGO_METRICS_TOKEN",
-        "CELERY_FLOWER_USER",
-        "CELERY_FLOWER_PASSWORD",
-    ),
-    ".envs/.production/.postgres": ("POSTGRES_USER", "POSTGRES_PASSWORD"),
+    ".envs/.local/.postgres": POSTGRES_SITES,
+    **{
+        file: sites
+        for environment in DEPLOYED_ENVIRONMENTS
+        for file, sites in (
+            (f".envs/.{environment}/.django", DEPLOYED_DJANGO_SITES),
+            (f".envs/.{environment}/.postgres", POSTGRES_SITES),
+        )
+    },
     "config/settings/local.py": ("DJANGO_SECRET_KEY", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
     "config/settings/test.py": ("DJANGO_SECRET_KEY", "DJANGO_HEADLESS_JWT_PRIVATE_KEY"),
 }
@@ -165,6 +158,13 @@ def test_secrets_fill_every_placeholder_site_once():
     listed = [(file, secret.placeholder) for secret in SECRETS for file in secret.files]
     assert len(listed) == len(set(listed))
     assert set(listed) == {(file, name) for file, names in PLACEHOLDER_SITES.items() for name in names}
+
+
+def test_the_hook_names_the_deployed_environments_in_promotion_order():
+    """The hook derives the deployed env files from the names, so they and the tests' own tuple agree."""
+    assert HOOK_DEPLOYED_ENVIRONMENTS == DEPLOYED_ENVIRONMENTS
+    assert env_file("dev", "django") == ".envs/.dev/.django"
+    assert env_file("production", "postgres") == ".envs/.production/.postgres"
 
 
 def test_fill_secrets_draws_each_value_once(tmp_path):

@@ -55,7 +55,9 @@ example as a file to edit by hand.
 One row of `SECRETS` in `hooks/post_gen_project.py`: a value drawn once when the project is generated,
 the placeholder (`!!!SET NAME!!!` in a template file) it replaces, and the files it is written to. A
 value the environments share is one row naming every file it goes to; the same placeholder in several
-rows is drawn afresh for each, so nothing else is shared. The row also says whether `debug` replaces the value
+rows is drawn afresh for each, so nothing else is shared. A value each deployed environment draws for
+itself is declared once, through `per_deployed_environment`, and is one row per deployed environment in
+the table `fill_secrets` reads. The row also says whether `debug` replaces the value
 with `debug` (the credentials, not the keys) and, for a placeholder the template renders only for some
 answers, the condition. `fill_secrets(root, context)` writes them before pruning; a file or placeholder
 it cannot find is an error.
