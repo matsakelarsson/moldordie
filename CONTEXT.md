@@ -13,9 +13,13 @@ pre-generation hook lowercases all of them before any file is rendered and rejec
 reaches the generated files through escaping. The **catalogue**, `OPTIONS` in `local_extensions.py`, reads
 `cookiecutter.json` and tells each option's kind from its declaration alone: a list of choices, a `y`/`n`
 default, or any other text. The tests import it; the hooks, which run as standalone scripts, receive the
-names by kind through the `option_names` Jinja global. The answers to all options together are the **context**,
-which each hook receives once, as JSON, at its entry point, so a free-text answer cannot break the
-hook's source.
+names by kind through the `option_names` Jinja global. A **derived answer** is a name that follows
+from the answers and is not one: `headless` (Django Ninja with an identity provider) and
+`service_tokens` (a provider whose tokens something reads), computed as booleans by `derived_answers`
+in `local_extensions.py` and bound by the pre-generation hook before any file renders; never
+prompted, not in the catalogue, absent from the replay file (`docs/adr/0022`). The answers to all
+options together, with the derived answers, are the **context**, which each hook receives once, as
+JSON, at its entry point, so a free-text answer cannot break the hook's source.
 
 _Avoid_: variable, setting, feature flag.
 
@@ -111,8 +115,8 @@ _Avoid_: instructions file, CLAUDE.md or AGENTS.md (one agent's name for it), ru
 
 Generating one project in the tests from a complete set of answers, through the `bake` fixture
 in `tests/test_cookiecutter_generation.py`, which returns the reader. The **complete answers**, the
-catalogue's defaults filling in what the test leaves out (`complete_answers` in
-`tests/answers.py`), are baked once per test process, and
+catalogue's defaults filling in what the test leaves out and the derived answers bound on top
+(`complete_answers` in `tests/answers.py`), are baked once per test process, and
 every test that bakes them gets the same tree, so no test modifies it: a tool that rewrites
 files runs on a copy. The hostile free-text answers are a bake of their own. Under xdist a
 process is a worker: the tests parametrized over the combinations are grouped so that one

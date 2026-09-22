@@ -1,11 +1,13 @@
-"""The option catalogue and the Jinja filter of the template.
+"""The option catalogue, the derived answers and the Jinja filter of the template.
 
 Cookiecutter loads ``OptionsExtension`` and ``StringEscapeExtension`` through ``_extensions`` in
-``cookiecutter.json``. The catalogue is importable by the tests; the hooks, which run as standalone
-scripts, read it through the ``option_names`` Jinja global that ``OptionsExtension`` registers.
+``cookiecutter.json``. The catalogue and the derivation are importable by the tests; the hooks,
+which run as standalone scripts, reach them through the ``option_names`` and ``derived_answers``
+Jinja globals that ``OptionsExtension`` registers.
 """
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +15,9 @@ from jinja2 import Environment
 from jinja2.ext import Extension
 
 OPTIONS_PATH = Path(__file__).with_name("cookiecutter.json")
+
+# The context (see Option in CONTEXT.md): the answers, and the derived answers once bound
+Context = Mapping[str, str | bool]
 
 # The kinds of option (see Option in CONTEXT.md), as the declarations in cookiecutter.json
 # show them: a list of choices, a yes/no default, or any other text.
@@ -57,12 +62,29 @@ def option_names(*kinds: str) -> tuple[str, ...]:
     return tuple(option.name for option in OPTIONS.values() if option.kind in kinds)
 
 
+def derived_answers(answers: Context) -> dict[str, bool]:
+    """The derived answers (see Option in CONTEXT.md): what follows from ``answers``, as booleans.
+
+    ``headless`` is Django Ninja with an identity provider, when allauth's headless login, the
+    app-issued tokens and the frontend contract are generated. ``service_tokens`` is a provider
+    whose tokens something reads, Django Ninja's routes or the metrics endpoint, when the
+    verifier and the service registrations are generated (docs/adr/0019). The pre-generation
+    hook binds them into the context before any file renders (docs/adr/0022).
+    """
+    provider = answers["identity_provider"] != "none"
+    headless = provider and answers["rest_api"] == "Django Ninja"
+    service_tokens = headless or (provider and answers["observability"] == "prometheus")
+    return {"headless": headless, "service_tokens": service_tokens}
+
+
 class OptionsExtension(Extension):
-    """Register ``option_names`` in the Jinja environment Cookiecutter renders the files and hooks with."""
+    """Register ``option_names`` and ``derived_answers`` in the Jinja environment Cookiecutter
+    renders the files and hooks with."""
 
     def __init__(self, environment: Environment) -> None:
         super().__init__(environment)
         environment.globals["option_names"] = option_names
+        environment.globals["derived_answers"] = derived_answers
 
 
 def string_escape(value: str, quote: str = '"') -> str:

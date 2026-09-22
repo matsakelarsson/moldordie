@@ -201,7 +201,7 @@ def bake(cookies_session):
     worker; the tests that share a combination's bake are grouped onto one worker
     (``GROUPED_COMBINATIONS``), the hand-written tests bake on whichever worker runs them.
     """
-    projects: dict[tuple[tuple[str, str], ...], GeneratedProject] = {}
+    projects: dict[tuple[tuple[str, str | bool], ...], GeneratedProject] = {}
 
     def bake(answers: dict[str, str]) -> GeneratedProject:
         key = tuple(sorted(complete_answers(answers).items()))

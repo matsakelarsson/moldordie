@@ -14,7 +14,9 @@ from itertools import combinations
 from itertools import product
 from pathlib import PurePosixPath
 
-Answers = Mapping[str, str]
+from local_extensions import Context
+
+Answers = Context
 Rule = tuple[Callable[[Answers], bool], Sequence[str]]
 
 # How many answers the search for a missing row may change. Three is what the nginx image
@@ -62,7 +64,7 @@ def coverage_gaps(kept: Mapping[str, bool], exemptions: Mapping[str, str]) -> tu
 def fewest_answers_keeping(
     path: str,
     rules: Sequence[Rule],
-    complete: Callable[[dict[str, str]], Answers],
+    complete: Callable[[Mapping[str, str]], Answers],
     choices: Mapping[str, Sequence[str]],
     supported: Callable[[Answers], bool] = lambda answers: True,
 ) -> dict[str, str] | None:

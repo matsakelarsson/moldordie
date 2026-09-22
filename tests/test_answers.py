@@ -2,15 +2,19 @@
 
 import pytest
 
+from local_extensions import derived_answers
 from tests.answers import DEFAULT_ANSWERS
 from tests.answers import complete_answers
 from tests.answers import parse_answers
 from tests.answers import unknown_answers
 
+# What generation adds to the defaults: none of the derived answers holds for them
+DERIVED_FOR_THE_DEFAULTS = {"headless": False, "service_tokens": False}
+
 
 def test_a_row_is_completed_by_the_defaults():
-    assert complete_answers() == complete_answers({}) == DEFAULT_ANSWERS
-    assert complete_answers({"use_docker": "y"}) == {**DEFAULT_ANSWERS, "use_docker": "y"}
+    assert complete_answers() == complete_answers({}) == {**DEFAULT_ANSWERS, **DERIVED_FOR_THE_DEFAULTS}
+    assert complete_answers({"use_docker": "y"}) == {**DEFAULT_ANSWERS, "use_docker": "y", **DERIVED_FOR_THE_DEFAULTS}
 
 
 def test_a_later_layer_answers_over_an_earlier_one():
@@ -19,7 +23,9 @@ def test_a_later_layer_answers_over_an_earlier_one():
     earlier = {"use_docker": "y", "ci_tool": "Gitlab"}
     later = {"ci_tool": "Github"}
 
-    assert complete_answers(earlier, later) == {**DEFAULT_ANSWERS, "use_docker": "y", "ci_tool": "Github"}
+    complete = complete_answers(earlier, later)
+
+    assert complete == {**DEFAULT_ANSWERS, "use_docker": "y", "ci_tool": "Github", **DERIVED_FOR_THE_DEFAULTS}
     assert earlier == {"use_docker": "y", "ci_tool": "Gitlab"}
 
 
@@ -41,3 +47,15 @@ def test_answers_the_catalogue_does_not_have_are_named():
     answers = {"use_dokcer": "y", "use_docker": "yes", "rest_api": "DRF", "timezone": "Mars/Olympus"}
 
     assert unknown_answers(answers) == ["'use_dokcer' is not an option", "'yes' is not a choice of use_docker"]
+
+
+def test_a_row_is_completed_with_the_derived_answers_as_generation_completes_it():
+    """The pre-generation hook binds the derived answers after the defaults and the row, so a
+    context in a test is a context the hook could really receive."""
+    row = {"identity_provider": "entra", "rest_api": "Django Ninja"}
+
+    complete = complete_answers(row)
+
+    assert {name: complete[name] for name in derived_answers(complete)} == derived_answers({**DEFAULT_ANSWERS, **row})
+    assert complete["headless"] is True
+    assert set(complete) == set(DEFAULT_ANSWERS) | {"headless", "service_tokens"}
