@@ -12,15 +12,20 @@ import yaml
 from binaryornot.check import is_binary
 from cookiecutter.exceptions import FailedHookException
 
+from hooks.post_gen_project import REMOVALS
 from local_extensions import FLAG
 from local_extensions import LIST
 from local_extensions import OPTIONS
 from local_extensions import option_names
+from tests.answers import complete_answers
 from tests.generated_project import NO_DEFAULT
 from tests.generated_project import EnvRead
 from tests.generated_project import Expression
 from tests.generated_project import GeneratedProject
 from tests.generated_project import PythonModule
+from tests.removal_coverage import MOST_CHANGED_ANSWERS
+from tests.removal_coverage import fewest_answers_keeping
+from tests.removal_coverage import paths_kept
 
 PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
@@ -193,7 +198,7 @@ def bake(cookies_session):
     projects: dict[tuple[tuple[str, str], ...], GeneratedProject] = {}
 
     def bake(answers: dict[str, str]) -> GeneratedProject:
-        key = tuple(sorted({**DEFAULT_ANSWERS, **answers}.items()))
+        key = tuple(sorted(complete_answers(answers).items()))
         if key not in projects:
             result = cookies_session.bake(extra_context=answers)
             assert result.exception is None
@@ -217,14 +222,17 @@ HEADLESS_COMBINATIONS = [
     {"identity_provider": "google", "rest_api": "Django Ninja"},
 ]
 
-# Answers that only show their effect together, baked on top of the derived rows below:
-# cloud_provider and use_whitenoise decide the storage backends between them (and None
-# with WhiteNoise off is rejected, so no single-answer row can reach cloud_provider=None),
-# Channels has its own wiring in the Docker and Celery files, a mail catcher's host
-# is the Compose service with Docker, and an identity provider's headless login exists
-# with Django Ninja only. mail_service shares no conditional with cloud_provider anywhere
-# in the template, so the two need no cross product: Amazon SES bakes on the default
-# cloud_provider=AWS, the only one it supports.
+# Answers that only show their effect together, baked on top of the derived rows below. A
+# file that exists only for such answers demands its row by itself:
+# ``test_every_removable_path_is_baked`` fails for a path the removal rules list and no row
+# keeps, and names the row. A fork inside a file that some row keeps anyway is still a matter
+# of remembering it, and these are the ones remembered: cloud_provider and use_whitenoise
+# decide the storage backends between them (and None with WhiteNoise off is rejected, so no
+# single-answer row can reach cloud_provider=None), Channels has its own wiring in the Docker
+# and Celery files, a mail catcher's host is the Compose service with Docker, and an identity
+# provider's headless login exists with Django Ninja only. mail_service shares no conditional
+# with cloud_provider anywhere in the template, so the two need no cross product: Amazon SES
+# bakes on the default cloud_provider=AWS, the only one it supports.
 PAIRED_COMBINATIONS = [
     {"cloud_provider": "AWS", "use_whitenoise": "y"},
     {"cloud_provider": "None", "use_whitenoise": "y"},
@@ -255,6 +263,10 @@ PAIRED_COMBINATIONS = [
         "observability": "prometheus",
         "identity_provider": "entra",
     },
+    # The development Prometheus receiver, compose/local/prometheus, and the service that
+    # mounts it are generated only here: the receiver goes unless Prometheus is chosen, and
+    # the whole compose directory goes without Docker.
+    {"observability": "prometheus", "use_docker": "y"},
     # A provider and the metrics endpoint without Django Ninja: a scrape is then the only
     # caller presenting a token the provider issued, so the verifier is generated for it
     # alone, and Google's arm of the app has no check of its own to keep.
@@ -262,13 +274,11 @@ PAIRED_COMBINATIONS = [
     {"identity_provider": "entra", "rest_api": "Django Ninja", "observability": "prometheus"},
 ]
 
-DEFAULT_ANSWERS = {name: option.default for name, option in OPTIONS.items()}
-
 
 def rejected(answers):
     """Would the pre-generation hook refuse ``answers`` once the defaults fill in the rest?"""
-    effective = {**DEFAULT_ANSWERS, **answers}
-    return any(all(effective[name] == value for name, value in pair.items()) for pair in UNSUPPORTED_COMBINATIONS)
+    complete = complete_answers(answers)
+    return any(all(complete[name] == value for name, value in pair.items()) for pair in UNSUPPORTED_COMBINATIONS)
 
 
 def supported_combinations():
@@ -280,10 +290,10 @@ def supported_combinations():
     seen = set()
     unique = []
     for row in rows:
-        effective = tuple(sorted({**DEFAULT_ANSWERS, **row}.items()))
-        if rejected(row) or effective in seen:
+        complete = tuple(sorted(complete_answers(row).items()))
+        if rejected(row) or complete in seen:
             continue
-        seen.add(effective)
+        seen.add(complete)
         unique.append(row)
     return unique
 
@@ -318,7 +328,7 @@ GROUPED_COMBINATIONS = [
 GUIDE_COMBINATIONS = [
     param
     for param, row in zip(GROUPED_COMBINATIONS, SUPPORTED_COMBINATIONS, strict=True)
-    if {**DEFAULT_ANSWERS, **row}["coding_agent"] != "none"
+    if complete_answers(row)["coding_agent"] != "none"
 ]
 
 
@@ -364,9 +374,36 @@ def test_every_choice_is_baked():
         (name, choice)
         for name, option in OPTIONS.items()
         for choice in option.choices
-        if not any({**DEFAULT_ANSWERS, **row}[name] == choice for row in SUPPORTED_COMBINATIONS)
+        if not any(complete_answers(row)[name] == choice for row in SUPPORTED_COMBINATIONS)
     ]
     assert unbaked == []
+
+
+def test_every_removable_path_is_baked():
+    """A path the removal rules list and no supported combination keeps is one that no check
+    running over the matrix has ever read. The rules know which answers only show their effect
+    together, so a new rule demands its row here, and the failure says which row.
+
+    File-level: whether every conditional inside a kept file is rendered is not checked (docs/adr/0021).
+    """
+    rows = [complete_answers(row) for row in SUPPORTED_COMBINATIONS]
+    unbaked = [path for path, kept in paths_kept(REMOVALS, rows).items() if not kept]
+
+    choices = {name: OPTIONS[name].choices for name in option_names(LIST, FLAG)}
+    missing = {
+        path: fewest_answers_keeping(
+            path,
+            REMOVALS,
+            complete_answers,
+            choices,
+            supported=lambda answers: not rejected(answers),
+        )
+        for path in unbaked
+    }
+    unknown = f"none of up to {MOST_CHANGED_ANSWERS} answers, so read the rules that list it"
+    assert not missing, "no supported combination keeps these paths; the row that would keep each:\n" + "\n".join(
+        f"  {path}: {row if row is not None else unknown}" for path, row in missing.items()
+    )
 
 
 def test_combinations_name_options_of_the_catalogue():
@@ -2082,7 +2119,7 @@ def test_agent_guide_is_placed_where_the_chosen_agent_reads_it(bake, context_ove
     """One guide, under the name its agent reads, and no file for any other agent."""
     project = bake(context_override)
 
-    expected = AGENT_FILES[{**DEFAULT_ANSWERS, **context_override}["coding_agent"]]
+    expected = AGENT_FILES[complete_answers(context_override)["coding_agent"]]
     for file in {file for file in AGENT_FILES.values() if file is not None}:
         assert (project.root / file).exists() is (file == expected), file
 
@@ -2090,7 +2127,7 @@ def test_agent_guide_is_placed_where_the_chosen_agent_reads_it(bake, context_ove
 @pytest.mark.parametrize("context_override", GUIDE_COMBINATIONS)
 def test_agent_guide_records_the_answers_the_project_was_generated_from(bake, context_override):
     """The choices table holds every list and flag option, with the answer as given."""
-    answers = {**DEFAULT_ANSWERS, **context_override}
+    answers = complete_answers(context_override)
     guide = agent_guide(bake(context_override), answers)
 
     recorded = guide_rows(guide, "Generation choices")
@@ -2103,7 +2140,7 @@ def test_agent_guide_records_the_answers_the_project_was_generated_from(bake, co
 def test_agent_guide_lays_out_the_tree_that_was_generated(bake, context_override):
     """Every path the layout table names is in the project, whatever the answers pruned."""
     project = bake(context_override)
-    guide = agent_guide(project, {**DEFAULT_ANSWERS, **context_override})
+    guide = agent_guide(project, complete_answers(context_override))
 
     paths = guide_rows(guide, "Layout")
     assert paths

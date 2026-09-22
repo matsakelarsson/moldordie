@@ -21,6 +21,8 @@ from hooks.post_gen_project import remove_channels_tests
 from hooks.post_gen_project import write_example_dotenv
 from local_extensions import FREE_TEXT
 from local_extensions import OPTIONS
+from tests.answers import complete_answers
+from tests.removal_coverage import removed_paths
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATE = REPO / "{{cookiecutter.project_slug}}"
@@ -28,9 +30,10 @@ SLUG_PLACEHOLDER = "{{cookiecutter.project_slug}}"
 PROJECT_SLUG = "my_test_project"
 
 
-def default_context():
-    """The answers ``cookiecutter --no-input`` uses, with the project slug rendered."""
-    return {**{name: option.default for name, option in OPTIONS.items()}, "project_slug": PROJECT_SLUG}
+def context_of(*layers):
+    """The context the hook receives for ``layers`` of answers on top of the defaults: what
+    ``cookiecutter --no-input`` uses, with the project slug rendered."""
+    return complete_answers({"project_slug": PROJECT_SLUG}, *layers)
 
 
 # ``fill_secrets`` on hand-written placeholder files, through a generator the tests control.
@@ -170,7 +173,7 @@ def test_fill_secrets_draws_each_value_once(tmp_path):
     draw = CountingDraw()
     fill_secrets(
         tmp_path,
-        {**default_context(), "use_celery": "y", **HEADLESS_ANSWERS, **METRICS_ANSWERS},
+        context_of({"use_celery": "y"}, HEADLESS_ANSWERS, METRICS_ANSWERS),
         draw=draw,
     )
     values = site_values(tmp_path)
@@ -187,7 +190,7 @@ def test_fill_secrets_debug_fixes_the_credentials(tmp_path):
     draw = CountingDraw()
     fill_secrets(
         tmp_path,
-        {**default_context(), "use_celery": "y", "debug": "y", **HEADLESS_ANSWERS, **METRICS_ANSWERS},
+        context_of({"use_celery": "y", "debug": "y"}, HEADLESS_ANSWERS, METRICS_ANSWERS),
         draw=draw,
     )
     values = site_values(tmp_path)
@@ -202,7 +205,7 @@ def test_fill_secrets_skips_the_flower_rows_without_celery(tmp_path):
     draw = CountingDraw()
     fill_secrets(
         tmp_path,
-        {**default_context(), "use_celery": "n", **HEADLESS_ANSWERS, **METRICS_ANSWERS},
+        context_of({"use_celery": "n"}, HEADLESS_ANSWERS, METRICS_ANSWERS),
         draw=draw,
     )
     values = site_values(tmp_path)
@@ -224,7 +227,7 @@ def test_fill_secrets_skips_the_headless_key_without_ninja_and_a_provider(tmp_pa
     """Only Django Ninja with a provider renders the key allauth signs the app's tokens with."""
     unfilled_project(tmp_path, with_celery=True, with_headless=False)
     draw = CountingDraw()
-    fill_secrets(tmp_path, {**default_context(), "use_celery": "y", **answers, **METRICS_ANSWERS}, draw=draw)
+    fill_secrets(tmp_path, context_of({"use_celery": "y"}, answers, METRICS_ANSWERS), draw=draw)
     values = site_values(tmp_path)
     assert not any(name in HEADLESS_PLACEHOLDERS for _, name in values)
     assert not any("!!!SET" in value for value in values.values())
@@ -235,14 +238,14 @@ def test_fill_secrets_fails_on_a_missing_file(tmp_path):
     unfilled_project(tmp_path, with_celery=True, with_headless=False)
     (tmp_path / "config" / "settings" / "test.py").unlink()
     with pytest.raises(FileNotFoundError):
-        fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=CountingDraw())
+        fill_secrets(tmp_path, context_of({"use_celery": "y"}), draw=CountingDraw())
 
 
 def test_fill_secrets_fails_on_a_missing_placeholder(tmp_path):
     """A row for a placeholder the template did not render is an error, not a silent no-op."""
     unfilled_project(tmp_path, with_celery=False, with_headless=False)
     with pytest.raises(ValueError, match="CELERY_FLOWER_USER"):
-        fill_secrets(tmp_path, {**default_context(), "use_celery": "y"}, draw=CountingDraw())
+        fill_secrets(tmp_path, context_of({"use_celery": "y"}), draw=CountingDraw())
 
 
 def test_random_string():
@@ -367,7 +370,7 @@ def assert_prunes(root, expected_targets, **answers):
     before = listing(root)
     missing = {Path(target) for target in expected_targets} - before
     assert not missing, f"expected targets are not in the template: {sorted(map(str, missing))}"
-    prune({**default_context(), **answers}, root)
+    prune(context_of(answers), root)
     assert before - listing(root) == below(before, expected_targets)
 
 
@@ -473,7 +476,7 @@ def test_prune_with_the_default_answers(unpruned_project):
 def test_prune_fails_on_a_missing_target(unpruned_project):
     (unpruned_project / "COPYING").unlink()
     with pytest.raises(FileNotFoundError):
-        prune(default_context(), unpruned_project)
+        prune(context_of(), unpruned_project)
 
 
 @pytest.mark.parametrize(
@@ -717,12 +720,7 @@ def removal_contexts():
 
 def removal_targets(context):
     """The paths the removal rules delete for ``context``, one entry per listing."""
-    return [
-        PurePosixPath(path.format(project_slug=PROJECT_SLUG))
-        for applies, paths in REMOVALS
-        if applies(context)
-        for path in paths
-    ]
+    return [PurePosixPath(path.format(project_slug=PROJECT_SLUG)) for path in removed_paths(REMOVALS, context)]
 
 
 def test_removal_rules_delete_each_path_at_most_once():
@@ -772,7 +770,7 @@ def test_agent_files_name_a_file_for_every_agent():
 
 @pytest.mark.parametrize("coding_agent", list(AGENT_FILES))
 def test_place_agent_guide_leaves_the_guide_where_its_agent_reads_it(generated_guide, coding_agent):
-    place_agent_guide({**default_context(), "coding_agent": coding_agent}, generated_guide)
+    place_agent_guide(context_of({"coding_agent": coding_agent}), generated_guide)
 
     target = AGENT_FILES[coding_agent]
     assert (generated_guide / target).read_text() == GUIDE_TEXT
@@ -785,14 +783,14 @@ def test_place_agent_guide_creates_the_directory_its_agent_reads_from(generated_
     """Without GitHub Actions the answers dropped ``.github``, which Copilot's guide still needs."""
     assert not (generated_guide / ".github").exists()
 
-    place_agent_guide({**default_context(), "coding_agent": "copilot"}, generated_guide)
+    place_agent_guide(context_of({"coding_agent": "copilot"}), generated_guide)
 
     assert (generated_guide / ".github" / "copilot-instructions.md").read_text() == GUIDE_TEXT
 
 
 def test_place_agent_guide_moves_nothing_without_an_agent(tmp_path):
     """The removal rule deleted the guide, so there is nothing left to place."""
-    place_agent_guide({**default_context(), "coding_agent": "none"}, tmp_path)
+    place_agent_guide(context_of({"coding_agent": "none"}), tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
