@@ -16,7 +16,7 @@ from rest_framework.request import Request
 
 if TYPE_CHECKING:
     from django_htmx.middleware import HtmxDetails
-{% if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{% if cookiecutter.headless %}
     from {{ cookiecutter.project_slug }}.identity.models import ServiceRegistration
 {%- endif %}
     from {{ cookiecutter.project_slug }}.users.models import User
@@ -41,7 +41,7 @@ class HtmxHttpRequest(HttpRequest):
 
 class AuthenticatedHtmxRequest(AuthenticatedHttpRequest, HtmxHttpRequest):
     """Request that is both authenticated and annotated by ``HtmxMiddleware``."""
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 
 
 class PrincipalHttpRequest(HttpRequest):

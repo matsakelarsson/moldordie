@@ -17,7 +17,8 @@ names by kind through the `option_names` Jinja global. A **derived answer** is a
 from the answers and is not one: `headless` (Django Ninja with an identity provider) and
 `service_tokens` (a provider whose tokens something reads), computed as booleans by `derived_answers`
 in `local_extensions.py` and bound by the pre-generation hook before any file renders; never
-prompted, not in the catalogue, absent from the replay file (`docs/adr/0022`). The answers to all
+prompted, not in the catalogue, absent from the replay file, and read by name wherever a template
+or the post-generation hook needs the concept (`docs/adr/0022`). The answers to all
 options together, with the derived answers, are the **context**, which each hook receives once, as
 JSON, at its entry point, so a free-text answer cannot break the hook's source.
 

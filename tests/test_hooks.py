@@ -23,6 +23,7 @@ from hooks.post_gen_project import remove_channels_tests
 from hooks.post_gen_project import write_example_dotenv
 from local_extensions import FREE_TEXT
 from local_extensions import OPTIONS
+from local_extensions import derived_answers
 from tests.answers import complete_answers
 from tests.removal_coverage import removed_paths
 
@@ -678,8 +679,10 @@ def test_prune_machine_authentication(unpruned_project, rest_api, identity_provi
 # template, not that the rules are right: the behaviour tests above cover that for
 # representative answers.
 
-# The answers the removal rules read. Reading any other answer fails the guard below, because
-# the rules would then not be checked over that answer's values.
+# The answers the removal rules read, and the derived answers computed from them for every
+# combination. Reading any other answer fails the guard below, because the rules would then
+# not be checked over that answer's values.
+DERIVED = ("headless", "service_tokens")
 REMOVAL_OPTIONS = (
     "open_source_license",
     "username_type",
@@ -706,7 +709,7 @@ class RemovalContext(dict):
         return super().__getitem__(key)
 
     def __missing__(self, key):
-        msg = f"the removal rules read {key!r}, which is not in REMOVAL_OPTIONS"
+        msg = f"the removal rules read {key!r}, which is neither in REMOVAL_OPTIONS nor derived"
         raise AssertionError(msg)
 
     def get(self, key, default=None):
@@ -727,10 +730,12 @@ def option_domains():
 
 
 def removal_contexts():
-    """A guarded context for every combination of the removal-relevant answers."""
+    """A guarded context for every combination of the removal-relevant answers, with the derived
+    answers computed for each as the pre-generation hook computes them."""
     domains = option_domains()
     for values in product(*domains.values()):
-        yield RemovalContext(zip(domains, values, strict=True))
+        answers = dict(zip(domains, values, strict=True))
+        yield RemovalContext({**answers, **derived_answers(answers)})
 
 
 def removal_targets(context):
@@ -745,7 +750,7 @@ def test_removal_rules_delete_each_path_at_most_once():
     for context in removal_contexts():
         applying = tuple(applies(context) for applies, _ in REMOVALS)
         contexts_by_applying_rules.setdefault(applying, context)
-    assert RemovalContext.accessed == set(REMOVAL_OPTIONS)
+    assert RemovalContext.accessed == set(REMOVAL_OPTIONS) | set(DERIVED)
     for context in contexts_by_applying_rules.values():
         targets = removal_targets(context)
         target_set = set(targets)

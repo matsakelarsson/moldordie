@@ -64,11 +64,11 @@ already there.
 - Sign-in through Google next to password login, over allauth's Google provider
   (`docs/authentication.rst`)
 {%- endif %}
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 - `{{ cookiecutter.project_slug }}/identity/`: allauth's headless API issuing the
   single-page application's JWTs, the verification of provider-issued service tokens, and
   the Ninja authentication policies every route runs under
-{%- elif cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
+{%- elif cookiecutter.service_tokens %}
 - `{{ cookiecutter.project_slug }}/identity/`: the verification of provider-issued service
   tokens and the registrations they resolve to, read by the metrics endpoint
 {%- endif %}
@@ -199,9 +199,9 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `config/gunicorn.py` | Gunicorn's configuration: the hook a worker starts its exporters from |
 {%- endif %}
 | `{{ cookiecutter.project_slug }}/users/` | The custom user model, its forms, views, adapters and tests |
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 | `{{ cookiecutter.project_slug }}/identity/` | The app's own tokens, service tokens and the authentication policies |
-{%- elif cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
+{%- elif cookiecutter.service_tokens %}
 | `{{ cookiecutter.project_slug }}/identity/` | Service tokens and the registrations that say what a calling service may do |
 {%- endif %}
 {%- if cookiecutter.use_sentry == 'y' %}

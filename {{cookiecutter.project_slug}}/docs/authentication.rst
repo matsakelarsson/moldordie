@@ -1,8 +1,8 @@
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 {%- set provider = 'Microsoft Entra ID' if entra else 'Google' -%}
-{%- set headless = cookiecutter.rest_api == 'Django Ninja' -%}
+{%- set headless = cookiecutter.headless -%}
 {%- set metrics = cookiecutter.observability == 'prometheus' -%}
-{%- set service_tokens = headless or metrics -%}
+{%- set service_tokens = cookiecutter.service_tokens -%}
 {#- Where a calling service's token is read, for the examples that present one. #}
 {%- set probe = '/api/principal/' if headless else '/metrics' -%}
 .. _authentication:

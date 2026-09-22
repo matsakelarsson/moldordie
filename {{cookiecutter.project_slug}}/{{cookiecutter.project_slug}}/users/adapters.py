@@ -3,12 +3,12 @@ from __future__ import annotations
 import typing
 
 from allauth.account.adapter import DefaultAccountAdapter
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 from allauth.core import context
 {%- endif %}
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 
 from {{cookiecutter.project_slug}}.identity.frontend import frontend_origins
 from {{cookiecutter.project_slug}}.identity.frontend import origin
@@ -32,7 +32,7 @@ if typing.TYPE_CHECKING:
 class AccountAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request: HttpRequest) -> bool:
         return bool(settings.ACCOUNT_ALLOW_REGISTRATION)
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 
     def is_safe_url(self, url: str) -> bool:
         """May a login return to ``url``?

@@ -1,4 +1,4 @@
-{%- set headless = cookiecutter.identity_provider != 'none' -%}
+{%- set headless = cookiecutter.headless -%}
 from django.contrib.admin.views.decorators import staff_member_required
 from ninja import NinjaAPI
 {%- if headless %}

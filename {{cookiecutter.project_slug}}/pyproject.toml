@@ -27,7 +27,7 @@ dependencies = [
   "collectfasta==3.3.4",
 {%- endif %}
   "django==6.0.8",
-  "django-allauth[{% if cookiecutter.identity_provider != 'none' and cookiecutter.rest_api == 'Django Ninja' %}headless,{% endif %}mfa{% if cookiecutter.identity_provider != 'none' %},socialaccount{% endif %}]==65.19.3",
+  "django-allauth[{% if cookiecutter.headless %}headless,{% endif %}mfa{% if cookiecutter.identity_provider != 'none' %},socialaccount{% endif %}]==65.19.3",
 {%- if cookiecutter.mail_service == 'Other SMTP' %}
   "django-anymail==15.2",
 {%- elif cookiecutter.mail_service == 'Amazon SES' %}
@@ -81,7 +81,7 @@ dependencies = [
   "prometheus-client==0.26.0",
 {%- endif %}
   "psycopg[c]==3.3.5",
-{%- if cookiecutter.identity_provider != 'none' and (cookiecutter.rest_api == 'Django Ninja' or cookiecutter.observability == 'prometheus') %}
+{%- if cookiecutter.service_tokens %}
   "pyjwt[crypto]==2.14.0",
 {%- endif %}
   "redis==8.1.0",

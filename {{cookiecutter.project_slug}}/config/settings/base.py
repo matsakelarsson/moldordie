@@ -15,12 +15,12 @@
 {%- set entra = cookiecutter.identity_provider == 'entra' %}
 {#- With Django Ninja, a provider also serves the single-page application through
     allauth's headless API, guarded by the identity app. #}
-{%- set headless = provider and cookiecutter.rest_api == 'Django Ninja' %}
+{%- set headless = cookiecutter.headless %}
 {%- set prometheus = cookiecutter.observability == 'prometheus' %}
 {%- set opentelemetry = cookiecutter.observability == 'opentelemetry' %}
 {#- The calling services a provider issues tokens to, verified wherever something reads
     one: the API's routes, or the metrics endpoint. #}
-{%- set service_tokens = provider and (cookiecutter.rest_api == 'Django Ninja' or prometheus) %}
+{%- set service_tokens = cookiecutter.service_tokens %}
 """Base settings to build other settings files upon."""
 
 import os
