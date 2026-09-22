@@ -51,8 +51,11 @@ uv run python manage.py check --settings=config.settings.local --fail-level WARN
 uv run python manage.py makemessages --all
 
 # Run the deployment checks against the production settings; the placeholders stand in
-# for the deployment's secrets, the database and Redis come from the environment
+# for the deployment's secrets, the database and Redis come from the environment. The
+# DSN is empty, as the deployed environments' env files declare it: the settings read it
+# without a default, and the SDK starts without a transport
 DJANGO_SECRET_KEY="$(openssl rand -base64 64)" \
+SENTRY_DSN= \
 DJANGO_AWS_ACCESS_KEY_ID=x \
 DJANGO_AWS_SECRET_ACCESS_KEY=x \
 DJANGO_AWS_STORAGE_BUCKET_NAME=x \
