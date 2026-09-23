@@ -16,16 +16,23 @@ DEBUG_VALUE = "debug"
 ALPHANUMERIC = string.ascii_letters + string.digits
 LETTERS = string.ascii_letters
 
-# The env files that carry a placeholder, in the order a change is promoted through the
-# environments: the developer's machine, then the three deployed ones.
-LOCAL_DJANGO = ".envs/.local/.django"
-LOCAL_POSTGRES = ".envs/.local/.postgres"
-DEV_DJANGO = ".envs/.dev/.django"
-DEV_POSTGRES = ".envs/.dev/.postgres"
-TEST_DJANGO = ".envs/.test/.django"
-TEST_POSTGRES = ".envs/.test/.postgres"
-PRODUCTION_DJANGO = ".envs/.production/.django"
-PRODUCTION_POSTGRES = ".envs/.production/.postgres"
+# The deployed environments, in the order a change is promoted through them. Each owns a
+# directory of env files under .envs, like the developer's machine, ``local``.
+DEPLOYED_ENVIRONMENTS = ("dev", "test", "production")
+
+
+def env_file(environment, service):
+    """The env file of ``service`` (``django`` or ``postgres``) in ``environment``, relative to the project root."""
+    return f".envs/.{environment}/.{service}"
+
+
+def env_files(service, *environments):
+    """The env files of ``service`` in each of ``environments``."""
+    return tuple(env_file(environment, service) for environment in environments)
+
+
+LOCAL_DJANGO = env_file("local", "django")
+LOCAL_POSTGRES = env_file("local", "postgres")
 
 
 def always(context):
@@ -69,59 +76,56 @@ class Secret:
     """Whether the template renders the placeholder for the answers; a row that does not apply is skipped."""
 
 
+def per_deployed_environment(placeholder, service="django", **row):
+    """One row per deployed environment: the value is drawn for each, into that environment's env file.
+
+    Dev and test share production's settings module, so nothing but a separate draw keeps a
+    token minted for one from being accepted by another. ``row`` is the rest of the declaration,
+    the same for every environment.
+    """
+    return tuple(Secret(placeholder, (env_file(name, service),), **row) for name in DEPLOYED_ENVIRONMENTS)
+
+
 # Secrets. Each row is one value drawn on generation. A value meant to be the same in
 # several files is one row naming them all; the same placeholder in several rows is drawn
-# afresh for each, so the environments share nothing else. Every file of an applicable row
-# must exist and carry the placeholder: ``main`` fills the secrets before anything is
-# pruned, and a placeholder the template renders only for some answers has a condition
-# (tests/test_hooks.py checks the rows against the template's placeholder sites).
+# afresh for each, so the environments share nothing else. A value each deployed environment
+# draws for itself is declared once, through ``per_deployed_environment``, which expands it
+# into its rows here. Every file of an applicable row must exist and carry the placeholder:
+# ``main`` fills the secrets before anything is pruned, and a placeholder the template
+# renders only for some answers has a condition (tests/test_hooks.py checks the rows
+# against the template's placeholder sites).
 SECRETS = (
-    # A deployed environment's own key: dev and test share production's settings module,
-    # so nothing but a separate draw keeps a token minted for one from being accepted by
-    # another.
-    Secret("DJANGO_SECRET_KEY", (DEV_DJANGO,), debug=False),
-    Secret("DJANGO_SECRET_KEY", (TEST_DJANGO,), debug=False),
-    Secret("DJANGO_SECRET_KEY", (PRODUCTION_DJANGO,), debug=False),
+    *per_deployed_environment("DJANGO_SECRET_KEY", debug=False),
     Secret("DJANGO_SECRET_KEY", ("config/settings/local.py",), debug=False),
     Secret("DJANGO_SECRET_KEY", ("config/settings/test.py",), debug=False),
-    Secret("DJANGO_ADMIN_URL", (DEV_DJANGO,), length=32, debug=False),
-    Secret("DJANGO_ADMIN_URL", (TEST_DJANGO,), length=32, debug=False),
-    Secret("DJANGO_ADMIN_URL", (PRODUCTION_DJANGO,), length=32, debug=False),
+    *per_deployed_environment("DJANGO_ADMIN_URL", length=32, debug=False),
     # One database role for every environment: pg_dump records the owner, so a backup
     # taken in one restores in the others.
     Secret(
         "POSTGRES_USER",
-        (LOCAL_POSTGRES, DEV_POSTGRES, TEST_POSTGRES, PRODUCTION_POSTGRES),
+        env_files("postgres", "local", *DEPLOYED_ENVIRONMENTS),
         length=32,
         alphabet=LETTERS,
     ),
     Secret("POSTGRES_PASSWORD", (LOCAL_POSTGRES,)),
-    Secret("POSTGRES_PASSWORD", (DEV_POSTGRES,)),
-    Secret("POSTGRES_PASSWORD", (TEST_POSTGRES,)),
-    Secret("POSTGRES_PASSWORD", (PRODUCTION_POSTGRES,)),
+    *per_deployed_environment("POSTGRES_PASSWORD", "postgres"),
     # Flower's credentials are rendered with Celery only; its user is shared like the database role.
     Secret(
         "CELERY_FLOWER_USER",
-        (LOCAL_DJANGO, DEV_DJANGO, TEST_DJANGO, PRODUCTION_DJANGO),
+        env_files("django", "local", *DEPLOYED_ENVIRONMENTS),
         length=32,
         alphabet=LETTERS,
         applies=with_celery,
     ),
     Secret("CELERY_FLOWER_PASSWORD", (LOCAL_DJANGO,), applies=with_celery),
-    Secret("CELERY_FLOWER_PASSWORD", (DEV_DJANGO,), applies=with_celery),
-    Secret("CELERY_FLOWER_PASSWORD", (TEST_DJANGO,), applies=with_celery),
-    Secret("CELERY_FLOWER_PASSWORD", (PRODUCTION_DJANGO,), applies=with_celery),
+    *per_deployed_environment("CELERY_FLOWER_PASSWORD", applies=with_celery),
     # The key allauth signs the single-page application's tokens with, one per environment.
-    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (DEV_DJANGO,), debug=False, applies=with_headless),
-    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (TEST_DJANGO,), debug=False, applies=with_headless),
-    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", (PRODUCTION_DJANGO,), debug=False, applies=with_headless),
+    *per_deployed_environment("DJANGO_HEADLESS_JWT_PRIVATE_KEY", debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/local.py",), debug=False, applies=with_headless),
     Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/test.py",), debug=False, applies=with_headless),
     # The credential a scrape presents, one per deployed environment so a token that
     # reads dev reads nothing else. The developer's machine declares a value instead.
-    Secret("DJANGO_METRICS_TOKEN", (DEV_DJANGO,), debug=False, applies=with_prometheus),
-    Secret("DJANGO_METRICS_TOKEN", (TEST_DJANGO,), debug=False, applies=with_prometheus),
-    Secret("DJANGO_METRICS_TOKEN", (PRODUCTION_DJANGO,), debug=False, applies=with_prometheus),
+    *per_deployed_environment("DJANGO_METRICS_TOKEN", debug=False, applies=with_prometheus),
 )
 
 
@@ -129,7 +133,7 @@ SECRETS = (
 # this is where the generated tests and whoever deploys read the list of variables a
 # deployment supplies; the values that would be secret are left unset.
 EXAMPLE_DOTENV = ".env.example"
-EXAMPLE_SOURCES = (PRODUCTION_DJANGO, PRODUCTION_POSTGRES)
+EXAMPLE_SOURCES = env_files("django", "production") + env_files("postgres", "production")
 
 
 def write_example_dotenv(root):

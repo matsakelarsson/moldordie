@@ -4,11 +4,15 @@ import sys
 
 # The content of this string is evaluated by Jinja, and plays an important role.
 # It updates the cookiecutter context before any project file is rendered: it
-# trims leading and trailing spaces from the domain and email values, and it
+# trims leading and trailing spaces from the domain and email values, it
 # lowercases every flag option, so that the templates and both hooks all read
-# them in one spelling. The catalogue in local_extensions.py says which options
-# are flags; this script runs on its own and cannot import it, so it reads the
-# catalogue through the option_names global that the catalogue's extension
+# them in one spelling, and then it binds the derived answers (headless,
+# service_tokens), which follow from the normalised answers and which the
+# templates and the post-generation hook can read by name (docs/adr/0022). They are
+# never prompted and Cookiecutter's replay file, written before this runs, does
+# not hold them. The catalogue in local_extensions.py says which options are
+# flags and holds the derivation; this script runs on its own and cannot import
+# it, so it reads both through the globals that the catalogue's extension
 # registers for the render.
 """
 {{ cookiecutter.update({ "domain_name": cookiecutter.domain_name | trim }) }}
@@ -16,6 +20,7 @@ import sys
 {% for name in option_names("flag") -%}
 {{ cookiecutter.update({ name: cookiecutter[name] | lower }) }}
 {% endfor -%}
+{{ cookiecutter.update(derived_answers(cookiecutter)) }}
 """
 
 # The answers enter here as JSON, rendered after the update above, so that a
