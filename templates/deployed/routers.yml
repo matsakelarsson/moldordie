@@ -1,0 +1,51 @@
+{#- A deployed environment's Traefik routers. The stub that includes this sets ``environment``
+    to its name; the host it answers for is the table's, and production's apex also answers
+    as www when the domain is an apex (one dot), which no prefixed host is. -#}
+{%- import "deployed/environments" as deployed with context -%}
+{%- set host = deployed.hosts[environment] -%}
+{%- set with_www = deployed.www[environment] and cookiecutter.domain_name.count('.') == 1 -%}
+# The routers of the {{ environment }} environment: the hosts it answers for. The services and
+# middlewares they name are in ``shared.yml``.
+http:
+  routers:
+    web-secure-router:
+      {%- if with_www %}
+      rule: 'Host(`{{ host }}`) || Host(`www.{{ host }}`)'
+      {%- else %}
+      rule: 'Host(`{{ host }}`)'
+      {%- endif %}
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+      service: django
+      tls:
+        # https://doc.traefik.io/traefik/routing/routers/#certresolver
+        certResolver: letsencrypt
+    {%- if cookiecutter.use_celery == 'y' %}
+
+    flower-secure-router:
+      rule: 'Host(`{{ host }}`)'
+      entryPoints:
+        - flower
+      service: flower
+      tls:
+        # https://doc.traefik.io/traefik/master/routing/routers/#certresolver
+        certResolver: letsencrypt
+    {%- endif %}
+    {%- if cookiecutter.cloud_provider == 'None' %}
+
+    web-media-router:
+      {%- if with_www %}
+      rule: '(Host(`{{ host }}`) || Host(`www.{{ host }}`)) && PathPrefix(`/media/`)'
+      {%- else %}
+      rule: 'Host(`{{ host }}`) && PathPrefix(`/media/`)'
+      {%- endif %}
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+      service: django-media
+      tls:
+        certResolver: letsencrypt
+    {%- endif %}

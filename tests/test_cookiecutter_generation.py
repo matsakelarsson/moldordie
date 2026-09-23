@@ -337,6 +337,13 @@ GUIDE_COMBINATIONS = [
     if complete_answers(row)["coding_agent"] != "none"
 ]
 
+# The combinations with Docker: the others generate no Compose file to read.
+DOCKER_COMBINATIONS = [
+    param
+    for param, row in zip(GROUPED_COMBINATIONS, SUPPORTED_COMBINATIONS, strict=True)
+    if complete_answers(row)["use_docker"] == "y"
+]
+
 
 def check_po(content: str):
     """gettext strings take C's backslash escapes, which Python's literals share."""
@@ -1056,9 +1063,11 @@ def test_the_shared_source_leaves_no_trace_in_a_generated_project(bake, context_
 
     assert not (project.root / "templates").exists()
     for environment in DEPLOYED_ENVIRONMENTS:
-        for service in ("django", "postgres"):
-            text = project.text(f".envs/.{environment}/.{service}")
-            assert "{%" not in text, f"{environment}/{service} was not rendered"
+        rendered = [f".envs/.{environment}/.django", f".envs/.{environment}/.postgres"]
+        if complete_answers(context_override)["use_docker"] == "y":
+            rendered += [f"docker-compose.{environment}.yml", f"compose/production/traefik/dynamic/{environment}.yml"]
+        for path in rendered:
+            assert "{%" not in project.text(path), f"{path} was not rendered"
 
 
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
@@ -1105,6 +1114,24 @@ def test_deployed_compose_file_wires_its_own_environment(bake, context, environm
             assert f"_{environment}_" in service["image"], f"{name} is {service['image']}"
     assert all(name.startswith(f"{environment}_") for name in compose["volumes"]), compose["volumes"]
     assert compose["services"]["traefik"]["build"]["args"] == {"ENVIRONMENT": environment}
+
+
+@pytest.mark.parametrize("context_override", DOCKER_COMBINATIONS)
+def test_deployed_compose_files_declare_the_same_services(bake, context_override):
+    """The deployed environments differ in configuration alone (docs/adr/0013), so a service
+    or a volume one of them declares, all of them do, the volume under the environment's own
+    name so that two environments on one host share nothing."""
+    project = bake(context_override)
+
+    declared = {}
+    for environment in DEPLOYED_ENVIRONMENTS:
+        compose = project.compose(environment)
+        prefix = f"{environment}_"
+        unprefixed = [name for name in compose["volumes"] if not name.startswith(prefix)]
+        assert unprefixed == [], f"{environment} declares volumes not its own: {unprefixed}"
+        volumes = {name.removeprefix(prefix) for name in compose["volumes"]}
+        declared[environment] = (frozenset(compose["services"]), frozenset(volumes))
+    assert len(set(declared.values())) == 1, declared
 
 
 def test_traefik_routers_name_the_shared_services(bake, context):

@@ -1,0 +1,121 @@
+{#- A deployed environment's Compose file. The stub that includes this sets ``environment``
+    to its name, and everything here derives from it: the volume names, the image names, the
+    env files and Traefik's build argument. The images are production's for every deployed
+    environment (docs/adr/0013). -#}
+volumes:
+  {{ environment }}_postgres_data: {}
+  {{ environment }}_postgres_data_backups: {}
+  {{ environment }}_traefik: {}
+  {%- if cookiecutter.cloud_provider == 'None' %}
+  {{ environment }}_django_media: {}
+  {%- endif %}
+  {% if cookiecutter.use_celery == 'y' %}
+  {{ environment }}_redis_data: {}
+  {% endif %}
+
+
+services:
+  django: &django
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_django
+    {%- if cookiecutter.cloud_provider == 'None' %}
+    volumes:
+      - {{ environment }}_django_media:/app/{{ cookiecutter.project_slug }}/media
+    {%- endif %}
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - ./.envs/.{{ environment }}/.django
+      - ./.envs/.{{ environment }}/.postgres
+    command: /start
+
+  postgres:
+    build:
+      context: .
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_postgres
+    volumes:
+      {%- if cookiecutter.postgresql_version|int >= 18 %}
+      - {{ environment }}_postgres_data:/var/lib/postgresql/{{ cookiecutter.postgresql_version }}/docker
+      {%- else %}
+      - {{ environment }}_postgres_data:/var/lib/postgresql/data
+      {%- endif %}
+      - {{ environment }}_postgres_data_backups:/backups
+    env_file:
+      - ./.envs/.{{ environment }}/.postgres
+
+  traefik:
+    build:
+      context: .
+      dockerfile: ./compose/production/traefik/Dockerfile
+      args:
+        ENVIRONMENT: {{ environment }}
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_traefik
+    depends_on:
+      - django
+    volumes:
+      - {{ environment }}_traefik:/etc/traefik/acme
+    ports:
+      - '0.0.0.0:80:80'
+      - '0.0.0.0:443:443'
+      {%- if cookiecutter.use_celery == 'y' %}
+      - '0.0.0.0:5555:5555'
+      {%- endif %}
+
+  redis:
+    image: docker.io/redis:7.2
+    {% if cookiecutter.use_celery == 'y' %}
+    volumes:
+      - {{ environment }}_redis_data:/data
+    {% endif %}
+
+  taskworker:
+    <<: *django
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_taskworker
+    command: /start-taskworker
+
+
+  {%- if cookiecutter.use_celery == 'y' %}
+
+  celeryworker:
+    <<: *django
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_celeryworker
+    command: /start-celeryworker
+
+  celerybeat:
+    <<: *django
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_celerybeat
+    command: /start-celerybeat
+
+  flower:
+    <<: *django
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_flower
+    command: /start-flower
+  {%- endif %}
+  {%- if cookiecutter.cloud_provider == 'AWS' %}
+
+  awscli:
+    build:
+      context: .
+      dockerfile: ./compose/production/aws/Dockerfile
+    env_file:
+      - ./.envs/.{{ environment }}/.django
+    volumes:
+      - {{ environment }}_postgres_data_backups:/backups:z
+  {%- endif %}
+  {%- if cookiecutter.cloud_provider == 'None' %}
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./compose/production/nginx/Dockerfile
+    image: {{ cookiecutter.project_slug }}_{{ environment }}_nginx
+    depends_on:
+      - django
+    volumes:
+      - {{ environment }}_django_media:/usr/share/nginx/media:ro
+  {%- endif %}
