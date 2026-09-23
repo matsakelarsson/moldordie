@@ -1,4 +1,6 @@
-exclude: "{{cookiecutter.project_slug}}|CHANGELOG-cookiecutter-django.md|CONTRIBUTORS-cookiecutter-django.md"
+# The project template and the shared source are Jinja, and a whitespace fixer would change
+# what they render; the two upstream files are history.
+exclude: "{{cookiecutter.project_slug}}|^templates/|CHANGELOG-cookiecutter-django.md|CONTRIBUTORS-cookiecutter-django.md"
 default_stages: [pre-commit]
 minimum_pre_commit_version: "3.2.0"
 

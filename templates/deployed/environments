@@ -1,0 +1,12 @@
+{#- What a deployed environment differs in, keyed by its name. Everything else a deployed
+    environment's files say derives from the name (the Sentry and OpenTelemetry environment).
+    The stubs under the project template's .envs name their environment and include the
+    source for their kind (docs/adr/0023). -#}
+{#- The host the environment answers for: a prefix of the domain for dev and test, the apex for production -#}
+{%- set hosts = {
+    "dev": "dev." ~ cookiecutter.domain_name,
+    "test": "test." ~ cookiecutter.domain_name,
+    "production": cookiecutter.domain_name,
+} -%}
+{#- Whether the apex also answers as www: only production sits on the apex -#}
+{%- set www = {"dev": false, "test": false, "production": true} -%}
