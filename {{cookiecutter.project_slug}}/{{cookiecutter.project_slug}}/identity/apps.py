@@ -1,4 +1,4 @@
-{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' -%}
+{%- set headless = cookiecutter.headless -%}
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 """The identity app: the calling services the project knows and what they may do.
 

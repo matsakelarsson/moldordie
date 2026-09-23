@@ -44,7 +44,7 @@ urlpatterns = [
         "examples/",
         include("{{ cookiecutter.project_slug }}.examples.urls", namespace="examples"),
     ),
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
     # The single-page application's login: allauth's headless API, app client only
     path("_allauth/", include("allauth.headless.urls")),
 {%- endif %}

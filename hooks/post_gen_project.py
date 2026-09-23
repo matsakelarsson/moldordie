@@ -48,17 +48,6 @@ def with_prometheus(context):
     return context["observability"] == "prometheus"
 
 
-def with_headless(context):
-    """Django Ninja with an identity provider: allauth's headless API signs the app's tokens."""
-    return context["rest_api"] == "Django Ninja" and context["identity_provider"] != "none"
-
-
-def with_service_tokens(context):
-    """A provider whose calling services something reads a token from: the API's routes, or the
-    metrics endpoint. The verifier and the registrations exist for either."""
-    return with_headless(context) or (context["identity_provider"] != "none" and with_prometheus(context))
-
-
 @dataclass(frozen=True)
 class Secret:
     """One row of ``SECRETS``: a value drawn once and written over ``placeholder`` in each of ``files``."""
@@ -119,10 +108,22 @@ SECRETS = (
     ),
     Secret("CELERY_FLOWER_PASSWORD", (LOCAL_DJANGO,), applies=with_celery),
     *per_deployed_environment("CELERY_FLOWER_PASSWORD", applies=with_celery),
-    # The key allauth signs the single-page application's tokens with, one per environment.
-    *per_deployed_environment("DJANGO_HEADLESS_JWT_PRIVATE_KEY", debug=False, applies=with_headless),
-    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/local.py",), debug=False, applies=with_headless),
-    Secret("DJANGO_HEADLESS_JWT_PRIVATE_KEY", ("config/settings/test.py",), debug=False, applies=with_headless),
+    # The key allauth signs the single-page application's tokens with, one per environment,
+    # rendered with the headless login: Django Ninja and a provider, a derived answer the
+    # pre-generation hook bound into the context (docs/adr/0022).
+    *per_deployed_environment("DJANGO_HEADLESS_JWT_PRIVATE_KEY", debug=False, applies=lambda c: c["headless"]),
+    Secret(
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        ("config/settings/local.py",),
+        debug=False,
+        applies=lambda c: c["headless"],
+    ),
+    Secret(
+        "DJANGO_HEADLESS_JWT_PRIVATE_KEY",
+        ("config/settings/test.py",),
+        debug=False,
+        applies=lambda c: c["headless"],
+    ),
     # The credential a scrape presents, one per deployed environment so a token that
     # reads dev reads nothing else. The developer's machine declares a value instead.
     *per_deployed_environment("DJANGO_METRICS_TOKEN", debug=False, applies=with_prometheus),
@@ -308,12 +309,14 @@ REMOVALS = (
         ("{project_slug}/users/providers.py", "{project_slug}/users/tests/test_providers.py"),
     ),
     # The app behind the calling services, and with Django Ninja the single-page
-    # application's login too: a provider that something reads a token from.
-    (lambda c: not with_service_tokens(c), ("{project_slug}/identity",)),
+    # application's login too: a provider that something reads a token from. Service tokens
+    # and headless are derived answers, bound into the context before any file rendered
+    # (docs/adr/0022), and the rules read them as the templates do.
+    (lambda c: not c["service_tokens"], ("{project_slug}/identity",)),
     # Without Django Ninja the verifier and the registrations stay, and the API's side of
     # the app goes: the policies its routes run under, the headless login, their tests.
     (
-        lambda c: with_service_tokens(c) and not with_headless(c),
+        lambda c: c["service_tokens"] and not c["headless"],
         (
             "{project_slug}/identity/api.py",
             "{project_slug}/identity/auth.py",
@@ -335,12 +338,12 @@ REMOVALS = (
     # The frontend check belongs to the headless login and the registration check to
     # Entra, so the module goes when the app is left with neither.
     (
-        lambda c: with_service_tokens(c) and not with_headless(c) and c["identity_provider"] != "entra",
+        lambda c: c["service_tokens"] and not c["headless"] and c["identity_provider"] != "entra",
         ("{project_slug}/identity/checks.py",),
     ),
     # A registration holds the permission to read the metrics where there are metrics to read.
     (
-        lambda c: with_service_tokens(c) and not with_prometheus(c),
+        lambda c: c["service_tokens"] and not with_prometheus(c),
         ("{project_slug}/identity/migrations/0002_the_metrics_permission.py",),
     ),
 )
@@ -366,7 +369,7 @@ def prune(context, root):
     """Remove the files the chosen options do not need from the project at ``root``.
 
     ``context`` holds the answers as the pre-generation hook passed them on: the
-    yes/no answers are ``y`` or ``n``, lowercase.
+    yes/no answers are ``y`` or ``n``, lowercase, and the derived answers booleans.
     """
     project_slug = context["project_slug"]
     for applies, paths in REMOVALS:

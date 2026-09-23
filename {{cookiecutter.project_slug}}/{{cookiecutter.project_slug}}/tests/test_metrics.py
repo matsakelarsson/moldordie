@@ -1,4 +1,4 @@
-{%- set service_tokens = cookiecutter.identity_provider != 'none' -%}
+{%- set service_tokens = cookiecutter.service_tokens -%}
 """The metrics endpoint: what a scrape must present, and what it reads.
 
 {% if service_tokens -%}

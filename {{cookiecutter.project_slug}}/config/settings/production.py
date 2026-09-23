@@ -7,7 +7,7 @@
 {%- set channels = cookiecutter.realtime == 'channels' %}
 {%- set sentry = cookiecutter.use_sentry == 'y' %}
 {%- set prometheus = cookiecutter.observability == 'prometheus' %}
-{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- set headless = cookiecutter.headless %}
 {%- set mail = {
     'Mailgun': {
         'docs': 'https://anymail.readthedocs.io/en/stable/esps/mailgun/',

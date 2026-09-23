@@ -8,7 +8,7 @@ import sys
 # lowercases every flag option, so that the templates and both hooks all read
 # them in one spelling, and then it binds the derived answers (headless,
 # service_tokens), which follow from the normalised answers and which the
-# templates and the post-generation hook can read by name (docs/adr/0022). They are
+# templates and the post-generation hook read by name (docs/adr/0022). They are
 # never prompted and Cookiecutter's replay file, written before this runs, does
 # not hold them. The catalogue in local_extensions.py says which options are
 # flags and holds the derivation; this script runs on its own and cannot import

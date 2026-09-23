@@ -23,7 +23,7 @@ from django.conf import Settings
 {%- if cookiecutter.cloud_provider == 'AWS' and cookiecutter.use_whitenoise == 'n' %}
 from django.contrib.staticfiles.storage import ManifestFilesMixin
 {%- endif %}
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 from django.core.exceptions import ImproperlyConfigured
 {%- endif %}
 from django.utils.csp import CSP
@@ -33,7 +33,7 @@ from django.utils.module_loading import import_string
 
 from merge_production_dotenvs_in_dotenv import BASE_DIR
 from merge_production_dotenvs_in_dotenv import PRODUCTION_DOTENV_FILES
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 from {{ cookiecutter.project_slug }}.identity.apps import validate_token_settings
 {%- endif %}
 
@@ -320,7 +320,7 @@ def test_google_login_reads_the_environment(production_settings, environment):
     assert environment["GOOGLE_LOGIN_CLIENT_ID"] == app["client_id"]
     assert environment["GOOGLE_LOGIN_CLIENT_SECRET"] == app["secret"]
 {%- endif %}
-{%- if cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' %}
+{%- if cookiecutter.headless %}
 
 
 def test_the_app_tokens_use_the_declared_key(production_settings, environment):

@@ -1,7 +1,8 @@
 {%- set prometheus = cookiecutter.observability == 'prometheus' -%}
 {%- set celery = cookiecutter.use_celery == 'y' -%}
-{#- The scraper a provider issues tokens to: an arm of the metrics page alone. #}
-{%- set service_tokens = prometheus and cookiecutter.identity_provider != 'none' -%}
+{#- The scrape may present a calling service's token: metrics, and a provider whose
+    tokens something reads. An arm of the metrics page alone. #}
+{%- set scrape_tokens = prometheus and cookiecutter.service_tokens -%}
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 .. _observability:
 
@@ -19,7 +20,7 @@ The credential
 
 A scrape is a machine, not a visitor, so the endpoint takes a bearer token and never a
 session: no account, group or browser login decides whether a scrape succeeds.
-{% if service_tokens -%}
+{% if scrape_tokens -%}
 Two credentials are accepted and the token itself says which it is, so a deployment
 picks either and needs no scrape to hold both.
 {%- else -%}
@@ -35,7 +36,7 @@ development value and not a secret, which is also why the local Prometheus is pu
 to the loopback interface alone::
 
     curl -H "Authorization: Bearer $DJANGO_METRICS_TOKEN" http://localhost:8000/metrics
-{% if service_tokens %}
+{% if scrape_tokens %}
 A scraper the provider knows
 ----------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' -%}
+{%- set headless = cookiecutter.headless -%}
 {%- if headless -%}
 """System checks of the identity app: the frontend settings agree with each other."""
 {%- else -%}

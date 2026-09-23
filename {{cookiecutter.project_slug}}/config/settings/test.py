@@ -1,4 +1,4 @@
-{%- set headless = cookiecutter.rest_api == 'Django Ninja' and cookiecutter.identity_provider != 'none' -%}
+{%- set headless = cookiecutter.headless -%}
 """
 With these settings, tests run faster.
 """

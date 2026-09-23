@@ -1,4 +1,4 @@
-{%- set service_tokens = cookiecutter.identity_provider != 'none' -%}
+{%- set service_tokens = cookiecutter.service_tokens -%}
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
 """The metrics endpoint, written for the scraper rather than for a person.
 

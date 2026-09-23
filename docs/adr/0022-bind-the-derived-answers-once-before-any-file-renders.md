@@ -35,9 +35,24 @@ value after the JSON hand-over, without comparing strings. A condition becomes a
 answer when it combines two or more answers and is read by files of more than one kind, the
 hook among them; a condition one file needs stays a name at that file's top.
 
-This ADR records the binding. Moving the readers over (the hook's rules and secrets table,
-the templates) and guarding against a template re-deriving the condition are the next step
-(#111).
+Every reader then moved over. The post-generation hook's removal rules and secrets table
+read `headless` and `service_tokens` from the context they are handed, and its two predicate
+functions went; the rules stayed lambdas over the context and the table a table. Every
+template site reads the derived answer: a file that bound one of the names at its top keeps
+the local name and binds it from the derived answer, as ADR 0005 asks of the settings
+modules, so its body did not change; an inline compound condition became the name; the
+half-expressions (a name bound to "a provider" or to "Django Ninja" alone, true only because
+a removal rule deletes the file otherwise) became the name too, the two being equal within
+those files. The observability page's narrower condition, that the scrape may present a
+calling service's token, got a local name of its own, `scrape_tokens`, written in terms of the
+derived answer, so `service_tokens` means one thing everywhere. The deployed env files'
+conditions were edited once, in the shared source (ADR 0023). A guard test over the text of
+the project template and the shared source fails when a tag combines the identity provider
+with the REST API or with observability, or binds one of the two names to anything but the
+derived answer. It recognises the spellings that existed, a statement tag naming both
+answers or a binding of the name; a condition split over a local name or spread over nested
+tags is beyond a text guard. The generated projects did not change by a byte: `scripts/compare_generated.py` over every supported combination, plain and hostile,
+all 90 the same.
 
 ## Considered options
 
@@ -54,8 +69,8 @@ the templates) and guarding against a template re-deriving the condition are the
 The tests complete a row's answers the way generation does, through `complete_answers` in
 `tests/answers.py`: the catalogue's defaults, the row's answers, then the derived answers
 from the same function. A context in a test is therefore a context the hook could really
-receive. Once a template reads a derived answer (#111), a generation that declines the hooks
-fails at that template, since Cookiecutter renders strictly; the template has always needed
-its hooks, and that failure is clearer than a half-generated project. Until then the hook's
-own `with_headless` and `with_service_tokens` restate the derivation, and nothing ties the
-two together but this ADR.
+receive. A generation that declines the hooks fails at the first template that reads a
+derived answer, since Cookiecutter renders strictly; the template has always needed its
+hooks, and that failure is clearer than a half-generated project. The hook tests' guarded
+contexts enumerate every combination of the options the rules read, with the derived answers
+computed for each, and still fail on a read of anything else.
