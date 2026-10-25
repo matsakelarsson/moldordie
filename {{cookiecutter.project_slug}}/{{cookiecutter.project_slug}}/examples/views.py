@@ -19,7 +19,6 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.http import HttpResponseBadRequest
-from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
@@ -86,9 +85,9 @@ class ExamplesView(HtmxTemplateMixin, TemplateView):
         # What a view passes wins over the default that stands in for it
         return {**defaults, **super().get_context_data(**kwargs)}
 
-    def back_to(self, example: str) -> HttpResponse:
-        """Without htmx a post is answered with a redirect to its example."""
-        return redirect(f"{reverse('examples:index')}#example-{example}")
+    def example_url(self, example: str) -> str:
+        """Where a post without htmx is sent back to: its example on the page."""
+        return f"{reverse('examples:index')}#example-{example}"
 
 
 class ExampleFormView(ExamplesView):
@@ -114,12 +113,10 @@ class ToggleView(ExamplesView):
         enabled = request.POST.get("enabled") == "on"
         state = "on" if enabled else "off"
         messages.info(request, f"Notifications are {state}.")
-        response: HttpResponse
-        if self.renders_htmx_fragment():
-            context = self.get_context_data(notifications=enabled)
-            response = self.render_to_response(context)
-        else:
-            response = self.back_to("toggle")
+        response = self.fragment_or_redirect(
+            self.example_url("toggle"),
+            notifications=enabled,
+        )
         response.set_cookie(
             NOTIFICATIONS_COOKIE,
             state,
@@ -154,9 +151,7 @@ class ModalView(ExamplesView):
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         if request.POST.get("answer") == "confirm":
             messages.success(request, "Archived, or it would have been.")
-        if self.renders_htmx_fragment():
-            return self.render_to_response(self.get_context_data(modal_open=False))
-        return self.back_to("modal")
+        return self.fragment_or_redirect(self.example_url("modal"), modal_open=False)
 
 
 class NoticesView(ExamplesView):
@@ -171,6 +166,4 @@ class NoticesView(ExamplesView):
             return HttpResponseBadRequest()
         level, text = notice
         messages.add_message(request, level, text)
-        if self.renders_htmx_fragment():
-            return self.render_to_response(self.get_context_data())
-        return self.back_to("notices")
+        return self.fragment_or_redirect(self.example_url("notices"))

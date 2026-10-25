@@ -24,33 +24,17 @@ from {{ cookiecutter.project_slug }}.examples.content import STATIC_EXAMPLES
 from {{ cookiecutter.project_slug }}.examples.content import source
 from {{ cookiecutter.project_slug }}.tests.markup import element
 from {{ cookiecutter.project_slug }}.tests.markup import elements
+from {{ cookiecutter.project_slug }}.tests.responses import fragment
+from {{ cookiecutter.project_slug }}.tests.responses import page
 
 if TYPE_CHECKING:
     from pytest_django.fixtures import Settings
 
 HTMX = {"HX-Request": "true"}
-RE_MESSAGES_SWAPPED = re.compile(r'<div[^>]*\bid="messages"[^>]*\bhx-swap-oob="true"')
 VALID = {"name": "Ada", "plan": "solo", "seats": "1", "terms": "on"}
 ROWS_PER_PAGE = 5
 LAST_PAGE_ROWS = 2
 POSTS = ["examples:form", "examples:toggle", "examples:modal", "examples:notices"]
-
-
-def fragment(response):
-    """The body of an answer to htmx: a piece of a page, with nothing a page loads."""
-    assert response.status_code == HTTPStatus.OK
-    assert "HX-Request" in response.headers["Vary"]
-    html = response.content.decode()
-    for tag in ("<html", "<script", "<style", "<link"):
-        assert tag not in html.lower(), tag
-    return html
-
-
-def page(response):
-    assert response.status_code == HTTPStatus.OK
-    html = response.content.decode()
-    assert "<html" in html
-    return html
 
 
 def rows(html):
@@ -103,7 +87,6 @@ def test_a_valid_form_answers_with_its_result_and_a_message(client: Client):
     html = fragment(client.post(reverse("examples:form"), VALID, headers=HTMX))
 
     assert "Ada: the solo plan with 1 seat(s)." in html
-    assert RE_MESSAGES_SWAPPED.search(html)
     assert "The form is valid; nothing was saved." in html
     assert 'role="status"' in html
 
@@ -112,7 +95,6 @@ def test_the_form_works_without_htmx(client: Client):
     html = page(client.post(reverse("examples:form"), VALID))
 
     assert "Ada: the solo plan with 1 seat(s)." in html
-    assert "hx-swap-oob" not in html
 
 
 def test_the_table_is_filtered_for_htmx(client: Client):
@@ -193,7 +175,6 @@ def test_the_toggle_posts_its_state(client: Client, data, state, is_checked):
     toggle = element(html, "input", "name", "enabled")
     assert ("checked" in toggle) is is_checked
     assert f"Notifications are {state}." in html
-    assert RE_MESSAGES_SWAPPED.search(html)
     cookie = response.cookies[views.NOTIFICATIONS_COOKIE]
     assert cookie.value == state
     assert cookie["httponly"] is True
@@ -273,7 +254,6 @@ def test_an_answer_closes_the_dialog(client: Client, answer, archived):
 
     # What is left empties the container: the messages go out of band
     assert "modal-open" not in html
-    assert RE_MESSAGES_SWAPPED.search(html)
     assert ("Archived, or it would have been." in html) is archived
 
 
@@ -302,7 +282,6 @@ def test_a_notice_arrives_out_of_band(client: Client, level, css_class, role):
 
     html = fragment(client.post(reverse("examples:notices"), data, headers=HTMX))
 
-    assert RE_MESSAGES_SWAPPED.search(html)
     alert = element(html, "div", "role", role)
     assert css_class in (alert["class"] or "").split()
     # Nothing but the messages: the form asked for no swap of its own

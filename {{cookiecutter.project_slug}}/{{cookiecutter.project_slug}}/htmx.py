@@ -1,17 +1,21 @@
-"""htmx helpers: partials for htmx requests, and login redirects that leave the page."""
+"""htmx helpers: fragments for htmx requests, and login redirects leaving the page."""
 
 from __future__ import annotations
 
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Final
 from typing import cast
 from urllib.parse import urlsplit
 
 from asgiref.sync import iscoroutinefunction
 from asgiref.sync import markcoroutinefunction
 from django.conf import settings
+from django.shortcuts import redirect
 from django.shortcuts import resolve_url
+from django.template.loader import render_to_string
+from django.template.response import SimpleTemplateResponse
 from django.utils.cache import patch_vary_headers
 from django.utils.decorators import method_decorator
 from django.views.decorators.vary import vary_on_headers
@@ -22,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from django.http import HttpRequest
+    from django.http import HttpResponse
     from django.http import HttpResponseBase
     from django.views.generic.base import ContextMixin
     from django.views.generic.base import TemplateResponseMixin
@@ -39,26 +44,44 @@ if TYPE_CHECKING:
 else:
     _TemplateViewBase = object
 
+# base.html's messages container, marked for an out-of-band swap under htmx_fragment
+MESSAGES_PARTIAL: Final = "base.html#messages"
+
+
+def render_messages(request: HttpRequest) -> str:
+    """The messages added during ``request``, marked for htmx's out-of-band swap.
+
+    A fragment carries them after its partial, so a message reaches the page
+    wherever the partial lands. ``HtmxTemplateMixin`` appends them; a
+    function-based view does it itself.
+    """
+    return render_to_string(MESSAGES_PARTIAL, {"htmx_fragment": True}, request)
+
 
 class HtmxTemplateMixin(_TemplateViewBase):
-    """Render one template partial of the view's template for htmx requests.
+    """Answer an htmx request with one partial of the view's template, and the messages.
 
     Set ``htmx_partial`` to the name of a ``partialdef`` block in the view's
-    template. A request carrying the ``HX-Request`` header then renders
-    ``"<template>#<htmx_partial>"``, that is only the partial, while every
-    other request renders the whole template, so the page keeps working
-    without htmx. Boosted requests (``hx-boost``) expect a whole page and get
-    the full template, and so does the request htmx sends to restore a page its
-    history no longer holds, which carries ``HX-Request`` as well: htmx puts the
-    answer where the whole page was. Every response varies on the headers its
-    body depends on.
+    template. A request carrying the ``HX-Request`` header then gets a fragment:
+    ``"<template>#<htmx_partial>"``, the partial alone, followed by the messages
+    container marked for an out-of-band swap, so a message added during the
+    request reaches the page wherever the partial lands. A partial never
+    includes the messages itself. Every other request renders the whole
+    template, so the page keeps working without htmx. Boosted requests
+    (``hx-boost``) expect a whole page and get the full template, and so does
+    the request htmx sends to restore a page its history no longer holds, which
+    carries ``HX-Request`` as well: htmx puts the answer where the whole page
+    was. Every response varies on the headers its body depends on.
 
-    The context flag ``htmx_fragment`` tells templates which of the two is
-    being rendered, so the messages block can be marked for an out-of-band
-    swap in a fragment without being emitted twice in a full page. Branch on
-    that flag rather than on ``request.htmx``: a template that branches on the
+    The context flag ``htmx_fragment`` says which of the two is being rendered,
+    for a template that shows something on the whole page alone. Branch on that
+    flag rather than on ``request.htmx``: a template that branches on the
     request varies by the header on every page that includes it, including
     pages whose view sends no ``Vary``.
+
+    ``fragment_or_redirect`` answers a post: with the fragment for htmx, and
+    without it with a redirect to the page that shows what the post did, as
+    Django's form views answer one.
 
     Function-based views do the same thing directly::
 
@@ -71,7 +94,10 @@ class HtmxTemplateMixin(_TemplateViewBase):
             if fragment:
                 template_name += "#profile"
             context = {"htmx_fragment": fragment}
-            return render(request, template_name, context)
+            response = render(request, template_name, context)
+            if fragment:
+                response.content += render_messages(request).encode()
+            return response
     """
 
     htmx_partial: str | None = None
@@ -105,6 +131,27 @@ class HtmxTemplateMixin(_TemplateViewBase):
         if not self.renders_htmx_fragment():
             return names
         return [f"{name}#{self.htmx_partial}" for name in names]
+
+    def render_to_response(
+        self,
+        context: dict[str, Any],
+        **response_kwargs: Any,
+    ) -> HttpResponse:
+        response = super().render_to_response(context, **response_kwargs)
+        fragment = self.renders_htmx_fragment()
+        if fragment and isinstance(response, SimpleTemplateResponse):
+            # After the partial renders, so a message added while it did is carried too
+            response.add_post_render_callback(self._append_messages)
+        return response
+
+    def _append_messages(self, response: SimpleTemplateResponse) -> None:
+        response.content += render_messages(self.request).encode(response.charset)
+
+    def fragment_or_redirect(self, to: str, **context: Any) -> HttpResponse:
+        """The answer to a post: the fragment for htmx, else a redirect to ``to``."""
+        if self.renders_htmx_fragment():
+            return self.render_to_response(self.get_context_data(**context))
+        return redirect(to)
 
 
 class HtmxLoginRedirectMiddleware:

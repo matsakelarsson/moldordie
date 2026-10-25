@@ -1,0 +1,16 @@
+{% raw %}{% extends "base.html" %}
+
+{% block content %}
+  <h1>Fixture</h1>
+  {% partialdef card inline %}
+    <article id="card"
+             data-rendering="{% if htmx_fragment %}fragment{% else %}page{% endif %}">
+      {% if posted %}
+        After the post
+      {% else %}
+        Before any post
+      {% endif %}
+    </article>
+  {% endpartialdef card %}
+{% endblock content %}
+{%- endraw %}

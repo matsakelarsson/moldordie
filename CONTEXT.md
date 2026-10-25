@@ -218,8 +218,10 @@ _Avoid_: snippet, include.
 
 ## Fragment
 
-The HTML a view returns when it selects partial rendering for an eligible request. A
-non-boosted htmx request does not guarantee one; `htmx_fragment` in the template context
+The HTML a view returns when it selects partial rendering for an eligible request: its
+partial, followed by the messages container marked for htmx's out-of-band swap, which
+`HtmxTemplateMixin` appends (`docs/adr/0025`); a partial never includes the messages itself.
+A non-boosted htmx request does not guarantee one; `htmx_fragment` in the template context
 marks the choice.
 
 _Avoid_: partial response.

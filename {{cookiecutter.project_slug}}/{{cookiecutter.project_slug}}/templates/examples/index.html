@@ -19,9 +19,8 @@
       </div>
     </details>
   {% endpartialdef source %}
-  {# The notices demo answers with the messages alone, which htmx swaps in out of band #}
+  {# The notices demo answers with nothing of its own: the messages the mixin appends are the whole answer #}
   {% partialdef notices %}
-    {% include "base.html#messages" %}
   {% endpartialdef notices %}
   <header class="flex flex-col gap-2">
     <h1 class="text-4xl font-bold">Examples</h1>
@@ -47,9 +46,6 @@
       it posts to the same view and gets the whole page.
     </p>
     {% partialdef form inline %}
-      {% if htmx_fragment %}
-        {% include "base.html#messages" %}
-      {% endif %}
       {% include "examples/form.html" %}
     {% endpartialdef form %}
     {% with name="examples/form.html" source=sources.form %}
@@ -64,9 +60,6 @@
     </p>
     {% include "examples/filter.html" %}
     {% partialdef results inline %}
-      {% if htmx_fragment %}
-        {% include "base.html#messages" %}
-      {% endif %}
       {% include "examples/results.html" %}
     {% endpartialdef results %}
     {% with name="examples/filter.html" source=sources.filter %}
@@ -83,9 +76,6 @@
       of yours: the page keeps nothing on the server.
     </p>
     {% partialdef toggle inline %}
-      {% if htmx_fragment %}
-        {% include "base.html#messages" %}
-      {% endif %}
       {% include "examples/toggle.html" %}
     {% endpartialdef toggle %}
     {% with name="examples/toggle.html" source=sources.toggle %}
@@ -116,8 +106,8 @@
   <section class="mt-10 flex flex-col gap-4" id="example-notices">
     <h2 class="text-2xl font-bold">Messages out of band</h2>
     <p>
-      A view that adds a message during an htmx request includes the messages in its answer, and htmx swaps them into
-      the page wherever they are.
+      A view that adds a message during an htmx request answers with its fragment, and the messages come along out of
+      band: htmx swaps them into the page wherever they are. Here the fragment is empty, so they are the whole answer.
     </p>
     {% include "examples/notices.html" %}
     {% with name="examples/notices.html" source=sources.notices %}
@@ -128,9 +118,6 @@
 {% block modal %}
   <div id="modal">
     {% partialdef modal inline %}
-      {% if htmx_fragment %}
-        {% include "base.html#messages" %}
-      {% endif %}
       {% if modal_open %}
         {% include "examples/modal.html" %}
       {% endif %}

@@ -245,7 +245,8 @@ New apps go under `{{ cookiecutter.project_slug }}/`, are created from there wit
    script that truly must be inline carries the request's nonce.
 2. **htmx first, no JavaScript of the project's own.** What involves the server is an htmx
    request answered with a `partialdef` partial of the view's template, selected by
-   `htmx_partial` on `HtmxTemplateMixin`. What does not is one of daisyUI's CSS-only
+   `htmx_partial` on `HtmxTemplateMixin`, which appends the messages marked for an
+   out-of-band swap, so no partial includes them. What does not is one of daisyUI's CSS-only
    mechanisms: a dropdown that opens on focus, a collapse on a details element, tabs and
    drawers on radio buttons and checkboxes. Build pages from daisyUI's component classes and
    Tailwind's utilities, and change the look in `styles/theme.css`, not by overriding them.

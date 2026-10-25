@@ -5,12 +5,14 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
-from django.conf import settings
 from django.template.base import PartialTemplate
 from django.test import Client
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from {{ cookiecutter.project_slug }}.tests.responses import fragment
+from {{ cookiecutter.project_slug }}.tests.responses import login_redirect
+from {{ cookiecutter.project_slug }}.tests.responses import page
 from {{ cookiecutter.project_slug }}.users.tests.factories import UserFactory
 
 if TYPE_CHECKING:
@@ -19,8 +21,6 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.django_db
 
 HTMX_HEADERS = {"HX-Request": "true"}
-# The messages container marked for htmx's out-of-band swap
-RE_MESSAGES_SWAPPED = re.compile(rb'<div[^>]*\bid="messages"[^>]*\bhx-swap-oob="true"')
 
 
 def template_names(response) -> list[str]:
@@ -37,41 +37,25 @@ def template_names(response) -> list[str]:
     return names
 
 
-def login_redirect(next_url: str) -> str:
-    return f"{reverse(settings.LOGIN_URL)}?next={next_url}"
-
-
-def assert_fragment(content: bytes) -> None:
-    """Content for the target only: no page, no script, no style, no stylesheet."""
-    lowered = content.lower()
-    assert b"<html" not in lowered
-    assert b"<script" not in lowered
-    assert b"<style" not in lowered
-    assert b"<link" not in lowered
-
-
 class TestUserUpdateView:
     def test_get_full_page(self, user: User, client: Client):
         client.force_login(user)
 
         response = client.get(reverse("users:update"))
 
-        assert response.status_code == HTTPStatus.OK
+        html = page(response)
         assert template_names(response)[0] == "users/user_form.html"
-        assert b"<html" in response.content
-        assert b'id="user-profile"' in response.content
+        assert 'id="user-profile"' in html
 
     def test_get_htmx_partial(self, user: User, client: Client):
         client.force_login(user)
 
         response = client.get(reverse("users:update"), headers=HTMX_HEADERS)
 
-        assert response.status_code == HTTPStatus.OK
+        html = fragment(response)
         assert template_names(response)[0] == "users/user_form.html#profile"
         assert "base.html" not in template_names(response)
-        assert_fragment(response.content)
-        assert b'id="user-profile"' in response.content
-        assert "HX-Request" in response["Vary"]
+        assert 'id="user-profile"' in html
 
     def test_post_without_csrf_token_is_forbidden(self, user: User):
         client = Client(enforce_csrf_checks=True)
@@ -118,14 +102,14 @@ class TestUserUpdateView:
         )
 
         assert response.redirect_chain == [(user.get_absolute_url(), HTTPStatus.FOUND)]
+        html = fragment(response)
         assert template_names(response)[0] == "users/user_detail.html#profile"
-        assert "base.html#messages" in template_names(response)
-        assert_fragment(response.content)
-        assert RE_MESSAGES_SWAPPED.search(response.content)
-        assert str(_("Information successfully updated")).encode() in response.content
+        # The mixin renders the messages after the partial
+        assert template_names(response)[-1] == "base.html#messages"
+        assert str(_("Information successfully updated")) in html
         # The message arrives after the page loaded: announced, and dismissible
-        assert b'role="status"' in response.content
-        assert b'aria-label="Dismiss"' in response.content
+        assert 'role="status"' in html
+        assert 'aria-label="Dismiss"' in html
 
     def test_not_authenticated(self, client: Client):
         url = reverse("users:update")
@@ -160,23 +144,19 @@ class TestUserDetailView:
 
         response = client.get(user.get_absolute_url())
 
-        assert response.status_code == HTTPStatus.OK
+        html = page(response)
         assert template_names(response)[0] == "users/user_detail.html"
-        assert b"<html" in response.content
-        assert b'id="user-profile"' in response.content
-        assert response.content.count(b'id="messages"') == 1
+        assert 'id="user-profile"' in html
 
     def test_htmx_partial(self, user: User, client: Client):
         client.force_login(user)
 
         response = client.get(user.get_absolute_url(), headers=HTMX_HEADERS)
 
-        assert response.status_code == HTTPStatus.OK
+        html = fragment(response)
         assert template_names(response)[0] == "users/user_detail.html#profile"
         assert "base.html" not in template_names(response)
-        assert_fragment(response.content)
-        assert b'id="user-profile"' in response.content
-        assert "HX-Request" in response["Vary"]
+        assert 'id="user-profile"' in html
 
     def test_boosted_request_gets_the_full_page(self, user: User, client: Client):
         client.force_login(user)
@@ -184,11 +164,8 @@ class TestUserDetailView:
         headers = {**HTMX_HEADERS, "HX-Boosted": "true"}
         response = client.get(user.get_absolute_url(), headers=headers)
 
-        assert response.status_code == HTTPStatus.OK
+        page(response)
         assert template_names(response)[0] == "users/user_detail.html"
-        assert b"<html" in response.content
-        assert b"hx-swap-oob" not in response.content
-        assert response.content.count(b'id="messages"') == 1
 
     def test_history_restore_gets_the_full_page(self, user: User, client: Client):
         # htmx asks for a page its history cache no longer holds, with HX-Request
@@ -198,10 +175,8 @@ class TestUserDetailView:
         headers = {**HTMX_HEADERS, "HX-History-Restore-Request": "true"}
         response = client.get(user.get_absolute_url(), headers=headers)
 
-        assert response.status_code == HTTPStatus.OK
+        page(response)
         assert template_names(response)[0] == "users/user_detail.html"
-        assert b"<html" in response.content
-        assert b"hx-swap-oob" not in response.content
         assert "HX-History-Restore-Request" in response["Vary"]
 
     def test_not_authenticated(self, user: User, client: Client):

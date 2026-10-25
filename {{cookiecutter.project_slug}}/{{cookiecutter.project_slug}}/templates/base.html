@@ -45,8 +45,8 @@
       {% include "partials/navigation.html" %}
       {# htmx snapshots and restores this element alone, so going back never restores a theme picker of the past #}
       <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6" hx-history-elt>
-        {# Rendered on every page. Fragments include "base.html#messages" so new messages #}
-        {# are swapped out-of-band; htmx_fragment comes from HtmxTemplateMixin. #}
+        {# Rendered on every page, and appended to every fragment by HtmxTemplateMixin with #}
+        {# htmx_fragment set, so a message added during an htmx request is swapped in out of band #}
         {% partialdef messages inline %}
           <div class="sticky top-2 z-40"
                id="messages"

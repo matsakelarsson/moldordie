@@ -1015,7 +1015,7 @@ def test_strict_typing_setup(bake, context, rest_api):
     type_checking = pyproject["tool"]["ruff"]["lint"].get("flake8-type-checking", {})
     assert ("runtime-evaluated-decorators" in type_checking) is (rest_api == "Django Ninja")
 
-    typedefs = project.text(f"{context['project_slug']}/typedefs.py")
+    typedefs = project.text("{package}/typedefs.py")
     assert "class AuthenticatedHttpRequest(HttpRequest):" in typedefs
     assert "class AuthenticatedHtmxRequest(" in typedefs
     assert ("class AuthenticatedApiRequest(Request):" in typedefs) is (rest_api == "DRF")
@@ -1302,23 +1302,20 @@ def test_template_partials(bake, context):
     assert not project.path("{package}/templates/partials/messages.html").exists()
     assert "{% partialdef messages inline %}" in project.template("base.html")
     for name in ("user_detail.html", "user_form.html"):
-        template = project.template(f"users/{name}")
-        assert "{% partialdef profile inline %}" in template
-        assert '{% include "base.html#messages" %}' in template
+        assert "{% partialdef profile inline %}" in project.template(f"users/{name}")
 
-    views = project.text(f"{context['project_slug']}/users/views.py")
+    views = project.text("{package}/users/views.py")
     assert 'htmx_partial = "profile"' in views
     assert "htmx_template_name" not in views
 
-    # Templates branch on the mixin's context flag, never on the request header: a template
-    # that reads the request makes every page including it vary by HX-Request.
+    # The mixin appends the messages to every fragment (docs/adr/0025), so no partial includes
+    # them, and templates branch on the mixin's context flag, never on the request header: a
+    # template that reads the request makes every page including it vary by HX-Request.
+    assert 'MESSAGES_PARTIAL: Final = "base.html#messages"' in project.text("{package}/htmx.py")
     templates = Path(project.package) / "templates"
-    offenders = [
-        path
-        for path in project.files()
-        if path.is_relative_to(templates) and path.suffix == ".html" and "request.htmx" in project.text(path)
-    ]
-    assert offenders == []
+    pages = {path: project.text(path) for path in project.files() if path.is_relative_to(templates)}
+    assert [path for path, text in pages.items() if "base.html#messages" in text] == []
+    assert [path for path, text in pages.items() if "request.htmx" in text] == []
 
 
 def test_tailwind_and_daisyui(bake, context):
@@ -1516,7 +1513,7 @@ def test_content_security_policy(bake, context, realtime, rest_api):
     assert "SECURE_CSP: dict[str, list[str]] = {" in base.source
     assert "UNSAFE_INLINE" not in base.source
     assert "UNSAFE_EVAL" not in base.source
-    assert f"{context['project_slug']}.htmx.HtmxLoginRedirectMiddleware" in base.literal("MIDDLEWARE")
+    assert f"{project.package}.htmx.HtmxLoginRedirectMiddleware" in base.literal("MIDDLEWARE")
     assert ("ninja" in base.literal("INSTALLED_APPS")) is (rest_api == "Django Ninja")
 
     uses_channels = realtime == "channels"
@@ -1973,22 +1970,21 @@ def test_sentry_wiring(bake, context, use_sentry):
     project = bake(context)
 
     selected = use_sentry == "y"
-    package = Path(context["project_slug"])
-    assert (project.root / package / "sentry" / "apps.py").exists() is selected
-    assert (project.root / package / "tests" / "test_sentry.py").exists() is selected
+    assert project.path("{package}/sentry/apps.py").exists() is selected
+    assert project.path("{package}/tests/test_sentry.py").exists() is selected
     assert ("sentry-sdk" in project.pinned) is selected
 
     # Importing the settings initialises nothing; the app does, once the registry is ready
     production = project.settings("production")
     assert "import sentry_sdk" not in production.source
     assert "sentry_sdk.init" not in production.source
-    assert (f'INSTALLED_APPS += ["{package}.sentry"]' in production.source) is selected
+    assert (f'INSTALLED_APPS += ["{project.package}.sentry"]' in production.source) is selected
     reads = {read.name: read for read in production.env_reads()}
     assert ("SENTRY_DSN" in reads) is selected
     if selected:
         assert reads["SENTRY_DSN"].default is NO_DEFAULT
         assert reads["SENTRY_ENVIRONMENT"].default == "production"
-        assert "sentry_sdk.init(" in project.text(package / "sentry" / "apps.py")
+        assert "sentry_sdk.init(" in project.text("{package}/sentry/apps.py")
 
 
 BEFORE_MIDDLEWARE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
@@ -2007,9 +2003,8 @@ def test_metrics_wiring(bake, context, observability):
     project = bake(context)
 
     selected = observability == "prometheus"
-    package = Path(context["project_slug"])
-    assert (project.root / package / "metrics.py").exists() is selected
-    assert (project.root / package / "tests" / "test_metrics.py").exists() is selected
+    assert project.path("{package}/metrics.py").exists() is selected
+    assert project.path("{package}/tests/test_metrics.py").exists() is selected
     assert ("django-prometheus" in project.pinned) is selected
 
     base = project.settings("base")
@@ -2071,7 +2066,7 @@ def test_telemetry_wiring(bake, context, observability):
     assert (project.root / "config" / "gunicorn.py").exists() is measured
 
     base = project.settings("base")
-    assert (f"{context['project_slug']}.telemetry" in base.value("INSTALLED_APPS")) is selected
+    assert (f"{project.package}.telemetry" in base.value("INSTALLED_APPS")) is selected
     reads = {read.name: read for read in base.env_reads()}
     assert ("OTEL_EXPORTER_OTLP_ENDPOINT" in reads) is selected
 
