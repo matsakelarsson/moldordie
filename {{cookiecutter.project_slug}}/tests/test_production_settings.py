@@ -34,6 +34,7 @@ from django.utils.module_loading import import_string
 from merge_production_dotenvs_in_dotenv import BASE_DIR
 from merge_production_dotenvs_in_dotenv import PRODUCTION_DOTENV_FILES
 {%- if cookiecutter.headless %}
+
 from {{ cookiecutter.project_slug }}.identity.apps import validate_token_settings
 {%- endif %}
 

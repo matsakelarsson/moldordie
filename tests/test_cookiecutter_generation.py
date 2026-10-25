@@ -521,6 +521,31 @@ def test_ruff_check_passes(bake, context_override):
         pytest.fail(e.stdout.decode())
 
 
+# A package name that sorts before ``config`` and the root modules, with the answers whose
+# files import beside them: the headless login's settings test, the metrics tests, and the
+# fixture URLs every project has. The rows above all bake under the default name, which
+# sorts after those modules, so they cannot show an order that depends on the name.
+FIRST_SORTING_SLUG = {
+    "project_slug": "acme",
+    "rest_api": "Django Ninja",
+    "identity_provider": "entra",
+    "observability": "prometheus",
+}
+
+
+def test_imports_sort_whatever_the_slug(bake):
+    """The project's package is an isort section of its own (docs/adr/0028), so a file
+    that imports from ``config`` or a root module and from the package sorts the same
+    under any name; ruff on a project named ``acme`` is what shows it."""
+    project = bake(FIRST_SORTING_SLUG)
+    assert project.package == FIRST_SORTING_SLUG["project_slug"]
+
+    try:
+        sh.ruff("check", "--no-cache", ".", _cwd=str(project.root))
+    except sh.ErrorReturnCode as e:
+        pytest.fail(e.stdout.decode())
+
+
 @auto_fixable
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_ruff_format_passes(bake, context_override):

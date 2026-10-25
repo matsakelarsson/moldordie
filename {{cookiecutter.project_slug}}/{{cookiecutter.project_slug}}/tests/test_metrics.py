@@ -26,6 +26,7 @@ from prometheus_client import multiprocess
 
 from config import gunicorn
 {%- if service_tokens %}
+
 from {{ cookiecutter.project_slug }}.identity.models import ServiceRegistration
 from {{ cookiecutter.project_slug }}.identity.tests import services
 from {{ cookiecutter.project_slug }}.identity.tests.services import LIFETIME

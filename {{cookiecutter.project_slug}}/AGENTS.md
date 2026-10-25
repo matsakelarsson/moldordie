@@ -275,6 +275,9 @@ New apps go under `{{ cookiecutter.project_slug }}/`, are created from there wit
    regenerated with `uv lock`, never edited by hand.
 10. **No environment file is committed.** `.gitignore` keeps `.env` and everything under `.envs/`
    out of version control; `.env.example` is the only declaration in the repository.
+11. **This package's imports come last.** ruff's isort puts `config` and the root modules before
+   `{{ cookiecutter.project_slug }}`, a blank line between, whatever the name sorts like; write
+   imports that way, or let `ruff check --fix` sort them.
 
 ## Documentation
 
