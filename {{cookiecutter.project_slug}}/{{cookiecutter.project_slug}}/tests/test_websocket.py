@@ -1,3 +1,5 @@
+"""The websocket consumer of ``config/websocket.py``: a ping answered with a pong."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
