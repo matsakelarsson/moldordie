@@ -464,6 +464,19 @@ def test_env_reads_list_every_literal_name_read_through_env_in_source_order():
     ]
 
 
+def test_env_read_is_the_one_read_of_a_name():
+    reader = module("""
+        A = env("A", default="a")
+        B = env.bool("B", False)
+        C = [env("B"), env.int("C")]
+    """)
+    assert reader.env_read("A") == EnvRead("A", None, "a", 1)
+    with pytest.raises(LookupError, match=r"^settings.py reads B through env 2 times, not once$"):
+        reader.env_read("B")
+    with pytest.raises(LookupError, match=r"^settings.py reads D through env 0 times, not once$"):
+        reader.env_read("D")
+
+
 def test_env_reads_reject_a_method_the_reader_does_not_know():
     reader = module('A = env.url("A")\n')
     with pytest.raises(ValueError, match=r"^settings.py:1: env.url is not a read the reader knows$"):
@@ -537,6 +550,15 @@ def project(tmp_path):
         "docker-compose.local.yml": "services:\n  django:\n    image: django\n",
         "my_project/templates/base.html": "<!doctype html>\n",
         "my_project/__init__.py": '__version__ = "0.1.0"\n',
+        "my_project/users/models.py": "class User:\n    pass\n",
+        "AGENTS.md": (
+            "# my_project\n\nAn introduction.\n\n"
+            "## Generation choices\n\n"
+            "| Option | Answer |\n| --- | --- |\n| `use_docker` | `y` |\n| `rest_api` | `None` |\n\n"
+            "### Notes\n\n| `nested` | kept |\n\n"
+            "## Layout\n\n| Path | Purpose |\n| --- | --- |\n| `config/` | settings |\n\n"
+            "## Conventions\n\nNo table.\n"
+        ),
         "config/settings/base.py": "DEBUG = False\n",
         "data.json": '{"key": [1]}\n',
         "broken.yml": "key: [\n",
@@ -560,12 +582,14 @@ def test_files_are_sorted_relative_paths_without_the_venv_and_caches(project):
         ".env.example",
         ".envs/.local/.django",
         ".envs/.production/.postgres",
+        "AGENTS.md",
         "broken.yml",
         "config/settings/base.py",
         "data.json",
         "docker-compose.local.yml",
         "my_project/__init__.py",
         "my_project/templates/base.html",
+        "my_project/users/models.py",
         "pyproject.toml",
     ]
     assert project.files() == [Path(relative) for relative in expected]
@@ -614,6 +638,29 @@ def test_pins_are_requirements_by_array_in_file_order(project):
     dependencies = [(pin.name, str(pin.specifier), pin.extras) for pin in pins["dependencies"]]
     assert dependencies == [("django", "==6.0.2", set()), ("uvicorn", "==0.40.0", {"standard"})]
     assert [str(pin) for pin in pins["dev"]] == ["ruff==0.16.6"]
+    assert project.pinned == {"django", "uvicorn", "ruff"}
+
+
+def test_a_relative_path_may_spell_the_package_as_a_placeholder(project):
+    assert project.path("{package}/users/models.py") == project.root / "my_project" / "users" / "models.py"
+    assert project.path(Path("config/settings/base.py")) == project.root / "config" / "settings" / "base.py"
+    assert project.text("{package}/users/models.py") == "class User:\n    pass\n"
+    assert project.bytes("{package}/__init__.py") == b'__version__ = "0.1.0"\n'
+    reader = project.module("{package}/__init__.py")
+    assert reader.literal("__version__") == "0.1.0"
+    assert reader.path == Path("my_project/__init__.py")
+
+
+def test_guide_reads_a_section_and_the_rows_of_its_table(project):
+    guide = project.guide("AGENTS.md")
+    assert guide.path == Path("AGENTS.md")
+    assert guide.section("Conventions") == ["", "No table."]
+    # A subsection belongs to its section; a row is the first cell, in backticks, to the rest of the row
+    assert guide.rows("Generation choices") == {"use_docker": " `y` ", "rest_api": " `None` ", "nested": " kept "}
+    assert guide.rows("Layout") == {"config/": " settings "}
+    assert guide.rows("Conventions") == {}
+    with pytest.raises(LookupError, match=r"^AGENTS.md has no section 'Commands'$"):
+        guide.section("Commands")
 
 
 def test_compose_template_module_and_settings_locate_their_files(project):

@@ -2,8 +2,9 @@
 
 ``GeneratedProject`` locates the files under a generated root and parses the ones that have
 a syntax; ``PythonModule`` reads what a Python file binds at module scope from its source
-alone, without importing it. Expected behaviour belongs to the tests: nothing here asserts,
-checks that a file exists or validates the tree.
+alone, without importing it; ``AgentGuide`` reads the agent guide by its sections and the
+tables under them. Expected behaviour belongs to the tests: nothing here asserts, checks
+that a file exists or validates the tree.
 
 The Python reader resolves an intentionally small subset of the language and fails
 explicitly outside it. It makes no general claim to evaluate Python: anything dynamic (a
@@ -79,6 +80,8 @@ PHRASES = {
 
 SKIPPED_DIRECTORIES = {".venv", "__pycache__"}
 ENV_LINE = re.compile(r"([A-Za-z_]\w*)=(.*)")
+# A row of a guide table: the first cell in backticks, the rest of the row after it
+GUIDE_ROW = re.compile(r"\|\s*`([^`]+)`\s*\|(.*)\|")
 
 COMPOUND_STATEMENTS = (
     ast.If,
@@ -324,6 +327,14 @@ class PythonModule:
         calls = (node for node in ast.walk(self._tree) if isinstance(node, ast.Call))
         reads = (self._env_read(call) for call in sorted(calls, key=lambda call: (call.lineno, call.col_offset)))
         return [read for read in reads if read is not None]
+
+    def env_read(self, name: str) -> EnvRead:
+        """The one read of ``name`` through ``env``; a module that reads it never or more than once raises."""
+        reads = [read for read in self.env_reads() if read.name == name]
+        if len(reads) != 1:
+            message = f"{self.path} reads {name} through env {len(reads)} times, not once"
+            raise LookupError(message)
+        return reads[0]
 
     def _binding(self, name: str) -> _Binding:
         if self._rejection is not None:
@@ -571,12 +582,45 @@ class PythonModule:
         return entries
 
 
+class AgentGuide:
+    """The agent guide at ``path``, read by its sections: the lines under a ``## `` heading up to
+    the next, and the rows of the table there whose first cell is in backticks."""
+
+    def __init__(self, text: str, path: Path) -> None:
+        self.text = text
+        self.path = path
+
+    def section(self, heading: str) -> list[str]:
+        """The lines under ``## heading``; a guide without that heading raises."""
+        _, marker, rest = self.text.partition(f"\n## {heading}\n")
+        if not marker:
+            message = f"{self.path} has no section {heading!r}"
+            raise LookupError(message)
+        return rest.partition("\n## ")[0].splitlines()
+
+    def rows(self, heading: str) -> dict[str, str]:
+        """The table rows of the section under ``heading``: the first cell to the rest of the row."""
+        rows = (GUIDE_ROW.fullmatch(line) for line in self.section(heading))
+        return {row.group(1): row.group(2) for row in rows if row is not None}
+
+
 class GeneratedProject:
-    """A generated project at ``root``, whose directory keeps the generated slug: its name is the package."""
+    """A generated project at ``root``, whose directory keeps the generated slug: its name is the package.
+
+    A relative path may spell the package directory as ``{package}``, since a test names the
+    files it reads before the slug is known; every method here fills the name in.
+    """
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
         self.package = self.root.name
+
+    def _relative(self, path: str | Path) -> Path:
+        return Path(str(path).format(package=self.package))
+
+    def path(self, relative: str | Path) -> Path:
+        """The absolute path of ``relative``."""
+        return self.root / self._relative(relative)
 
     def files(self) -> list[Path]:
         """Every file under the root, relative to it and sorted; ``.venv`` and ``__pycache__`` are skipped."""
@@ -587,10 +631,10 @@ class GeneratedProject:
         return sorted(found)
 
     def text(self, relative: str | Path) -> str:
-        return (self.root / relative).read_text()
+        return self.path(relative).read_text()
 
     def bytes(self, relative: str | Path) -> bytes:
-        return (self.root / relative).read_bytes()
+        return self.path(relative).read_bytes()
 
     def json(self, relative: str | Path) -> object:
         return json.loads(self.text(relative))
@@ -640,9 +684,20 @@ class GeneratedProject:
         arrays = {"dependencies": data["project"]["dependencies"], **data.get("dependency-groups", {})}
         return {name: [Requirement(entry) for entry in entries] for name, entries in arrays.items()}
 
+    @property
+    def pinned(self) -> set[str]:
+        """The distribution names ``pyproject.toml`` pins, across its arrays."""
+        return {pin.name for array in self.pins.values() for pin in array}
+
     def module(self, relative: str | Path) -> PythonModule:
-        return PythonModule(self.text(relative), Path(relative))
+        relative = self._relative(relative)
+        return PythonModule(self.text(relative), relative)
 
     def settings(self, environment: str) -> PythonModule:
         """The settings module of ``environment``: base, local, test or production."""
         return self.module(f"config/settings/{environment}.py")
+
+    def guide(self, relative: str | Path) -> AgentGuide:
+        """The agent guide at ``relative``: which file the chosen agent reads is the test's to say."""
+        relative = self._relative(relative)
+        return AgentGuide(self.text(relative), relative)

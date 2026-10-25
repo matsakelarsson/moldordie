@@ -139,8 +139,12 @@ to itself); effective answers (for the complete answers).
 
 The view of a generated project that the tests use to locate files and inspect their contents:
 `GeneratedProject` in `tests/generated_project.py`, with `PythonModule` for what a Python file
-binds at module scope, read from its source alone (`docs/adr/0001`). Expected behaviour belongs
-to the tests: the reader asserts nothing, makes no existence check and validates no tree.
+binds at module scope, read from its source alone (`docs/adr/0001`), and `AgentGuide` for the
+agent guide's sections and tables. A path handed to the reader may spell the package directory
+as `{package}`, since a test is written before the slug is known. Expected behaviour belongs
+to the tests: the reader asserts nothing, makes no existence check and validates no tree; a
+lookup that finds nothing raises. A generated module a test reads is written inside the reader's
+subset where that costs it nothing (`docs/adr/0024`).
 
 ---
 
