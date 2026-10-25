@@ -44,27 +44,31 @@ from django_prometheus.exports import ExportToDjangoView
 {%- if service_tokens %}
 
 from {{ cookiecutter.project_slug }}.identity.verification import Rejected
+from {{ cookiecutter.project_slug }}.identity.verification import bearer_token
+from {{ cookiecutter.project_slug }}.identity.verification import is_configured_issuer
 from {{ cookiecutter.project_slug }}.identity.verification import service_verifier
 from {{ cookiecutter.project_slug }}.identity.verification import unverified_issuer
 {%- endif %}
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
+{%- if service_tokens %}
+
+# What a calling service's registration must hold to read the exposition
+READ_METRICS = "identity.read_metrics"
+{%- else %}
 
 # An Authorization header is a scheme and a credential
 SCHEME_AND_CREDENTIAL = 2
-{%- if service_tokens %}
-# What a calling service's registration must hold to read the exposition
-READ_METRICS = "identity.read_metrics"
-{%- endif %}
 
 
-def presented_credential(request: HttpRequest) -> str | None:
+def bearer_token(request: HttpRequest) -> str | None:
     """The credential of an ``Authorization: Bearer`` header; None for any other."""
     parts = request.headers.get("Authorization", "").split()
     if len(parts) != SCHEME_AND_CREDENTIAL or parts[0].lower() != "bearer":
         return None
     return parts[1]
+{%- endif %}
 
 
 def unauthorized() -> HttpResponse:
@@ -114,22 +118,22 @@ def metrics(request: HttpRequest) -> HttpResponse:
     {% if service_tokens -%}
     The token's own ``iss`` claim picks the branch, unverified and trusted for nothing
     else: a configured provider issuer means the verifier decides, and anything else is
-    compared against the configured token. That comparison is over bytes and in constant
-    time, so a credential that is not ASCII is refused rather than raising, and a wrong
-    one tells the caller nothing about how wrong it was. No transaction is opened: a
-    scrape reads the registrations at most, and writes nothing.
+    compared against the configured token. The header's parse and that rule are the
+    identity app's, the ones the API routes by. The comparison is over bytes and in
+    constant time, so a credential that is not ASCII is refused rather than raising,
+    and a wrong one tells the caller nothing about how wrong it was. No transaction is
+    opened: a scrape reads the registrations at most, and writes nothing.
     {%- else -%}
     The comparison is over bytes and in constant time, so a credential that is not
     ASCII is refused rather than raising, and a wrong one tells the caller nothing
     about how wrong it was. No transaction is opened: the scrape reads no table.
     {%- endif %}
     """
-    presented = presented_credential(request)
+    presented = bearer_token(request)
     if presented is None:
         return unauthorized()
 {%- if service_tokens %}
-    issuer = unverified_issuer(presented)
-    if isinstance(issuer, str) and issuer in settings.IDENTITY_SERVICE_ISSUERS:
+    if is_configured_issuer(unverified_issuer(presented)):
         return exposition_for_service(request, presented)
 {%- endif %}
     token = settings.METRICS_TOKEN

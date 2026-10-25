@@ -2043,9 +2043,12 @@ def machine_authentication_wiring(project, answers):
     assert (f"{project.package}.identity" in base.value("INSTALLED_APPS")) is verifier
     assert ("IDENTITY_SERVICE_ISSUERS" in base.source) is verifier
 
-    # A scrape presents a token of the provider's, and the permission says it may
+    # A scrape presents a token of the provider's, and the permission says it may; the
+    # endpoint then reads the credential and routes it as the API does (docs/adr/0027)
     if answers["observability"] == "prometheus":
-        assert ("identity.read_metrics" in project.text("{package}/metrics.py")) is verifier
+        metrics = project.text("{package}/metrics.py")
+        assert ("identity.read_metrics" in metrics) is verifier
+        assert ("identity.verification import bearer_token" in metrics) is verifier
 
 
 WIRINGS = [

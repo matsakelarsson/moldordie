@@ -11,6 +11,15 @@ The keys come from a key source. In production it is ``DiscoveredKeys``, which r
 the provider's discovery document at first use and wraps PyJWT's JWKS client; the tests
 inject an in-memory one. Nothing in a token's header or claims chooses where the keys
 come from.
+
+A token can arrive beside another credential: at the API's ``either_auth`` policy,
+beside the app's own tokens and the session, and at the metrics endpoint, beside the
+credential the environment drew. Whichever of them this project has reads the request
+and routes the token with what is here, so that both decide alike: ``bearer_token``,
+the credential of the request, and ``is_configured_issuer`` over ``unverified_issuer``,
+the routing on the token's unverified ``iss`` claim. What each does with a token no
+provider issued is its own, and neither tries the other's branch
+(``docs/authentication.rst``).
 """
 
 from __future__ import annotations
@@ -38,6 +47,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from collections.abc import Collection
 
+    from django.http import HttpRequest
     from jwt.algorithms import AllowedPublicKeys
 
 logger = logging.getLogger(__name__)
@@ -89,10 +99,20 @@ PYJWT_REASONS = (
     (jwt.InvalidTokenError, MALFORMED),
 )
 
+# An Authorization header is a scheme and a credential
+SCHEME_AND_CREDENTIAL = 2
 # A JWS in compact serialisation: header, payload, signature
 JWS_SEGMENTS = 3
 # What ``unverified_issuer`` answers for a credential that names no issuer
 MISSING = object()
+
+
+def bearer_token(request: HttpRequest) -> str | None:
+    """The credential of an ``Authorization: Bearer`` header; None for any other."""
+    parts = request.headers.get("Authorization", "").split()
+    if len(parts) != SCHEME_AND_CREDENTIAL or parts[0].lower() != "bearer":
+        return None
+    return parts[1]
 
 
 def unverified_issuer(token: str) -> object:
@@ -111,6 +131,16 @@ def unverified_issuer(token: str) -> object:
     if not isinstance(claims, dict):
         return MISSING
     return claims.get("iss", MISSING)
+
+
+def is_configured_issuer(issuer: object) -> bool:
+    """Whether an unverified issuer is one the settings name, so the verifier decides.
+
+    The one routing rule. A router that finds it true hands the token to the verifier,
+    which checks the issuer again, verified this time; one that finds it false never
+    does. Null, empty or any other issuer is no configured provider's.
+    """
+    return isinstance(issuer, str) and issuer in settings.IDENTITY_SERVICE_ISSUERS
 
 
 class Rejected(Exception):  # noqa: N818 - an adjective, as the policies read it
@@ -430,11 +460,20 @@ def configured() -> bool:
     return all(value.strip() for value in named)
 
 
+def provider_keys() -> KeySource:
+    """The configured provider's published keys, discovered at first use.
+
+    The seam the tests inject an in-memory key source through: this answers where the
+    keys come from, and ``key_source`` still decides whether to ask for them at all.
+    """
+    return DiscoveredKeys(settings.IDENTITY_SERVICE_DISCOVERY_URL)
+
+
 def key_source() -> KeySource:
     """Where the provider's keys come from, or nowhere if there is no provider."""
     if not configured():
         return UnconfiguredKeys()
-    return DiscoveredKeys(settings.IDENTITY_SERVICE_DISCOVERY_URL)
+    return provider_keys()
 
 
 @functools.cache
