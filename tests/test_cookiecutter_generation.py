@@ -24,10 +24,8 @@ from tests.answers import unknown_answers
 from tests.citations import Allowance
 from tests.citations import citations
 from tests.generated_project import NO_DEFAULT
-from tests.generated_project import EnvRead
 from tests.generated_project import Expression
 from tests.generated_project import GeneratedProject
-from tests.generated_project import PythonModule
 from tests.removal_coverage import MOST_CHANGED_ANSWERS
 from tests.removal_coverage import coverage_gaps
 from tests.removal_coverage import fewest_answers_keeping
@@ -770,13 +768,6 @@ def project_contents(project: GeneratedProject) -> dict[str, bytes]:
     return {str(path): project.bytes(path) for path in project.files()}
 
 
-def env_read(module: PythonModule, name: str) -> EnvRead:
-    """The one read of ``name`` through ``env`` in ``module``."""
-    reads = [read for read in module.env_reads() if read.name == name]
-    assert len(reads) == 1, f"{module.path} reads {name} {len(reads)} times, not once"
-    return reads[0]
-
-
 TOKEN = re.compile(r"[A-Za-z0-9]{64}")
 ROLE = re.compile(r"[A-Za-z]{32}")
 # The roles the environments share; every other secret is drawn per file.
@@ -803,8 +794,8 @@ def test_secrets_are_drawn_once_each(bake, context):
         local_django["CELERY_FLOWER_PASSWORD"],
         production_django["CELERY_FLOWER_PASSWORD"],
         production_django["DJANGO_SECRET_KEY"],
-        env_read(project.settings("local"), "DJANGO_SECRET_KEY").default,
-        env_read(project.settings("test"), "DJANGO_SECRET_KEY").default,
+        project.settings("local").env_read("DJANGO_SECRET_KEY").default,
+        project.settings("test").env_read("DJANGO_SECRET_KEY").default,
     ]
     assert len(set(tokens)) == len(tokens)
     assert all(TOKEN.fullmatch(token) for token in tokens)
@@ -844,7 +835,7 @@ def test_uppercase_flag_answers_select_the_same_features(bake, context, answer):
     assert differing <= SECRET_FILES
 
     selected = answer == "y"
-    assert ({"celery", "sentry-sdk", "whitenoise"} <= pinned(uppercase)) is selected
+    assert ({"celery", "sentry-sdk", "whitenoise"} <= uppercase.pinned) is selected
     assert ("SENTRY_DSN" in uppercase.settings("production").source) is selected
     assert (uppercase.root / "docker-compose.local.yml").exists() is selected
     # The env files are generated for every project, and none of them is ever committed.
@@ -889,11 +880,6 @@ def test_pyproject_toml(bake, context):
         "Programming Language :: Python :: 3.15",
     ]
     assert data["tool"]["mypy"]["python_version"] == "3.12"
-
-
-def pinned(project: GeneratedProject) -> set[str]:
-    """The distribution names the generated ``pyproject.toml`` pins, across its arrays."""
-    return {pin.name for array in project.pins.values() for pin in array}
 
 
 PROMETHEUS_PACKAGES = {"django-prometheus", "prometheus-client"}
@@ -951,7 +937,7 @@ def test_pyproject_pins_the_dependencies_of_the_chosen_options(bake, context_ove
     """The dependencies an option needs are pinned in pyproject.toml, and only then."""
     project = bake(context_override)
 
-    names = pinned(project)
+    names = project.pinned
     assert expected <= names
     assert not unexpected & names
 
@@ -1004,7 +990,7 @@ def test_free_text_answers_survive_escaping(bake, hostile_context):
     assert sphinx.literal("author") == author_name
     assert sphinx.literal("copyright").endswith(f", {author_name}")
 
-    package = project.module(f"{hostile_context['project_slug']}/__init__.py")
+    package = project.module("{package}/__init__.py")
     assert package.literal("__version__") == hostile_context["version"]
 
     traefik = project.yaml("compose/production/traefik/traefik.yml")
@@ -1050,7 +1036,7 @@ def test_asgi_entrypoint(bake, context, realtime):
 
     uses_channels = realtime == "channels"
     assert (config / "websocket.py").exists() is uses_channels
-    websocket_test = project.root / context["project_slug"] / "tests" / "test_websocket.py"
+    websocket_test = project.path("{package}/tests/test_websocket.py")
     assert websocket_test.exists() is uses_channels
     assert ("channels" in base.literal("INSTALLED_APPS")) is uses_channels
     assert "CHANNEL_LAYERS" not in base.source
@@ -1058,7 +1044,7 @@ def test_asgi_entrypoint(bake, context, realtime):
     assert ("InMemoryChannelLayer" in project.settings("test").source) is uses_channels
     assert ("channels_redis.core.RedisChannelLayer" in project.settings("production").source) is uses_channels
     assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "uvicorn"] == [{"standard"}]
-    names = pinned(project)
+    names = project.pinned
     assert "uvicorn-worker" in names
     assert ("channels-redis" in names) is uses_channels
     assert ("types-channels" in names) is uses_channels
@@ -1245,7 +1231,7 @@ def test_frontend_stack(bake, context):
     base = project.settings("base")
     assert "django_htmx" in base.literal("INSTALLED_APPS")
     assert "django_htmx.middleware.HtmxMiddleware" in base.literal("MIDDLEWARE")
-    assert "django-htmx" in pinned(project)
+    assert "django-htmx" in project.pinned
 
     base_html = project.template("base.html")
     assert "{% htmx_script %}" in base_html
@@ -1312,9 +1298,8 @@ def test_template_partials(bake, context):
     """htmx fragments are Django template partials selected by HtmxTemplateMixin."""
     project = bake(context)
 
-    templates = Path(context["project_slug"]) / "templates"
-    assert not (project.root / templates / "users" / "partials").exists()
-    assert not (project.root / templates / "partials" / "messages.html").exists()
+    assert not project.path("{package}/templates/users/partials").exists()
+    assert not project.path("{package}/templates/partials/messages.html").exists()
     assert "{% partialdef messages inline %}" in project.template("base.html")
     for name in ("user_detail.html", "user_form.html"):
         template = project.template(f"users/{name}")
@@ -1327,6 +1312,7 @@ def test_template_partials(bake, context):
 
     # Templates branch on the mixin's context flag, never on the request header: a template
     # that reads the request makes every page including it vary by HX-Request.
+    templates = Path(project.package) / "templates"
     offenders = [
         path
         for path in project.files()
@@ -1339,7 +1325,6 @@ def test_tailwind_and_daisyui(bake, context):
     """django-tailwind-cli builds the stylesheet from a source outside the static directories, and the
     built file is never generated. Nothing here runs the Tailwind CLI: the integration scripts do."""
     project = bake(context)
-    slug = context["project_slug"]
 
     # A runtime dependency: the production image builds the stylesheet without the dev group
     assert "django-tailwind-cli" in {pin.name for pin in project.pins["dependencies"]}
@@ -1349,7 +1334,7 @@ def test_tailwind_and_daisyui(bake, context):
     # A release of tailwind-cli-extra, never "latest": it fixes Tailwind CSS and daisyUI together
     assert re.fullmatch(r"\d+\.\d+\.\d+", base.literal("TAILWIND_CLI_VERSION"))
     # Outside the static directories: a manifest storage cannot resolve the source's @import "tailwindcss"
-    assert base.literal("TAILWIND_CLI_SRC_CSS") == f"{slug}/styles/main.css"
+    assert base.literal("TAILWIND_CLI_SRC_CSS") == f"{project.package}/styles/main.css"
     assert base.value("STATICFILES_DIRS") == [Expression("str(APPS_DIR / 'static')")]
     assert base.literal("TAILWIND_CLI_DIST_CSS") == "css/tailwind.css"
     # The production image builds under the test settings, so no other module may say otherwise
@@ -1357,15 +1342,15 @@ def test_tailwind_and_daisyui(bake, context):
         assert "TAILWIND_CLI" not in project.settings(environment).source
 
     # Explicit sources: the scan is the same with and without the .gitignore that Docker leaves out
-    css = project.text(f"{slug}/styles/main.css")
+    css = project.text("{package}/styles/main.css")
     assert '@import "tailwindcss" source(none);' in css
     assert '@source "../";' in css
     assert RE_DAISYUI_PLUGIN.search(css)
 
     ignored = project.text(".gitignore").splitlines()
-    assert f"{slug}/static/css/tailwind.css" in ignored
+    assert f"{project.package}/static/css/tailwind.css" in ignored
     assert ".django_tailwind_cli/" in ignored
-    assert not (project.root / slug / "static" / "css" / "tailwind.css").exists()
+    assert not project.path("{package}/static/css/tailwind.css").exists()
     assert not (project.root / ".django_tailwind_cli").exists()
 
     # Django's own template loading again, and its form renderer on the project's overrides
@@ -1373,7 +1358,7 @@ def test_tailwind_and_daisyui(bake, context):
     assert templates["APP_DIRS"] is True
     assert set(templates["OPTIONS"]) == {"context_processors"}
     assert base.literal("FORM_RENDERER") == "django.forms.renderers.TemplatesSetting"
-    forms = project.root / slug / "templates" / "django" / "forms"
+    forms = project.path("{package}/templates/django/forms")
     for name in ("field.html", "errors/list/ul.html", "widgets/input.html", "widgets/attrs_without_class.html"):
         assert (forms / name).is_file()
     # Django's attrs.html stays Django's: the admin's widgets and third-party ones include it
@@ -1390,13 +1375,14 @@ def test_tailwind_and_daisyui(bake, context):
     assert ".htmx-indicator" in css
     # The project's own theme is the default look, and the style example a developer edits
     assert '@import "./theme.css";' in css
-    theme = project.text(f"{slug}/styles/theme.css")
+    theme = project.text("{package}/styles/theme.css")
     assert '@plugin "daisyui/theme"' in theme
     assert 'name: "brand";' in theme
     assert theme.count("default: true;") == 1
 
+    tests = project.path("{package}/tests")
     for name in ("test_staticfiles.py", "test_error_pages.py", "test_forms.py", "test_allauth.py", "test_pages.py"):
-        assert (project.root / slug / "tests" / name).is_file()
+        assert (tests / name).is_file()
     assert "   frontend\n" in project.text("docs/index.rst")
 
 
@@ -1433,18 +1419,17 @@ def test_themes(bake, context):
     """Every daisyUI theme is enabled next to the project's own, and the picker's choice is kept by a view
     that is always routed. That the stylesheet and ``THEMES`` agree is the generated suite's to check."""
     project = bake(context)
-    slug = context["project_slug"]
 
-    themes = project.module(f"{slug}/themes.py").literal("THEMES")
-    own = re.search(r'name: "([^"]+)";', project.text(f"{slug}/styles/theme.css")).group(1)
+    themes = project.module("{package}/themes.py").literal("THEMES")
+    own = re.search(r'name: "([^"]+)";', project.text("{package}/styles/theme.css")).group(1)
     assert themes == (own, *DAISYUI_THEMES)
     # Listed one by one: "all" would make daisyUI's light the default, next to the project's own
-    enabled = RE_DAISYUI_PLUGIN.search(project.text(f"{slug}/styles/main.css")).group(1)
+    enabled = RE_DAISYUI_PLUGIN.search(project.text("{package}/styles/main.css")).group(1)
     assert re.findall(r"^\s+([a-z]+)(?: --prefersdark)?[,;]$", enabled, re.MULTILINE) == list(DAISYUI_THEMES)
     assert "--default" not in enabled
 
     base = project.settings("base")
-    assert base.value("TEMPLATES")[0]["OPTIONS"]["context_processors"][-1] == f"{slug}.themes.theme"
+    assert base.value("TEMPLATES")[0]["OPTIONS"]["context_processors"][-1] == f"{project.package}.themes.theme"
     routed = project.text("config/urls.py").partition("if settings.DEBUG:")[0]
     assert 'path("theme/", set_theme, name="set_theme")' in routed
 
@@ -1455,27 +1440,27 @@ def test_themes(bake, context):
     navigation = project.template("partials/navigation.html")
     assert "theme-controller" in navigation
     assert "hx-post=\"{% url 'set_theme' %}\"" in navigation
-    assert (project.root / slug / "tests" / "test_themes.py").is_file()
+    assert project.path("{package}/tests/test_themes.py").is_file()
 
 
 def test_examples_page(bake, context):
     """The examples page is routed in every environment, and a project that deletes it needs no other edit."""
     project = bake(context)
-    slug = context["project_slug"]
 
+    examples = project.path("{package}/examples")
     for name in ("__init__", "content", "forms", "urls", "views"):
-        assert (project.root / slug / "examples" / f"{name}.py").is_file()
+        assert (examples / f"{name}.py").is_file()
     # Not an installed app: it has no models, no template tags and no templates of its own
-    assert f"{slug}.examples" not in project.settings("base").literal("INSTALLED_APPS")
-    templates = project.root / slug / "templates" / "examples"
+    assert f"{project.package}.examples" not in project.settings("base").literal("INSTALLED_APPS")
+    templates = project.path("{package}/templates/examples")
     names = sorted(path.stem for path in templates.iterdir())
-    content = project.module(f"{slug}/examples/content.py")
+    content = project.module("{package}/examples/content.py")
     static = ["theme", "buttons", "alerts", "badges", "card"]
     assert names == sorted(["index", *static, *content.literal("HTMX_EXAMPLES")])
 
     # Outside the DEBUG block, unlike the error page previews
     routed, _, debug_only = project.text("config/urls.py").partition("if settings.DEBUG:")
-    include = f'include("{slug}.examples.urls", namespace="examples")'
+    include = f'include("{project.package}.examples.urls", namespace="examples")'
     assert include in routed
     assert include not in debug_only
     # The link asks for the route first, so deleting the page leaves the navigation working
@@ -1485,13 +1470,12 @@ def test_examples_page(bake, context):
     # Where an htmx request puts a dialog
     assert '<div id="modal"></div>' in project.template("base.html")
     # The page keeps nothing on the server: its views open no transaction
-    assert "transaction.non_atomic_requests" in project.text(f"{slug}/examples/views.py")
+    assert "transaction.non_atomic_requests" in project.text("{package}/examples/views.py")
 
 
 def test_docker_builds_and_watches_the_stylesheet(bake, context):
     """The production image builds the stylesheet in its build stage; only the local stack runs the watcher."""
     project = bake({**context, "use_docker": "y"})
-    slug = context["project_slug"]
 
     build_stage, run_stage = project.text("compose/production/django/Dockerfile").split("AS python-run-stage")
     assert "manage.py tailwind build --skip-checks" in build_stage
@@ -1505,7 +1489,7 @@ def test_docker_builds_and_watches_the_stylesheet(bake, context):
 
     ignored = project.text(".dockerignore").splitlines()
     assert ".django_tailwind_cli/" in ignored
-    assert f"{slug}/static/css/tailwind.css" in ignored
+    assert f"{project.package}/static/css/tailwind.css" in ignored
 
     services = project.compose("local")["services"]
     watcher = services["tailwind"]
@@ -1513,7 +1497,7 @@ def test_docker_builds_and_watches_the_stylesheet(bake, context):
     # Tailwind's CLI stops watching once its standard input closes
     assert watcher["tty"] is True
     assert watcher["ports"] == []
-    assert f"{slug}_local_tailwind_cli:/app/.django_tailwind_cli" in services["django"]["volumes"]
+    assert f"{project.package}_local_tailwind_cli:/app/.django_tailwind_cli" in services["django"]["volumes"]
     for environment in DEPLOYED_ENVIRONMENTS:
         assert "tailwind" not in project.compose(environment)["services"]
 
@@ -1539,7 +1523,7 @@ def test_content_security_policy(bake, context, realtime, rest_api):
     assert ('"ws:"' in project.settings("local").source) is uses_channels
     production = project.settings("production")
     assert ('"wss:"' in production.source) is uses_channels
-    report_uri = env_read(production, "DJANGO_CSP_REPORT_URI")
+    report_uri = production.env_read("DJANGO_CSP_REPORT_URI")
     assert (report_uri.method, report_uri.default) == (None, None)
     # Documented in the env file as a commented-out line, so not a value ``env`` would read
     assert "DJANGO_CSP_REPORT_URI" in project.text(".envs/.production/.django")
@@ -1574,19 +1558,18 @@ def test_tasks_framework(bake, context, use_celery):
     project = bake(context)
 
     celery = use_celery == "y"
-    assert "django-tasks-db" in pinned(project)
+    assert "django-tasks-db" in project.pinned
     assert "django_tasks_db" in project.settings("base").literal("INSTALLED_APPS")
-    immediate = 'TASKS = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}'
-    assert immediate in project.settings("local").source
-    assert immediate in project.settings("test").source
-    database = 'TASKS = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}'
-    assert database in project.settings("production").source
+    immediate = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
+    assert project.settings("local").literal("TASKS") == immediate
+    assert project.settings("test").literal("TASKS") == immediate
+    database = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}
+    assert project.settings("production").literal("TASKS") == database
 
-    users = Path(context["project_slug"]) / "users"
-    tasks = project.text(users / "tasks.py")
+    tasks = project.text("{package}/users/tasks.py")
     assert "from django.tasks import task" in tasks
     assert ("shared_task" in tasks) is celery
-    tests = project.text(users / "tests" / "test_tasks.py")
+    tests = project.text("{package}/users/tests/test_tasks.py")
     assert "TaskResultStatus.SUCCESSFUL" in tests
     assert ("EagerResult" in tests) is celery
     assert (project.root / "config" / "celery_app.py").exists() is celery
@@ -1690,14 +1673,12 @@ def test_local_mail_catcher(bake, mail_catcher, service, port, use_docker):
     local = project.settings("local")
 
     assert "EMAIL_BACKEND" not in local.source
-    assert f"EMAIL_PORT = {port}" in local.source
+    assert local.literal("EMAIL_PORT") == port
     if use_docker == "y":
-        # The module is outside the reader's subset with Docker (INTERNAL_IPS += inside an if)
-        assert env_read(local, "EMAIL_HOST").default == service
+        assert local.env_read("EMAIL_HOST").default == service
         assert service in project.compose("local")["services"]
     else:
         assert local.literal("EMAIL_HOST") == "localhost"
-        assert local.literal("EMAIL_PORT") == port
 
 
 def test_local_mail_without_a_catcher(bake, context):
@@ -1705,7 +1686,7 @@ def test_local_mail_without_a_catcher(bake, context):
     local = bake({**context, "mail_catcher": "None"}).settings("local")
 
     assert "EMAIL_HOST" not in local.source
-    assert env_read(local, "DJANGO_EMAIL_BACKEND").default == "django.core.mail.backends.console.EmailBackend"
+    assert local.env_read("DJANGO_EMAIL_BACKEND").default == "django.core.mail.backends.console.EmailBackend"
 
 
 # (identity provider, its allauth provider app, the origin the Content Security Policy
@@ -1737,11 +1718,6 @@ IDENTITY_PROVIDER_FILES = [
 ENTRA_FILES = ["{package}/users/providers.py", "{package}/users/tests/test_providers.py"]
 
 
-def generated(project: GeneratedProject, path: str) -> Path:
-    """The path of a listed file in ``project``, with the package name filled in."""
-    return project.root / path.format(package=project.package)
-
-
 @pytest.mark.parametrize(
     ("identity_provider", "app", "origin", "credentials"),
     IDENTITY_PROVIDERS,
@@ -1767,12 +1743,12 @@ def test_identity_provider_login(bake, identity_provider, app, origin, credentia
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"mfa", "socialaccount"}
     for path in IDENTITY_PROVIDER_FILES:
-        assert generated(project, path).exists(), path
+        assert project.path(path).exists(), path
     assert "authentication" in project.text("docs/index.rst")
     entra = identity_provider == "entra"
     for path in ENTRA_FILES:
-        assert generated(project, path).exists() is entra, path
-    assert ("def get_provider(" in project.text(f"{project.package}/users/adapters.py")) is entra
+        assert project.path(path).exists() is entra, path
+    assert ("def get_provider(" in project.text("{package}/users/adapters.py")) is entra
 
 
 def test_entra_login_is_keyed_by_the_object_id(bake):
@@ -1895,19 +1871,19 @@ def test_headless_login(bake, context_override):
 
     # The signing key: drawn per environment, required in production, never SECRET_KEY
     production = project.settings("production")
-    assert env_read(production, "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default is NO_DEFAULT
-    assert env_read(production, "DJANGO_FRONTEND_ORIGINS").default is NO_DEFAULT
-    assert env_read(production, "DJANGO_FRONTEND_URL").default is NO_DEFAULT
+    assert production.env_read("DJANGO_HEADLESS_JWT_PRIVATE_KEY").default is NO_DEFAULT
+    assert production.env_read("DJANGO_FRONTEND_ORIGINS").default is NO_DEFAULT
+    assert production.env_read("DJANGO_FRONTEND_URL").default is NO_DEFAULT
     production_env = project.env("production", "django")
     keys = [
         production_env["DJANGO_HEADLESS_JWT_PRIVATE_KEY"],
-        env_read(project.settings("local"), "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default,
-        env_read(project.settings("test"), "DJANGO_HEADLESS_JWT_PRIVATE_KEY").default,
+        project.settings("local").env_read("DJANGO_HEADLESS_JWT_PRIVATE_KEY").default,
+        project.settings("test").env_read("DJANGO_HEADLESS_JWT_PRIVATE_KEY").default,
     ]
     secret_keys = [
         production_env["DJANGO_SECRET_KEY"],
-        env_read(project.settings("local"), "DJANGO_SECRET_KEY").default,
-        env_read(project.settings("test"), "DJANGO_SECRET_KEY").default,
+        project.settings("local").env_read("DJANGO_SECRET_KEY").default,
+        project.settings("test").env_read("DJANGO_SECRET_KEY").default,
     ]
     assert all(TOKEN.fullmatch(key) for key in keys)
     assert len(set(keys + secret_keys)) == len(keys + secret_keys)
@@ -1918,7 +1894,7 @@ def test_headless_login(bake, context_override):
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"headless", "mfa", "socialaccount"}
     for path in IDENTITY_APP_FILES:
-        assert generated(project, path).exists(), path
+        assert project.path(path).exists(), path
     # The API authenticates an app-issued JWT, or the session cookie with its CSRF check
     api = project.text("config/api.py")
     assert f"from {project.package}.identity.auth import user_auth" in api
@@ -1937,7 +1913,7 @@ def test_calling_services(bake, context_override):
     api = project.text("config/api.py")
     assert f'api.add_router("/principal/", "{project.package}.identity.api.router")' in api
     assert "class PrincipalHttpRequest(HttpRequest):" in project.text(f"{project.package}/typedefs.py")
-    assert "pyjwt" in pinned(project)
+    assert "pyjwt" in project.pinned
     assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "pyjwt"] == [{"crypto"}]
     assert base.value("IDENTITY_SERVICE_ISSUERS")
     assert "IDENTITY_SERVICE_AUDIENCE" in base.source
@@ -1986,7 +1962,7 @@ def test_no_identity_provider(bake):
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"mfa"}
     for path in [*IDENTITY_PROVIDER_FILES, *ENTRA_FILES]:
-        assert not generated(project, path).exists(), path
+        assert not project.path(path).exists(), path
     assert "authentication" not in project.text("docs/index.rst")
 
 
@@ -2000,7 +1976,7 @@ def test_sentry_wiring(bake, context, use_sentry):
     package = Path(context["project_slug"])
     assert (project.root / package / "sentry" / "apps.py").exists() is selected
     assert (project.root / package / "tests" / "test_sentry.py").exists() is selected
-    assert ("sentry-sdk" in pinned(project)) is selected
+    assert ("sentry-sdk" in project.pinned) is selected
 
     # Importing the settings initialises nothing; the app does, once the registry is ready
     production = project.settings("production")
@@ -2034,7 +2010,7 @@ def test_metrics_wiring(bake, context, observability):
     package = Path(context["project_slug"])
     assert (project.root / package / "metrics.py").exists() is selected
     assert (project.root / package / "tests" / "test_metrics.py").exists() is selected
-    assert ("django-prometheus" in pinned(project)) is selected
+    assert ("django-prometheus" in project.pinned) is selected
 
     base = project.settings("base")
     assert ("django_prometheus" in base.value("INSTALLED_APPS")) is selected
@@ -2088,7 +2064,7 @@ def test_telemetry_wiring(bake, context, observability):
     # A web worker is ended by a re-raised signal, so the lifespan is where it flushes
     assert ("flushing_on_shutdown" in project.text(Path("config") / "asgi.py")) is selected
     assert (project.root / package / "tests" / "test_telemetry.py").exists() is selected
-    assert (pinned(project) >= TELEMETRY_PACKAGES) is selected
+    assert (project.pinned >= TELEMETRY_PACKAGES) is selected
     # Both arms measure something, and the page says where what they measure is read
     measured = observability != "none"
     assert (project.root / "docs" / "observability.rst").exists() is measured
@@ -2188,18 +2164,17 @@ def test_machine_authentication_wiring(bake, context, answers, verifier, api):
     one, and the policies Django Ninja's routes run under are generated only with it."""
     project = bake({**context, **answers})
 
-    package = Path(context["project_slug"])
-    identity = project.root / package / "identity"
+    identity = project.path("{package}/identity")
     assert (identity / "verification.py").exists() is verifier
     assert (identity / "models.py").exists() is verifier
     assert (identity / "tests" / "services.py").exists() is verifier
     # The API's side: the policies, the routes they guard and what drives them in the tests
     assert (identity / "auth.py").exists() is api
     assert (identity / "tests" / "headless.py").exists() is api
-    assert ("pyjwt" in pinned(project)) is verifier
+    assert ("pyjwt" in project.pinned) is verifier
 
     base = project.settings("base")
-    installed = f"{context['project_slug']}.identity"
+    installed = f"{project.package}.identity"
     assert (installed in base.value("INSTALLED_APPS")) is verifier
     assert ("IDENTITY_SERVICE_ISSUERS" in base.source) is verifier
 
@@ -2208,7 +2183,7 @@ def test_machine_authentication_wiring(bake, context, answers, verifier, api):
     permission = identity / "migrations" / "0002_the_metrics_permission.py"
     assert permission.exists() is (verifier and scraped)
     if scraped:
-        assert ("identity.read_metrics" in project.text(package / "metrics.py")) is verifier
+        assert ("identity.read_metrics" in project.text("{package}/metrics.py")) is verifier
 
 
 # The agent guide: where each coding agent reads its instructions, as the agent's own
@@ -2220,28 +2195,14 @@ AGENT_FILES = {
     "cursor": "AGENTS.md",
     "copilot": ".github/copilot-instructions.md",
 }
-# A row of a guide table: the first cell in backticks, the rest of the row after it.
-RE_GUIDE_ROW = re.compile(r"\|\s*`([^`]+)`\s*\|(.*)\|")
+# The answer cell of the choices table: the answer as given, in backticks.
 RE_ANSWER_CELL = re.compile(r"\s*`([^`]*)`\s*")
 
 
-def guide_section(guide, heading):
-    """The lines of the guide's section under ``heading``, up to the next one."""
-    _, marker, rest = guide.partition(f"\n## {heading}\n")
-    assert marker, f"the guide has no {heading!r} section"
-    return rest.partition("\n## ")[0].splitlines()
-
-
-def guide_rows(guide, heading):
-    """The table rows of the guide's ``heading`` section: first cell to the rest of the row."""
-    rows = (RE_GUIDE_ROW.fullmatch(line) for line in guide_section(guide, heading))
-    return {row.group(1): row.group(2) for row in rows if row is not None}
-
-
 def agent_guide(project, answers):
-    """The text of the guide the ``answers`` placed, or ``None`` when no agent was chosen."""
+    """The reader of the guide the ``answers`` placed, or ``None`` when no agent was chosen."""
     file = AGENT_FILES[answers["coding_agent"]]
-    return None if file is None else project.text(file)
+    return None if file is None else project.guide(file)
 
 
 def test_agent_files_cover_every_coding_agent():
@@ -2265,7 +2226,7 @@ def test_agent_guide_records_the_answers_the_project_was_generated_from(bake, co
     answers = complete_answers(context_override)
     guide = agent_guide(bake(context_override), answers)
 
-    recorded = guide_rows(guide, "Generation choices")
+    recorded = guide.rows("Generation choices")
     assert list(recorded) == list(option_names(LIST, FLAG))
     for name, cell in recorded.items():
         assert RE_ANSWER_CELL.fullmatch(cell).group(1) == answers[name], name
@@ -2277,7 +2238,7 @@ def test_agent_guide_lays_out_the_tree_that_was_generated(bake, context_override
     project = bake(context_override)
     guide = agent_guide(project, complete_answers(context_override))
 
-    paths = guide_rows(guide, "Layout")
+    paths = guide.rows("Layout")
     assert paths
     for path in paths:
         assert (project.root / path).exists(), path
