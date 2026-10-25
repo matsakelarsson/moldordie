@@ -161,16 +161,6 @@ The generated Django project uses:
 5. Add a row to `PAIRED_COMBINATIONS` in `tests/test_cookiecutter_generation.py` when `test_every_removable_path_is_baked` asks for it: a path of your removal rule that only survives together with another answer fails there, with the row to write. Add the answers to an existing row of the `docker` or `bare` job in `.github/workflows/ci.yml` when `test_every_removable_path_is_generated_by_some_ci_row` names a path (a new job only if widening a row would hide which answer a failure belongs to; an exemption only for a path nothing the integration scripts run reads). A fork inside a file that some row keeps anyway is not checked (`docs/adr/0021`), so add its row by hand when the arm needs a second answer to be reached — a guide arm needs `coding_agent` answered with an agent, which the rows there already pair with the answers the guide forks on; an option rejected in some combination goes into `UNSUPPORTED_COMBINATIONS`
 6. Document it: an entry in `docs/1-getting-started/project-generation-options.rst`, in declaration order, with a list option's choices as an enumerated list whose items start with the answer as typed; and its prompt in the README's example session. `tests/test_options.py` checks both against the catalogue
 
-## Agent skills
+## Domain docs
 
-### Issue tracker
-
-Issues live in this repo's GitHub Issues, driven through the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five default triage labels, unchanged: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root, created lazily by `/domain-modeling`. See `docs/agents/domain.md`.
+`CONTEXT.md` at the repository root is the glossary: the terms this guide, the tests and the hooks use, each with the alternatives to avoid. `docs/adr/` holds the decisions, one numbered file each, cited by number throughout this guide. Both are written by hand, in the pull request that introduces the term or takes the decision, with the reasons at hand; neither is generated
