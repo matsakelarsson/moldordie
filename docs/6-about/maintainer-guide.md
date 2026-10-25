@@ -24,7 +24,7 @@ We have a few workflows which have been automated over time. They usually run us
 
 The CI workflow tries to cover 2 main aspects of the template:
 
-- Check all combinations to make sure that valid files are generated and pass `ruff check` and `djlint --lint`: the `tests` job, on three Python versions. The `auto-fixable` job checks, on one, that `ruff format`, djlint's formatter and `django-upgrade` would change nothing in the generated output; those tests run only with `AUTOFIXABLE_STYLES=1`, and the job selects them by their `auto_fixable` marker.
+- Check all combinations to make sure that valid files are generated and pass `ruff check` and `djlint --lint`: the `tests` job, on three Python versions. The `auto-fixable` job checks, on one, that `ruff format`, djlint's formatter, `django-upgrade` and `pyproject-fmt` would change nothing in the generated output; those tests run only with `AUTOFIXABLE_STYLES=1`, and the job selects them by their `auto_fixable` marker.
 - Run more in-depth tests on a few combinations, by installing dependencies, running type checker and the test suite of the generated project, and building its stylesheet with the Tailwind CLI. We try to cover docker (`docker` job) and non-docker (`bare` job) setups.
 
 We also run the deployment checks, but we don't do much more beyond that for testing the production setup.

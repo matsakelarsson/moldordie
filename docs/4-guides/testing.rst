@@ -42,7 +42,7 @@ If you're running the project locally with Docker, use these commands instead: :
 .. note::
 
    Both ``pytest`` and ``coverage`` are configured in ``pyproject.toml`` at the root of the project,
-   under ``[tool.pytest]`` and ``[tool.coverage.run]``. You can find out more about customizing_
+   under ``[tool.pytest]`` and ``[tool.coverage]``. You can find out more about customizing_
    ``pytest`` and `configuring`_ ``coverage``.
 
 Type checking
