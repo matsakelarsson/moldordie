@@ -23,7 +23,7 @@ A worker exports traces and metrics of its own, and it has to start doing so bef
 loads the application: the Django instrumentation inserts a middleware into
 ``MIDDLEWARE``, and the handler reads that setting once, when it builds its chain.
 ``post_fork`` runs in the worker, after the fork and before the application is loaded,
-which is the one moment where both hold (``docs/adr/0020``).
+which is the one moment where both hold (see ``docs/observability.rst``).
 
 The arbiter starts nothing. It answers no request, and the exporters' threads would
 not survive the fork into a worker anyway.

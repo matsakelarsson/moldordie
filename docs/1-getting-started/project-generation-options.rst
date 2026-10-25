@@ -16,7 +16,7 @@ project_slug:
     is needed.
 
 description:
-    Describes your project and gets used in places like ``README.rst`` and such.
+    Describes your project and gets used in places like ``README.md`` and such.
 
 author_name:
     This is you! The value goes into places like ``LICENSE`` and such.

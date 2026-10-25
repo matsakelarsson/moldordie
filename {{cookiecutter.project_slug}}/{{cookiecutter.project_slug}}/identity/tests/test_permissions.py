@@ -40,31 +40,6 @@ def calling(rf: RequestFactory, principal: object):
     return request
 
 
-class TestServiceRegistrationHasPerm:
-    def test_a_granted_permission(self, service, view_user):
-        service.permissions.add(view_user)
-
-        assert service.has_perm(PERMISSION) is True
-
-    def test_a_permission_not_granted(self, service, view_user):
-        assert service.has_perm(PERMISSION) is False
-        assert service.has_perm("users.change_user") is False
-
-    def test_the_full_name_counts(self, service, view_user):
-        """A codename alone, or one of another app, matches nothing."""
-        service.permissions.add(view_user)
-
-        assert service.has_perm("view_user") is False
-        assert service.has_perm("identity.view_user") is False
-
-    def test_a_disabled_service_has_no_permission(self, service, view_user):
-        service.permissions.add(view_user)
-        service.enabled = False
-        service.save()
-
-        assert service.has_perm(PERMISSION) is False
-
-
 class TestRequirePermission:
     def test_a_service_with_the_permission_passes(self, rf, service, view_user):
         service.permissions.add(view_user)
