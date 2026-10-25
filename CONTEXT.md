@@ -236,6 +236,17 @@ Which files the arm adds is the removal rules' statement, not the wiring's.
 
 _Avoid_: integration, feature test.
 
+## Router
+
+A caller that takes a calling service's token beside another credential and picks, on the
+token's unverified `iss` claim, which branch verifies it: the API's `either_auth` policy, beside
+the app's own tokens and the session, and the metrics endpoint, beside the credential the
+environment drew. The routers share the parse of the request and the rule on the issuer
+(`identity/verification.py`, `docs/adr/0027`); what each does with a token no provider issued is
+its own, and no branch falls back to another (`docs/adr/0019`).
+
+_Avoid_: dispatcher, gateway, authenticator.
+
 ## Template context
 
 Django's rendering context, always so qualified. Unqualified, "context" is the answers the

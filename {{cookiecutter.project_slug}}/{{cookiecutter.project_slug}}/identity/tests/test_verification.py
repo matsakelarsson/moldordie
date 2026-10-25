@@ -1,8 +1,10 @@
 {%- set entra = cookiecutter.identity_provider == 'entra' -%}
-"""The verifier around its key source, its provider's rules, and what it tells the logs.
+"""The verifier around its key source, its provider's rules, and what it tells the logs;
+and what a router reads a request and a token with before any branch verifies.
 
 The verifier is called here as its callers call it, rather than through one of them:
-what it accepts and refuses is the same wherever the token arrived.
+what it accepts and refuses is the same wherever the token arrived, and this project
+may have generated either caller or both.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import threading
 import time
 from typing import Any
 
+import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt import PyJWKClientError
@@ -60,7 +63,7 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def keys(settings, monkeypatch: pytest.MonkeyPatch) -> services.StaticKeys:
-    """The in-memory key source; the real ``DiscoveredKeys`` stays bound above."""
+    """The in-memory key source, injected through the seam the module keeps for it."""
     return services.configure(settings, monkeypatch)
 
 
@@ -116,6 +119,11 @@ BROKEN = [
     {%- else %}
     ("unregistered subject", {"sub": "someone"}, verification.UNREGISTERED),
     ("wrong issuer", {"iss": ANOTHER_ISSUER}, verification.BAD_ISSUER),
+    (
+        "an issuer without a scheme",
+        {"iss": "accounts.example.com"},
+        verification.BAD_ISSUER,
+    ),
     ("wrong audience", {"aud": ANOTHER_AUDIENCE}, verification.BAD_AUDIENCE),
     (
         "a user's login token",
@@ -165,6 +173,101 @@ class TestTheProvidersRules:
 
     def test_a_token_signed_by_an_unknown_key_is_refused(self, registration):
         assert refuse(sign(service_claims(), kid="unknown")) == verification.UNKNOWN_KEY
+{%- if not entra %}
+
+    def test_a_token_without_an_email_claim_is_accepted(self, registration):
+        """A token from the metadata server in the standard format carries no email."""
+        assert verify(token_with(email=REMOVE, email_verified=REMOVE)) == registration
+{%- endif %}
+
+
+class TestWhatARouterReads:
+    """The credential of the request and the token's own word on its issuer, which a
+    router reads before any branch verifies anything. Tested on the module rather
+    than through a router, since this project may have generated either or both."""
+
+    @pytest.mark.parametrize(
+        ("authorization", "credential"),
+        [
+            ("Bearer abc", "abc"),
+            ("bearer abc", "abc"),
+            ("Bearer", None),
+            ("Bearer abc def", None),
+            ("Basic abc", None),
+            ("", None),
+        ],
+        ids=[
+            "bearer",
+            "lower-case scheme",
+            "scheme only",
+            "two credentials",
+            "another scheme",
+            "empty",
+        ],
+    )
+    def test_the_bearer_credential(self, rf, authorization, credential):
+        request = rf.get("/", headers={"Authorization": authorization})
+
+        assert verification.bearer_token(request) == credential
+
+    def test_no_header_is_no_credential(self, rf):
+        assert verification.bearer_token(rf.get("/")) is None
+
+    def test_the_issuer_is_read_as_the_token_states_it(self):
+        assert verification.unverified_issuer(sign(service_claims())) == services.ISSUER
+        assert verification.unverified_issuer(token_with(iss=None)) is None
+        assert verification.unverified_issuer(token_with(iss="")) == ""
+
+    def test_the_issuer_is_read_without_verifying(self):
+        """Nothing is trusted here: a token no branch could verify still states an
+        issuer, which is what lets a router refuse it with a reason."""
+        secret = "a shared secret of at least thirty-two bytes"  # noqa: S105 - a test key
+        unknown_key = sign(service_claims(), kid="unknown")
+        another_algorithm = sign(service_claims(), key=secret, algorithm="HS256")
+
+        assert verification.unverified_issuer(unknown_key) == services.ISSUER
+        assert verification.unverified_issuer(another_algorithm) == services.ISSUER
+
+    @pytest.mark.parametrize(
+        "token",
+        [
+            token_with(iss=REMOVE),
+            jwt.PyJWS().encode(b"[]", services.PRIVATE_KEY, algorithm="RS256"),
+            "a.bm90IGpzb24.c",
+            "the-credential-of-this-environment",
+        ],
+        ids=["no iss claim", "claims not an object", "payload not JSON", "not a JWS"],
+    )
+    def test_a_token_naming_no_issuer(self, token):
+        """An app-issued token carries no issuer, and a drawn credential is no token:
+        both read as ``MISSING``, and a router decides what that means for it."""
+        assert verification.unverified_issuer(token) is verification.MISSING
+
+    @pytest.mark.parametrize(
+        ("issuer", "configured"),
+        [
+            (services.ISSUER, True),
+            {%- if not entra %}
+            ("accounts.google.com", True),
+            {%- endif %}
+            (ANOTHER_ISSUER, False),
+            (None, False),
+            ("", False),
+            (verification.MISSING, False),
+        ],
+        ids=[
+            "configured",
+            {%- if not entra %}
+            "configured, without a scheme",
+            {%- endif %}
+            "another",
+            "null",
+            "empty",
+            "missing",
+        ],
+    )
+    def test_whether_an_issuer_is_configured(self, issuer, configured):
+        assert verification.is_configured_issuer(issuer) is configured
 
 
 class TestKeySource:
@@ -303,6 +406,24 @@ class TestDiscoveredKeys:
             verification.fetch_json("http://issuer.example.com/config", 1.0)
 
 
+class TestWhereTheKeysComeFrom:
+    """The module's own answer, with nothing injected: this class's ``keys`` fixture
+    stands in for the module's, so ``provider_keys`` is the one that discovers."""
+
+    @pytest.fixture(autouse=True)
+    def keys(self, settings) -> None:
+        services.name_the_provider(settings)
+
+    def test_a_named_provider_is_discovered(self, settings):
+        keys = verification.key_source()
+
+        assert verification.configured() is True
+        assert isinstance(keys, DiscoveredKeys)
+        assert keys.discovery_url == settings.IDENTITY_SERVICE_DISCOVERY_URL
+        # Nothing is fetched until the first token arrives
+        assert keys.client is None
+
+
 class TestAnUnnamedProvider:
     """A deployment whose settings name no provider asks nothing of the network.
 
@@ -310,9 +431,6 @@ class TestAnUnnamedProvider:
     nothing more. Where the settings identify nobody, no token can verify against
     whatever a request would return, so the request is not made.
     """
-
-    def test_a_named_provider_is_discovered(self):
-        assert verification.configured() is True
 
     def test_nothing_is_asked_where_the_audience_is_empty(self, settings, registration):
         settings.IDENTITY_SERVICE_AUDIENCE = ""
@@ -392,3 +510,17 @@ class TestLogging:
             "token rejected: branch=service reason=bad_issuer",
             "token rejected: branch=service reason=bad_audience",
         ]
+
+    def test_no_token_material_reaches_the_logs(self, registration, caplog):
+        caplog.set_level(logging.DEBUG, logger=verification.__name__)
+        subject = "unknown-service"
+        token = sign(service_claims(sub=subject{% if entra %}, oid=subject{% endif %}))
+
+        refuse(token)
+
+        records = rejections(caplog)
+        assert records
+        for record in records:
+            assert subject not in record.getMessage()
+            assert KID not in record.getMessage()
+            assert token[-20:] not in record.getMessage()

@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING
 from typing import cast
 
 from allauth.headless.contrib.ninja.security import JWTTokenAuth
-from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from ninja.security import SessionAuth
 from ninja.security.base import AuthBase
@@ -30,6 +29,8 @@ from .verification import BAD_ISSUER
 from .verification import MISSING
 from .verification import ROUTER
 from .verification import Rejected
+from .verification import bearer_token
+from .verification import is_configured_issuer
 from .verification import log_rejection
 from .verification import service_verifier
 from .verification import unverified_issuer
@@ -40,17 +41,6 @@ if TYPE_CHECKING:
     from {{ cookiecutter.project_slug }}.users.models import User
 
     from .models import ServiceRegistration
-
-# An Authorization header is a scheme and a credential
-SCHEME_AND_CREDENTIAL = 2
-
-
-def bearer_token(request: HttpRequest) -> str | None:
-    """The credential of an ``Authorization: Bearer`` header; None for any other."""
-    parts = request.headers.get("Authorization", "").split()
-    if len(parts) != SCHEME_AND_CREDENTIAL or parts[0].lower() != "bearer":
-        return None
-    return parts[1]
 
 
 class UserAuth(AuthBase):
@@ -114,7 +104,7 @@ class EitherAuth(AuthBase):
         issuer = unverified_issuer(token)
         if issuer is MISSING:
             return user_auth.authenticate_token(request)
-        if isinstance(issuer, str) and issuer in settings.IDENTITY_SERVICE_ISSUERS:
+        if is_configured_issuer(issuer):
             return service_auth(request)
         # Null, empty or another issuer: no branch verifies it
         log_rejection(ROUTER, BAD_ISSUER)

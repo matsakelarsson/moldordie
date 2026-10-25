@@ -65,22 +65,29 @@ class FailingKeys:
 def use_keys(monkeypatch: pytest.MonkeyPatch, keys: object) -> None:
     """Build the verifier on ``keys`` instead of the provider's discovered ones.
 
-    The verifier is built afresh, and the warnings' cooldowns are forgotten so that
-    each test sees its own records.
+    ``provider_keys`` is the verifier module's answer to where the provider's keys come
+    from, and the one thing replaced: whether they are asked for at all stays
+    ``key_source``'s decision. The verifier is built afresh, and the warnings'
+    cooldowns are forgotten so that each test sees its own records.
     """
-    monkeypatch.setattr(verification, "DiscoveredKeys", lambda url: keys)
+    monkeypatch.setattr(verification, "provider_keys", lambda: keys)
     verification.service_verifier.cache_clear()
     verification.reset_rate_limits()
 
 
-def configure(settings: Any, monkeypatch: pytest.MonkeyPatch) -> StaticKeys:
-    """Point the verifier at the test tenant and a key source holding the public key."""
+def name_the_provider(settings: Any) -> None:
+    """Point the settings at the test tenant, so that a provider is configured."""
     {%- if cookiecutter.identity_provider == 'entra' %}
     settings.ENTRA_TENANT_ID = TENANT
     settings.ENTRA_API_CLIENT_ID = API_CLIENT_ID
     settings.IDENTITY_SERVICE_ISSUERS = [ISSUER]
     {%- endif %}
     settings.IDENTITY_SERVICE_AUDIENCE = AUDIENCE
+
+
+def configure(settings: Any, monkeypatch: pytest.MonkeyPatch) -> StaticKeys:
+    """Point the verifier at the test tenant and a key source holding the public key."""
+    name_the_provider(settings)
     keys = StaticKeys({KID: PUBLIC_KEY})
     use_keys(monkeypatch, keys)
     return keys
