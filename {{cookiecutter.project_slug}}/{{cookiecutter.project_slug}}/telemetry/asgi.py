@@ -4,7 +4,7 @@ Gunicorn's uvicorn worker re-raises the signal it was sent once it has stopped
 serving, which ends the process before Gunicorn's own exit hooks or the SDK's
 ``atexit`` flush can run. What does run is the server's lifespan shutdown, which
 uvicorn sends before it re-raises, so that is where this worker's exporters are told
-to send what they are still holding (``docs/adr/0020``).
+to send what they are still holding (see ``docs/observability.rst``).
 
 Django's handler answers no lifespan message, and neither does Channels' router, so
 the wrapper answers them itself and passes every other scope through untouched.

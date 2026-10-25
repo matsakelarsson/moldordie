@@ -226,7 +226,8 @@ management command, so a project that started its exporters there would give
 ``migrate``, ``collectstatic``, ``shell`` and the test runner exporters of their own.
 {% if celery %}Under Celery's prefork pool it would be worse than wasteful: ``ready`` runs in the
 parent, before the fork, and the exporters' threads do not survive it.
-{% endif %}Each process is started from its own entry point instead (``docs/adr/0020``):
+{% endif %}Each process is started from its own entry point instead (the template records the decision as
+`ADR 0020 <https://github.com/matsakelarsson/moldordie/blob/main/docs/adr/0020-start-telemetry-in-each-serving-process.md>`_):
 
 * the Gunicorn workers, from the ``post_fork`` hook in ``config/gunicorn.py``. It runs
   in the worker, after the fork and before the worker loads the application, which is

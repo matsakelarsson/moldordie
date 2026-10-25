@@ -23,18 +23,11 @@ CHECK_LABEL = "label text-base-content whitespace-normal"
 HELP = "text-base-content/70"
 
 
-def named(html, tag, key, value):
-    """The one ``tag`` element whose ``key`` attribute is ``value``."""
-    found = [attrs for attrs in elements(html, tag) if attrs.get(key) == value]
-    assert len(found) == 1, found
-    return found[0]
-
-
 def test_a_field_in_order_with_its_associations():
     html = str(SampleForm(data={}))
 
     assert '<label class="fieldset-legend" for="id_name">Name</label>' in html
-    assert named(html, "input", "name", "name") == {
+    assert element(html, "input", "name", "name") == {
         "type": "text",
         "name": "name",
         "class": "input aria-invalid:input-error w-full",
@@ -43,11 +36,11 @@ def test_a_field_in_order_with_its_associations():
         "aria-describedby": "id_name_helptext id_name_error",
         "id": "id_name",
     }
-    assert named(html, "ul", "id", "id_name_error") == {
+    assert element(html, "ul", "id", "id_name_error") == {
         "class": "errorlist text-error text-sm",
         "id": "id_name_error",
     }
-    assert named(html, "div", "id", "id_name_helptext") == {
+    assert element(html, "div", "id", "id_name_helptext") == {
         "class": HELP,
         "id": "id_name_helptext",
     }
@@ -64,11 +57,11 @@ def test_a_field_in_order_with_its_associations():
 def test_a_checkbox_sits_inside_its_label():
     html = str(SampleForm())
 
-    assert named(html, "label", "for", "id_agree") == {
+    assert element(html, "label", "for", "id_agree") == {
         "class": CHECK_LABEL,
         "for": "id_agree",
     }
-    assert named(html, "input", "name", "agree") == {
+    assert element(html, "input", "name", "agree") == {
         "type": "checkbox",
         "name": "agree",
         "class": "checkbox aria-invalid:checkbox-error",
@@ -91,16 +84,17 @@ def test_a_choice_group_is_a_fieldset_with_a_legend():
     assert [radio["id"] for radio in radios] == ["id_flavour_0", "id_flavour_1"]
     assert all(radio["aria-invalid"] == "true" for radio in radios)
     assert all(radio["class"] == "radio aria-invalid:radio-error" for radio in radios)
-    assert named(html, "label", "for", "id_flavour_0")["class"] == CHECK_LABEL
-    assert named(html, "ul", "id", "id_flavour_error")["class"].startswith("errorlist ")
-    assert named(html, "div", "id", "id_flavour_helptext")["class"] == HELP
+    assert element(html, "label", "for", "id_flavour_0")["class"] == CHECK_LABEL
+    error_list = element(html, "ul", "id", "id_flavour_error")
+    assert str(error_list["class"]).startswith("errorlist ")
+    assert element(html, "div", "id", "id_flavour_helptext")["class"] == HELP
     assert "Pick one." in html
 
 
 def test_a_hidden_field_is_its_widget_alone():
     html = str(SampleForm())
 
-    assert named(html, "input", "name", "token") == {
+    assert element(html, "input", "name", "token") == {
         "type": "hidden",
         "name": "token",
         "id": "id_token",
@@ -111,11 +105,11 @@ def test_a_hidden_field_is_its_widget_alone():
 def test_a_widget_with_its_own_id_keeps_it():
     html = str(SampleForm())
 
-    assert named(html, "label", "for", "custom-id") == {
+    assert element(html, "label", "for", "custom-id") == {
         "class": "fieldset-legend",
         "for": "custom-id",
     }
-    assert named(html, "input", "name", "custom")["id"] == "custom-id"
+    assert element(html, "input", "name", "custom")["id"] == "custom-id"
 
 
 def test_a_form_without_ids_keeps_its_labels_as_text():
@@ -150,7 +144,7 @@ def test_errors_of_the_whole_form_come_first():
     html = str(WholeForm(data={}))
 
     nonfield = "errorlist nonfield text-error text-sm font-medium"
-    assert named(html, "ul", "class", nonfield) == {"class": nonfield}
+    assert element(html, "ul", "class", nonfield) == {"class": nonfield}
     assert html.index("Nothing agrees.") < html.index('for="id_name"')
     assert html.count('class="fieldset"') == VISIBLE_FIELDS
 
@@ -186,7 +180,7 @@ WIDGET_CLASSES = [
 def test_a_widget_gets_the_class_of_its_kind(tag, name, classes):
     html = str(WidgetsForm())
 
-    assert named(html, tag, "name", name)["class"] == classes
+    assert element(html, tag, "name", name)["class"] == classes
 
 
 def test_the_options_of_a_group_get_their_class_each():
@@ -200,7 +194,7 @@ def test_the_options_of_a_group_get_their_class_each():
     # A named group of options is shown under its name, and so is a select's
     assert '<span class="font-semibold">Cheese</span>' in html
     assert element(html, "optgroup") == {"label": "Warm"}
-    assert named(html, "select", "name", "colours")["multiple"] is None
+    assert element(html, "select", "name", "colours")["multiple"] is None
 
 
 def test_a_class_of_the_widgets_own_is_merged_into_the_one_attribute():
@@ -208,23 +202,23 @@ def test_a_class_of_the_widgets_own_is_merged_into_the_one_attribute():
 
     tag = html[html.index('name="tagged"') - 30 : html.index('id="id_tagged"')]
     assert tag.count("class=") == 1
-    assert named(html, "input", "name", "tagged")["required"] is None
+    assert element(html, "input", "name", "tagged")["required"] is None
 
 
 def test_a_file_a_model_holds_is_shown_with_the_box_that_clears_it():
     html = str(WidgetsForm(initial={"avatar": Stored()}))
 
-    assert named(html, "a", "href", "/media/avatar.png") == {
+    assert element(html, "a", "href", "/media/avatar.png") == {
         "class": "link",
         "href": "/media/avatar.png",
     }
-    assert named(html, "input", "name", "avatar-clear") == {
+    assert element(html, "input", "name", "avatar-clear") == {
         "type": "checkbox",
         "class": "checkbox checkbox-sm",
         "name": "avatar-clear",
         "id": "avatar-clear_id",
     }
-    assert named(html, "label", "for", "avatar-clear_id")["class"] == CHECK_LABEL
+    assert element(html, "label", "for", "avatar-clear_id")["class"] == CHECK_LABEL
 
 
 @pytest.mark.django_db

@@ -42,7 +42,7 @@ def start_worker_telemetry(*args: Any, **kwargs: Any) -> None:
 
     The prefork pool forks its worker processes from the parent, and the exporters'
     threads do not survive a fork, so they are started here rather than anywhere the
-    parent reaches: this signal fires in the child (``docs/adr/0020``).
+    parent reaches: this signal fires in the child (see ``docs/observability.rst``).
     """
     telemetry.configure("celeryworker")
 

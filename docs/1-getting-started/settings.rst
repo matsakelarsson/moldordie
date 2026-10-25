@@ -34,6 +34,7 @@ DJANGO_ADMIN_URL                      ADMIN_URL                      not read; b
 DJANGO_DEBUG                          DEBUG                          not read; local.py sets True                       False
 DJANGO_ALLOWED_HOSTS                  ALLOWED_HOSTS                  not read; local.py sets localhost                  ["your_domain_name"]
 DJANGO_EMAIL_BACKEND                  EMAIL_BACKEND                  console, or SMTP with a mail catcher               n/a (Anymail sets the backend)
+EMAIL_HOST                            EMAIL_HOST                     the catcher's service; not read without Docker     not read
 DJANGO_DEFAULT_FROM_EMAIL             DEFAULT_FROM_EMAIL             n/a                                                "your_project_name <noreply@your_domain_name>"
 DJANGO_SERVER_EMAIL                   SERVER_EMAIL                   n/a                                                DEFAULT_FROM_EMAIL
 DJANGO_EMAIL_SUBJECT_PREFIX           EMAIL_SUBJECT_PREFIX           n/a                                                "[your_project_name] "
@@ -44,6 +45,7 @@ DJANGO_SECURE_HSTS_PRELOAD            SECURE_HSTS_PRELOAD            n/a        
 DJANGO_CSP_REPORT_URI                 SECURE_CSP["report-uri"]       n/a                                                unset (no report-uri directive)
 DJANGO_CSP_REPORT_ONLY                SECURE_CSP_REPORT_ONLY         n/a                                                False (the policy is enforced)
 REDIS_URL                             CACHES, Celery, Channels       "redis://redis:6379/0" with Docker, else localhost same default; point it at your instance
+USE_DOCKER                            INTERNAL_IPS                   raises error unless set; "yes" adds the gateway    not read
 ===================================== ============================== ================================================== ==============================================
 
 The following table lists settings and their defaults for third-party applications, which may or may not be part of your project:

@@ -1830,6 +1830,7 @@ IDENTITY_APP_FILES = [
     "{package}/identity/tests/test_auth.py",
     "{package}/identity/tests/test_frontend.py",
     "{package}/identity/tests/test_login.py",
+    "{package}/identity/tests/test_models.py",
     "{package}/identity/tests/test_permissions.py",
     "{package}/identity/tests/test_provider_login.py",
     "{package}/identity/tests/test_revoke_jwt_sessions.py",
@@ -1946,6 +1947,7 @@ def test_calling_services(bake, context_override):
         assert reads["ENTRA_SERVICE_ROLE"].default == "Service.Access"
         assert base.value("IDENTITY_SERVICE_AUDIENCE") == base.value("ENTRA_API_CLIENT_ID")
         assert "ENTRA_API_CLIENT_ID" in production_env
+        assert "ENTRA_API_CLIENT_ID" in project.env("local", "django")
     else:
         assert reads["GOOGLE_SERVICE_AUDIENCE"].default == "https://example.com"
         assert base.literal("IDENTITY_SERVICE_ISSUERS") == ["https://accounts.google.com", "accounts.google.com"]
@@ -2061,6 +2063,10 @@ def test_metrics_wiring(bake, context, observability):
         assert "--config /app/config/gunicorn.py" in start
         assert "mark_process_dead" in project.text(Path("config") / "gunicorn.py")
         assert services["prometheus"]["depends_on"] == ["django"]
+        # The local receiver presents the credential the local env file declares
+        receiver = project.yaml(Path("compose") / "local" / "prometheus" / "prometheus.yml")
+        credential = project.env("local", "django")["DJANGO_METRICS_TOKEN"]
+        assert [job["authorization"]["credentials"] for job in receiver["scrape_configs"]] == [credential]
 
 
 TASK_WORKER_START = Path("compose") / "production" / "django" / "tasks" / "worker" / "start"

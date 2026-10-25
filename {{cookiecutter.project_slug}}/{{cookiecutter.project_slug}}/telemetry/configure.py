@@ -10,7 +10,8 @@ script of a serving process does and no other command.
 ``ready`` runs for every management command, so starting the exporters there for every
 process would give ``migrate``, ``collectstatic``, ``shell`` and the test runner
 exporters of their own{% if celery %}, and under Celery's prefork pool it runs in the parent, before
-the fork, where the batching processor's thread does not survive{% endif %} (``docs/adr/0020``).
+the fork, where the batching processor's thread does not survive{% endif %}
+(see ``docs/observability.rst``).
 
 Nothing is exported until a deployment names a destination: with no endpoint
 configured, ``configure`` installs no provider and instruments no library at all.

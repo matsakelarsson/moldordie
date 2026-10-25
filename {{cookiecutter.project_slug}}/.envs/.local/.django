@@ -18,6 +18,20 @@ ENTRA_LOGIN_CLIENT_SECRET=
 GOOGLE_LOGIN_CLIENT_ID=
 GOOGLE_LOGIN_CLIENT_SECRET=
 {%- endif %}
+{%- if cookiecutter.service_tokens %}
+
+# Calling services
+# ------------------------------------------------------------------------------
+{%- if cookiecutter.identity_provider == 'entra' %}
+# The registration a service's token must name as its audience, and the app role it
+# must hold; the checks report the registration empty until a service calls this checkout
+ENTRA_API_CLIENT_ID=
+# ENTRA_SERVICE_ROLE=Service.Access
+{%- else %}
+# The audience their identity tokens name
+# GOOGLE_SERVICE_AUDIENCE=https://{{ cookiecutter.domain_name }}
+{%- endif %}
+{%- endif %}
 
 {%- if cookiecutter.use_celery == 'y' %}
 # Redis
