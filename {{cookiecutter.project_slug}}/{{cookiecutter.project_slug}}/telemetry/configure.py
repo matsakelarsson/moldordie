@@ -72,13 +72,6 @@ SHUTDOWN_TIMEOUT_MILLIS = 5000
 MILLISECONDS = 1000
 SHUTDOWN_TIMEOUT_SECONDS = SHUTDOWN_TIMEOUT_MILLIS / MILLISECONDS
 
-# What this process started, once ``configure`` has: the component it exports as and
-# the two providers ``shutdown`` flushes. Each entry point above is the only one in
-# its process, so this records rather than guards — until an environment names a
-# component to a process that starts from a hook as well, where a second set of
-# exporters would export through neither.
-_started: dict[str, Any] = {}
-
 # The libraries this project talks to, each instrumented by the package that knows
 # it. Their common base excludes itself from type checking, so it cannot be named as
 # the element type here.
@@ -108,9 +101,120 @@ class TelemetrySettings(Protocol):
     OTEL_EXPORTER_OTLP_CERTIFICATE: str
 
 
+class Tracing(Protocol):
+    """What a shutdown asks of the tracer provider: send what it holds, then stop."""
+
+    def force_flush(self, timeout_millis: int) -> bool:
+        """Send the spans held, waiting at most ``timeout_millis`` for the exporter."""
+
+    def shutdown(self) -> None:
+        """Stop the processor and the exporter behind it."""
+
+
+class Metering(Protocol):
+    """What a shutdown asks of the meter provider, which sends on its way out."""
+
+    def shutdown(self, timeout_millis: float) -> None:
+        """Collect and send once more, then stop, within ``timeout_millis``."""
+
+
+def stop(signal: str, step: Callable[[], object]) -> None:
+    """Take one step of a shutdown, saying rather than raising what went wrong.
+
+    Everything that calls ``shutdown`` is on its way out of the process, and one step
+    failing is not a reason to leave the rest of them undone. A signal that could not
+    be sent is also not a failed shutdown: what waits on the answer is a server, and
+    what it would do with the exception is fail the stop it is in the middle of.
+    """
+    try:
+        step()
+    # Nothing above this is in a position to handle what an exporter raises
+    except Exception:
+        logger.warning("Telemetry could not stop exporting %s", signal, exc_info=True)
+
+
+class Exporters:
+    """What one process has started: the component it exports as, and the providers
+    holding what it has recorded. Nothing until ``start``, and nothing again after
+    ``shutdown``.
+
+    The module keeps one for the process, ``exporters``, which ``configure`` starts
+    and the entry points stop through ``shutdown`` and ``flush``. Each entry point is
+    the only one in its process, so this records rather than guards — until an
+    environment names a component to a process that starts from a hook as well, where
+    a second set would export through neither. The tests build one of their own,
+    around providers that export nothing.
+    """
+
+    def __init__(self) -> None:
+        self.component: str | None = None
+        self.tracing: Tracing | None = None
+        self.metering: Metering | None = None
+
+    def start(self, component: str, tracing: Tracing, metering: Metering) -> None:
+        self.component = component
+        self.tracing = tracing
+        self.metering = metering
+
+    def shutdown(self) -> None:
+        """Send what this process is holding, and stop its exporters.
+
+        A process that is stopped has recorded up to a batch of spans and an interval
+        of measurements that nothing has sent yet. Each signal is stopped on its own,
+        and what this process started is forgotten only once both have been: an
+        interval of measurements would otherwise be lost to a flush of spans that
+        raised, with nothing left to try it again from.
+        """
+        try:
+            if self.tracing is not None:
+                stop(
+                    "traces",
+                    partial(self.tracing.force_flush, SHUTDOWN_TIMEOUT_MILLIS),
+                )
+                stop("traces", self.tracing.shutdown)
+            if self.metering is not None:
+                stop(
+                    "metrics",
+                    partial(self.metering.shutdown, SHUTDOWN_TIMEOUT_MILLIS),
+                )
+        finally:
+            self.component = None
+            self.tracing = None
+            self.metering = None
+
+    def flush(self, timeout: float = SHUTDOWN_TIMEOUT_SECONDS) -> bool:
+        """Run ``shutdown`` under a deadline this process can keep; False if it overran.
+
+        What the SDK is given is what it tries for, not what it takes: a batch
+        processor joins its worker thread while the exporter behind it retries with a
+        backoff of its own, and the documented timeouts are best-effort. So the
+        deadline that decides how long a process takes to go is kept here, where
+        nothing inside it can overrun.
+
+        A flush that is given up on is left running rather than cancelled, because a
+        thread cannot be cancelled. It is a daemon, so the interpreter does not wait
+        for it either: what is still unsent at the deadline stays unsent, which is the
+        trade this deadline exists to make.
+        """
+        flushing = threading.Thread(
+            target=self.shutdown,
+            name="telemetry-shutdown",
+            daemon=True,
+        )
+        flushing.start()
+        flushing.join(timeout)
+        if flushing.is_alive():
+            logger.warning("Telemetry was not flushed within %ss of shutdown", timeout)
+            return False
+        return True
+
+
+exporters = Exporters()
+
+
 def started() -> str | None:
     """The component this process exports as, or None while it exports nothing."""
-    return _started.get("component")
+    return exporters.component
 
 
 def instance_id(component: str) -> str:
@@ -191,7 +295,7 @@ def configure(component: str) -> bool:
         return False
     tracing = tracer_provider(component, telemetry_settings)
     metering = meter_provider(component, telemetry_settings)
-    _started.update(component=component, tracing=tracing, metering=metering)
+    exporters.start(component, tracing, metering)
     trace.set_tracer_provider(tracing)
     metrics.set_meter_provider(metering)
     # Read by the first instrumentation to be asked, and once for the process
@@ -201,67 +305,17 @@ def configure(component: str) -> bool:
     return True
 
 
-def stop(signal: str, step: Callable[[], object]) -> None:
-    """Take one step of a shutdown, saying rather than raising what went wrong.
-
-    Everything that calls ``shutdown`` is on its way out of the process, and one step
-    failing is not a reason to leave the rest of them undone. A signal that could not
-    be sent is also not a failed shutdown: what waits on the answer is a server, and
-    what it would do with the exception is fail the stop it is in the middle of.
-    """
-    try:
-        step()
-    # Nothing above this is in a position to handle what an exporter raises
-    except Exception:
-        logger.warning("Telemetry could not stop exporting %s", signal, exc_info=True)
-
-
 def shutdown() -> None:
     """Send what this process is holding, and stop its exporters.
 
-    A process that is stopped has recorded up to a batch of spans and an interval of
-    measurements that nothing has sent yet. Every process that can reach this calls
-    it on its way out; a web worker reaches it from the server's lifespan, which is
-    the last thing it runs (``telemetry/asgi.py``). Starting nothing means holding
-    nothing, so this does nothing where ``configure`` did.
-
-    Each signal is stopped on its own, and what this process started is forgotten only
-    once both have been: an interval of measurements would otherwise be lost to a
-    flush of spans that raised, with nothing left to try it again from.
+    Every process that can reach this calls it on its way out; a web worker reaches
+    it from the server's lifespan, which is the last thing it runs
+    (``telemetry/asgi.py``). Starting nothing means holding nothing, so this does
+    nothing where ``configure`` did.
     """
-    tracing: TracerProvider | None = _started.get("tracing")
-    metering: MeterProvider | None = _started.get("metering")
-    try:
-        if tracing is not None:
-            stop("traces", partial(tracing.force_flush, SHUTDOWN_TIMEOUT_MILLIS))
-            stop("traces", tracing.shutdown)
-        if metering is not None:
-            stop("metrics", partial(metering.shutdown, SHUTDOWN_TIMEOUT_MILLIS))
-    finally:
-        _started.clear()
+    exporters.shutdown()
 
 
 def flush(timeout: float = SHUTDOWN_TIMEOUT_SECONDS) -> bool:
-    """Run ``shutdown`` under a deadline this process can keep; False if it overran.
-
-    What the SDK is given is what it tries for, not what it takes: a batch processor
-    joins its worker thread while the exporter behind it retries with a backoff of
-    its own, and the documented timeouts are best-effort. So the deadline that decides
-    how long a process takes to go is kept here, where nothing inside it can overrun.
-
-    A flush that is given up on is left running rather than cancelled, because a
-    thread cannot be cancelled. It is a daemon, so the interpreter does not wait for
-    it either: what is still unsent at the deadline stays unsent, which is the trade
-    this deadline exists to make.
-    """
-    flushing = threading.Thread(
-        target=shutdown,
-        name="telemetry-shutdown",
-        daemon=True,
-    )
-    flushing.start()
-    flushing.join(timeout)
-    if flushing.is_alive():
-        logger.warning("Telemetry was not flushed within %ss of shutdown", timeout)
-        return False
-    return True
+    """Run this process's ``shutdown`` under a deadline; False where it overran it."""
+    return exporters.flush(timeout)
