@@ -8,13 +8,11 @@
 {% block content %}
   {% comment %}
   The "profile" partial is the page content for normal requests and the fragment returned to htmx
-  requests (UserUpdateView.htmx_partial). Without JavaScript the form posts normally and the view
-  redirects to the profile; with htmx the redirect is followed and the profile card is swapped in place.
+  requests (UserUpdateView.htmx_partial), with the messages appended by the mixin. Without JavaScript
+  the form posts normally and the view redirects to the profile; with htmx the redirect is followed
+  and the profile card is swapped in place.
   {% endcomment %}
   {% partialdef profile inline %}
-    {% if htmx_fragment %}
-      {% include "base.html#messages" %}
-    {% endif %}
     <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
       <div class="card-body">
         <h1 class="card-title text-2xl">{{ user.display_name }}</h1>

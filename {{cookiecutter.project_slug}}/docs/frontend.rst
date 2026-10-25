@@ -259,9 +259,10 @@ A message is dismissed without a script: its close control is a visually hidden 
 inside a label, and the alert carries ``has-[:checked]:hidden``, so checking the box
 hides it. A screen reader announces the control as a checkbox named "Dismiss".
 
-A fragment includes ``base.html#messages`` when ``htmx_fragment`` is set, and the
-container is then marked ``hx-swap-oob="true"``, so messages added during an htmx request
-are swapped into the page out of band.
+``HtmxTemplateMixin`` appends the partial to every fragment it renders, with
+``htmx_fragment`` set, which marks the container ``hx-swap-oob="true"``: a message added
+during an htmx request is swapped into the page out of band, wherever the fragment itself
+landed. A partial never includes the messages itself, so a page never renders them twice.
 
 htmx
 ----
@@ -306,6 +307,12 @@ rendered on its own. Templates branch on that flag rather than on ``request.htmx
 template that reads the request varies by the header on every page that includes it, and
 ``base.html`` is included by all of them.
 
+A fragment is the partial followed by the messages container, marked for the out-of-band
+swap (see Messages above); the mixin appends it once the partial has rendered, so a message
+the view adds is carried too. A post is answered with ``fragment_or_redirect``: the fragment
+for htmx, and without it a redirect to the page that shows what the post did, as Django's
+form views answer one. A function-based view appends ``render_messages(request)`` itself.
+
 htmx swaps a 2xx or 3xx response and nothing else, so a view that answers an invalid form
 over htmx answers 200 with the form re-rendered. When a session has expired,
 ``HtmxLoginRedirectMiddleware`` (listed after ``HtmxMiddleware``) turns the redirect to
@@ -316,7 +323,8 @@ it. Every other redirect is left alone.
 The profile pages are the worked example: the edit link loads the form into the profile
 card with ``hx-get``, ``hx-target`` and ``hx-push-url``, the form posts with ``hx-post``,
 and the saved card is swapped back with its message beside it. A fragment holds no
-``<script>``, ``<style>`` or ``<link>``; the profile views' tests check theirs for them.
+``<script>``, ``<style>`` or ``<link>``; ``fragment`` in ``<project_slug>/tests/responses.py``
+checks every fragment the view tests receive for them, and for the messages container, once.
 
 The examples page
 -----------------
@@ -348,8 +356,8 @@ The htmx demos are the patterns worth copying:
   emptied again by the dialog's answer. daisyUI's ``modal-open`` class holds it open
   without a script, which also means it has no Escape key and no focus trap: a dialog
   that needs them is the place for the project's first script and ``<dialog>``.
-- **Notices** answer with the messages alone, which htmx swaps in out of band even though
-  the form asked for no swap of its own.
+- **Notices** answer with an empty partial, so the messages the mixin appends are the whole
+  answer, which htmx swaps in out of band even though the form asked for no swap of its own.
 
 Every demo works without JavaScript: a plain request gets the whole page in the state it
 asked for, or a redirect to it. Every view is ``HtmxTemplateMixin`` on

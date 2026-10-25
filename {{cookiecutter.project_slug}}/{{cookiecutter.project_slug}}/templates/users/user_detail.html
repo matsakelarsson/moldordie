@@ -8,12 +8,9 @@
 {% block content %}
   {% comment %}
   The "profile" partial is the page content for normal requests and the fragment returned to htmx
-  requests (UserDetailView.htmx_partial), which then also swap the messages out-of-band.
+  requests (UserDetailView.htmx_partial), to which the mixin appends the messages for an out-of-band swap.
   {% endcomment %}
   {% partialdef profile inline %}
-    {% if htmx_fragment %}
-      {% include "base.html#messages" %}
-    {% endif %}
     <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
       <div class="card-body">
         <h1 class="card-title text-2xl">{{ object.display_name }}</h1>
