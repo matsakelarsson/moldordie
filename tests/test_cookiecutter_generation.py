@@ -12,6 +12,7 @@ import sh
 import yaml
 from binaryornot.check import is_binary
 from cookiecutter.exceptions import FailedHookException
+from packaging.requirements import Requirement
 
 from hooks.post_gen_project import REMOVALS
 from local_extensions import FLAG
@@ -143,9 +144,10 @@ DAISYUI_THEMES = (
 RE_DAISYUI_PLUGIN = re.compile(r'@plugin\s+"daisyui"\s*\{(.*?)\}', re.DOTALL)
 
 # The style checks that a formatter run after generation would fix: ruff format, djlint's
-# formatter and django-upgrade. They take longer than the rest of the suite, so they run
-# only with AUTOFIXABLE_STYLES=1; CI runs just them in its own job, selected by the marker.
-# A defect they find is fixed in the template, so the generated project starts clean.
+# formatter, django-upgrade and pyproject-fmt, each at the version the generated project's own
+# pre-commit hook pins. They take longer than the rest of the suite, so they run only with
+# AUTOFIXABLE_STYLES=1; CI runs just them in its own job, selected by the marker. A defect they
+# find is fixed in the template, so the generated project starts clean.
 AUTOFIXABLE_STYLES = os.getenv("AUTOFIXABLE_STYLES") == "1"
 
 
@@ -509,6 +511,19 @@ def test_ruff_format_passes(bake, context_override):
 
 @auto_fixable
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_pyproject_fmt_passes(bake, context_override):
+    """The generated ``pyproject.toml`` is what pyproject-fmt, its own pre-commit hook, would leave."""
+    project = bake(context_override)
+
+    try:
+        sh.pyproject_fmt("--check", "pyproject.toml", _cwd=str(project.root))
+    except sh.ErrorReturnCode as e:
+        # pyproject-fmt prints the diff it would apply on stdout.
+        pytest.fail(e.stdout.decode() + e.stderr.decode())
+
+
+@auto_fixable
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
 def test_django_upgrade_passes(bake, tmp_path, context_override):
     """django-upgrade, for the Django the project pins, would rewrite nothing in it."""
     project = bake(context_override)
@@ -560,6 +575,35 @@ def test_djlint_check_passes(bake, context_override):
         sh.djlint("--check", ".", _cwd=str(project.root))
     except sh.ErrorReturnCode as e:
         pytest.fail(e.stdout.decode())
+
+
+# The formatters the auto-fixable checks run, by the hook repository that runs each in the
+# generated project. This repository pins each at the hook's rev, so that what the checks
+# prove holds for the hook.
+AUTOFIXABLE_HOOKS = {
+    "https://github.com/astral-sh/ruff-pre-commit": "ruff",
+    "https://github.com/djlint/djLint": "djlint",
+    "https://github.com/adamchainz/django-upgrade": "django-upgrade",
+    "https://github.com/tox-dev/pyproject-fmt": "pyproject-fmt",
+}
+
+
+def test_auto_fixable_checks_run_the_versions_the_generated_hooks_pin():
+    """Each formatter the checks above run is pinned here at the rev the template's hook names."""
+    config = yaml.safe_load((TEMPLATE / ".pre-commit-config.yaml").read_text())
+    revs = {
+        AUTOFIXABLE_HOOKS[hook["repo"]]: str(hook["rev"]).removeprefix("v")
+        for hook in config["repos"]
+        if hook["repo"] in AUTOFIXABLE_HOOKS
+    }
+    pyproject = tomllib.loads((TEMPLATE.parent / "pyproject.toml").read_text())
+    pins = {
+        requirement.name: str(requirement.specifier)
+        for requirement in map(Requirement, pyproject["project"]["dependencies"])
+    }
+
+    assert set(revs) == set(AUTOFIXABLE_HOOKS.values())
+    assert {name: pins.get(name) for name in revs} == {name: f"=={rev}" for name, rev in revs.items()}
 
 
 # (use_docker, type-check command, test command) as the generated CI configs must invoke them.
@@ -832,10 +876,18 @@ def test_pyproject_toml(bake, context):
     assert data["project"]["authors"][0]["name"] == author_name
     assert data["project"]["description"] == description
     assert data["project"]["version"] == context["version"]
-    assert data["project"]["name"] == context["project_slug"]
+    # The distribution name as pyproject-fmt normalises it: the slug with its underscores as dashes.
+    assert data["project"]["name"] == context["project_slug"].replace("_", "-")
     assert data["project"]["requires-python"] == ">=3.12"
-    assert "Programming Language :: Python :: 3.12" in data["project"]["classifiers"]
-    assert "Programming Language :: Python :: 3.14" in data["project"]["classifiers"]
+    # Every Python that requires-python allows, which is what pyproject-fmt derives the
+    # classifiers from; it claims nothing about which of them the project is exercised on.
+    assert data["project"]["classifiers"] == [
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python :: 3.15",
+    ]
     assert data["tool"]["mypy"]["python_version"] == "3.12"
 
 
