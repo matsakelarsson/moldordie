@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## What This Project Is
 
-moldordie is a fork of [cookiecutter-django](https://github.com/cookiecutter/cookiecutter-django), a **Cookiecutter template** that generates production-ready Django projects. It is NOT a Django application itself — it's a Jinja2-templated project scaffold. The generated project lives inside `{{cookiecutter.project_slug}}/` and gets processed by Cookiecutter when users run the generator.
+moldordie is a fork of [cookiecutter-django](https://github.com/cookiecutter/cookiecutter-django), a **Cookiecutter template** that generates production-ready Django projects. It is NOT a Django application itself — it's a Jinja2-templated project scaffold. The generated project lives inside `{{cookiecutter.project_slug}}/` and gets processed by Cookiecutter when users run the generator. Upstream is no longer merged: its releases are read, and a change that still applies is ported by hand (`docs/adr/0031`).
 
 ## Commands
 

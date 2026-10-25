@@ -4,7 +4,7 @@ This document is intended for maintainers of the template.
 
 ## Automated updates
 
-Dependabot keeps the template's own Python deps, the GitHub actions and the Docker images up to date; its config is in `.github/dependabot.yml`.
+Dependabot is configured to keep the template's own Python deps, the GitHub actions and the Docker images up to date, in `.github/dependabot.yml`. As of 2026-10-25 it had opened no pull request on this repository since the fork; check that it is enabled for the repository before relying on it.
 
 Nothing updates the generated project's Python deps automatically. They are pinned in `{{cookiecutter.project_slug}}/pyproject.toml`, which is a Jinja template that Dependabot cannot parse, so bump them by hand. cookiecutter-django used PyUp for this; the fork does not, and the `.pyup.yml` it left behind pointed at `requirements/*.txt` files that no longer exist.
 
@@ -13,6 +13,10 @@ Three of those pins — `ruff`, `djlint` and `django-upgrade` — also appear in
 The Tailwind CLI is one more pin. `TAILWIND_CLI_VERSION` in `{{cookiecutter.project_slug}}/config/settings/base.py` names a release of [`dobicinaitis/tailwind-cli-extra`](https://github.com/dobicinaitis/tailwind-cli-extra/releases), the standalone Tailwind CLI with daisyUI bundled: the number is that repository's own, and its release notes say which Tailwind CSS and which daisyUI it carries. Nothing watches it, here or in a generated project, because it is a string in a settings module and a release asset rather than a package. To bump it, pick a release within Tailwind CSS 4 and daisyUI 5 (a new major of either is a change to the template, not a bump), check that it ships the `linux` and `macos` assets for `x64` and `arm64`, change the setting and the comment above it, and run both integration scripts, which download the binary and build with it. The setting is the only place the version is written; bump `django-tailwind-cli` in the generated `pyproject.toml` with the other pins.
 
 Updates for the template should be labelled as `project infrastructure` while the ones about the generated project should be labelled as `update`. This is use to work in conjunction with our changelog script (see later).
+
+## Upstream
+
+moldordie is a fork of cookiecutter-django, and merged its releases until Release 2026.9.8. It no longer does (`docs/adr/0031`): the fork has rewritten or deleted every file upstream still changes, so a merge would conflict in each of them and resolve to "keep ours" every time. Upstream stays an `upstream` remote and is read instead. When it releases, look through the release's changes for one that applies to what this fork still has — a Django setting, a Compose or Dockerfile detail, a hook behaviour — and port it by hand in a pull request of its own that names the upstream release. Most releases offer nothing; twelve of them took a minute to read. Dependency bumps, which are most of upstream's commits, never arrive this way: the fork's pins live in a file upstream does not have.
 
 ## Automation scripts
 
