@@ -64,7 +64,4 @@ Others
 
 #. ``jinja2.exceptions.TemplateSyntaxError: Encountered unknown tag 'now'.``: please upgrade your cookiecutter version to >= 1.4 (see `#528`_)
 
-#. New apps not getting created in project root: This is the expected behavior, because moldordie does not change the way that django startapp works, you'll have to fix this manually (see `#1725`_)
-
 .. _#528: https://github.com/cookiecutter/cookiecutter-django/issues/528#issuecomment-212650373
-.. _#1725: https://github.com/cookiecutter/cookiecutter-django/issues/1725#issuecomment-407493176

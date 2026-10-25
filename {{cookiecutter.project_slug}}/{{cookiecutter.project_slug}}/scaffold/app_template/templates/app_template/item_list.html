@@ -1,0 +1,93 @@
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {{ opts.verbose_name_plural|capfirst }}
+{% endblock title %}
+{% block content %}
+  {% comment %}
+  The list of the app's records. The "results" partial is the page's table for a plain request and
+  the fragment an htmx request receives (ItemListView.htmx_partial): the filter and the page links
+  replace it and push the address, so a result can be bookmarked and the back button works. The
+  filter sits outside the partial, so typing never loses its focus.
+  {% endcomment %}
+  <header class="flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-4xl font-bold">{{ opts.verbose_name_plural|capfirst }}</h1>
+    <a class="btn btn-primary" href="{% url 'app_template:create' %}">{% translate "New" %}</a>
+  </header>
+  {# The trigger names events only: the policy turns htmx's bracketed event filters off #}
+  <form class="mt-6 flex max-w-md items-end gap-2"
+        method="get"
+        action="{% url 'app_template:list' %}"
+        hx-get="{% url 'app_template:list' %}"
+        hx-trigger="input changed delay:300ms from:find input, submit"
+        hx-target="#item-results"
+        hx-swap="outerHTML"
+        hx-push-url="true"
+        role="search">
+    <div class="grow">{{ filter_form }}</div>
+    <button class="btn mb-1" type="submit">{% translate "Filter" %}</button>
+  </form>
+  {% partialdef results inline %}
+    <div class="mt-6 flex flex-col gap-4" id="item-results">
+      {% if item_list %}
+        <div class="overflow-x-auto">
+          <table class="table-zebra table">
+            <caption class="sr-only">{{ opts.verbose_name_plural|capfirst }}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{% translate "Name" %}</th>
+                <th scope="col">{% translate "Created" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in item_list %}
+                <tr>
+                  <td>
+                    <a class="link" href="{{ item.get_absolute_url }}">{{ item.name }}</a>
+                  </td>
+                  <td>{{ item.created|date:"SHORT_DATETIME_FORMAT" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if is_paginated %}
+          <nav class="join" aria-label="{% translate 'Pages' %}">
+            {% for number in page_range %}
+              {% if number == page_obj.paginator.ELLIPSIS %}
+                <span class="join-item btn btn-sm btn-disabled">{{ number }}</span>
+              {% else %}
+                <a class="join-item btn btn-sm"
+                   href="{% url 'app_template:list' %}{% querystring page=number %}"
+                   hx-get="{% url 'app_template:list' %}{% querystring page=number %}"
+                   hx-target="#item-results"
+                   hx-swap="outerHTML"
+                   hx-push-url="true"
+                   {% if number == page_obj.number %}aria-current="page"{% endif %}>{{ number }}</a>
+              {% endif %}
+            {% endfor %}
+          </nav>
+        {% endif %}
+      {% else %}
+        <p class="bg-base-100 rounded-box py-8 text-center font-semibold">
+          {% if query %}
+            {% blocktranslate with name=opts.verbose_name %}No {{ name }} matches "{{ query }}".{% endblocktranslate %}
+          {% else %}
+            {% blocktranslate with name=opts.verbose_name %}No {{ name }} yet.{% endblocktranslate %}
+          {% endif %}
+        </p>
+        {% if query %}
+          <a class="btn btn-sm self-start"
+             href="{% url 'app_template:list' %}"
+             hx-get="{% url 'app_template:list' %}"
+             hx-target="#item-results"
+             hx-swap="outerHTML"
+             hx-push-url="true">{% translate "Show all" %}</a>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endpartialdef results %}
+{% endblock content %}
+{%- endraw %}

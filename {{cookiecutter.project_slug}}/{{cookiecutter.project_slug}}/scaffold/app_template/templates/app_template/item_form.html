@@ -1,0 +1,61 @@
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {% if item %}
+    {{ item.name }}
+  {% else %}
+    {% blocktranslate with name=opts.verbose_name %}New {{ name }}{% endblocktranslate %}
+  {% endif %}
+{% endblock title %}
+{% block content %}
+  {% comment %}
+  The form that creates or changes a record (ItemCreateView, ItemUpdateView). The "card" partial is the
+  page content for a plain request and the fragment an htmx request receives: the form posts into its
+  own card and gets it back with its errors, or the view redirects to the saved record and htmx swaps
+  that card in with its message. novalidate, so the server's validation shows; hx-disabled-elt keeps a
+  second click from posting twice.
+  {% endcomment %}
+  {% partialdef card inline %}
+    <article class="card card-border bg-base-100 shadow-sm" id="item-card">
+      <div class="card-body">
+        <h1 class="card-title text-2xl">
+          {% if item %}
+            {{ item.name }}
+          {% else %}
+            {% blocktranslate with name=opts.verbose_name %}New {{ name }}{% endblocktranslate %}
+          {% endif %}
+        </h1>
+        <form class="flex max-w-md flex-col gap-2"
+              method="post"
+              action="{{ request.path }}"
+              hx-post="{{ request.path }}"
+              hx-target="#item-card"
+              hx-swap="outerHTML"
+              hx-push-url="true"
+              hx-disabled-elt="find button"
+              novalidate>
+          {% csrf_token %}
+          {{ form }}
+          <div class="card-actions mt-2 items-center">
+            <button class="btn btn-primary" type="submit">{% translate "Save" %}</button>
+            <span class="loading loading-spinner loading-sm htmx-indicator"
+                  aria-hidden="true"></span>
+            {% if item %}
+              <a class="btn btn-ghost"
+                 href="{{ item.get_absolute_url }}"
+                 hx-get="{{ item.get_absolute_url }}"
+                 hx-target="#item-card"
+                 hx-swap="outerHTML"
+                 hx-push-url="true">{% translate "Cancel" %}</a>
+            {% else %}
+              <a class="btn btn-ghost" href="{% url 'app_template:list' %}">{% translate "Cancel" %}</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </article>
+  {% endpartialdef card %}
+{% endblock content %}
+{%- endraw %}

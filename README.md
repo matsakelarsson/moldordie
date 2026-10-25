@@ -21,6 +21,7 @@ production-ready Django projects quickly.
 - Optimized development and production settings
 - Registration via [django-allauth](https://github.com/pennersr/django-allauth)
 - Comes with custom user model ready to go
+- A `startapp` of the project's own: a complete app, with its model, views answering htmx with partials, templates, admin, factory and tests, copied under the name you give and checked by the same tools as the rest of the project
 - Served through ASGI with [Uvicorn](https://www.uvicorn.org/), with optional [Django Channels](https://channels.readthedocs.io/) support for websockets
 - Send emails via [Anymail](https://github.com/anymail/django-anymail) (using [Mailgun](http://www.mailgun.com/) by default or Amazon SES if AWS is selected cloud provider, but switchable)
 - Media storage using Amazon S3 (or any S3-compatible service) or nginx

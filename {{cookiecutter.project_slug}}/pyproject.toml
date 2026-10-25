@@ -322,6 +322,8 @@ addopts = [
   "--ds=config.settings.test",
   "--reuse-db",
   "--import-mode=importlib",
+  # The app template's tests run as a new app's, once startapp has copied it
+  "--ignore-glob=*/scaffold/app_template",
 ]
 minversion = "9.0"
 python_files = [
@@ -332,5 +334,5 @@ python_files = [
 # ==== Coverage ====
 [tool.coverage]
 run.include = [ "{{cookiecutter.project_slug}}/**" ]
-run.omit = [ "*/migrations/*", "*/tests/*" ]
+run.omit = [ "*/migrations/*", "*/scaffold/app_template/*", "*/tests/*" ]
 run.plugins = [ "django_coverage_plugin" ]

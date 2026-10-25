@@ -132,6 +132,7 @@ Everything runs in the containers of `docker-compose.local.yml`. `just` wraps th
 | Build the stylesheet once | `just manage tailwind build` |
 | A management command | `just manage <command>` |
 | Migrations | `just manage makemigrations` then `just manage migrate` |
+| A new app | `just manage startapp <name> --model <Model>` |
 | Tests | `just pytest` |
 | One test | `just pytest {{ cookiecutter.project_slug }}/users/tests/test_models.py -k the_name` |
 | Type checks | `docker compose -f docker-compose.local.yml run --rm django mypy .` |
@@ -155,6 +156,7 @@ Everything runs through `uv` from the project root, against a PostgreSQL
 | Build the stylesheet once | `uv run python manage.py tailwind build` |
 | A management command | `uv run python manage.py <command>` |
 | Migrations | `uv run python manage.py makemigrations` then `uv run python manage.py migrate` |
+| A new app | `uv run python manage.py startapp <name> --model <Model>` |
 | Tests | `uv run pytest` |
 | One test | `uv run pytest {{ cookiecutter.project_slug }}/users/tests/test_models.py -k the_name` |
 | Type checks | `uv run mypy .` |
@@ -212,6 +214,7 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `{{ cookiecutter.project_slug }}/styles/` | The source stylesheet `main.css` and the project's own daisyUI theme, `theme.css` |
 | `{{ cookiecutter.project_slug }}/themes.py` | The themes a visitor may choose, the cookie that keeps the choice and the view the picker posts to |
 | `{{ cookiecutter.project_slug }}/examples/` | The examples page: starter content, routed in every environment until it is deleted |
+| `{{ cookiecutter.project_slug }}/scaffold/` | The project's `startapp` and the app template it copies, a complete app under placeholder names |
 | `{{ cookiecutter.project_slug }}/htmx.py` | The htmx mixin and the login-redirect middleware |
 {%- if cookiecutter.observability == 'prometheus' %}
 | `{{ cookiecutter.project_slug }}/metrics.py` | The metrics endpoint and the credential a scrape presents |
@@ -233,8 +236,13 @@ running. The watcher prints nothing, errors included: `tailwind build` reports t
 | `.gitlab-ci.yml` | The pipeline: pre-commit, mypy, migrations and the tests |
 {%- endif %}
 
-New apps go under `{{ cookiecutter.project_slug }}/`, are created from there with
-`startapp` and are added to `LOCAL_APPS` in `config/settings/base.py`. The places marked
+New apps go under `{{ cookiecutter.project_slug }}/`. `startapp <name> --model <Model>`
+copies the app template there under those names: a model with its migration and admin, a
+form, the list, detail, create, update and delete views answering htmx with partials, the
+templates, a factory and the tests of all of it, with the REST API's routes where the
+project has one. It then says where to register the app: `LOCAL_APPS` in
+`config/settings/base.py`, an include in `config/urls.py` and, with a REST API, its routes.
+Rename and replace the model's fields from there; the tests name them. The places marked
 "your stuff" are where your own code is meant to go.
 
 ## Conventions

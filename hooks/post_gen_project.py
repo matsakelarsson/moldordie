@@ -253,14 +253,33 @@ REMOVALS = (
     (lambda c: c["ci_tool"] != "Github", (".github",)),
     # No coding agent, so no guide; every other answer moves it to the file that agent reads.
     (lambda c: c["coding_agent"] == "none", (AGENT_GUIDE,)),
-    (lambda c: c["rest_api"] == "DRF", ("config/api.py", "{project_slug}/users/api/schema.py")),
+    # The REST API's arm in the users app and in the app template the scaffold copies.
+    (
+        lambda c: c["rest_api"] == "DRF",
+        (
+            "config/api.py",
+            "{project_slug}/users/api/schema.py",
+            "{project_slug}/scaffold/app_template/api/schema.py",
+        ),
+    ),
     (
         lambda c: c["rest_api"] == "Django Ninja",
-        ("config/api_router.py", "{project_slug}/users/api/serializers.py"),
+        (
+            "config/api_router.py",
+            "{project_slug}/users/api/serializers.py",
+            "{project_slug}/scaffold/app_template/api/serializers.py",
+        ),
     ),
     (
         lambda c: c["rest_api"] == "None",
-        ("config/api_router.py", "config/api.py", "{project_slug}/users/api", "{project_slug}/users/tests/api"),
+        (
+            "config/api_router.py",
+            "config/api.py",
+            "{project_slug}/users/api",
+            "{project_slug}/users/tests/api",
+            "{project_slug}/scaffold/app_template/api",
+            "{project_slug}/scaffold/app_template/tests/api",
+        ),
     ),
     # The websocket test goes in ``remove_channels_tests``, which also decides about its package.
     (lambda c: c["realtime"] != "channels", ("config/websocket.py",)),

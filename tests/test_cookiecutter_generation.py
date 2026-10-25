@@ -1,10 +1,13 @@
 import ast  # noqa: EXE002
+import importlib.util
 import json
 import os
 import re
 import shutil
+import sys
 import tomllib
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -344,6 +347,11 @@ DOCKER_COMBINATIONS = [
     param
     for param, row in zip(GROUPED_COMBINATIONS, SUPPORTED_COMBINATIONS, strict=True)
     if complete_answers(row)["use_docker"] == "y"
+]
+
+# The defaults and the REST API's choices: the answer the app template forks on.
+REST_API_COMBINATIONS = [
+    param for param, row in zip(GROUPED_COMBINATIONS, SUPPORTED_COMBINATIONS, strict=True) if set(row) <= {"rest_api"}
 ]
 
 
@@ -1489,6 +1497,62 @@ def test_examples_page(bake, context):
     assert "transaction.non_atomic_requests" in project.text("{package}/examples/views.py")
 
 
+# The names a scaffolded app is checked under. ``zoo`` sorts after every module of the package
+# the app template imports from, where ``app_template`` sorts before, so the copy's imports
+# are in order for its own name and not the template's; the second pair pushes the lines the
+# template wrote at the limit past it.
+SCAFFOLDED_NAMES = [("zoo", "Animal"), ("subscription", "SubscriptionPlan")]
+# The djlint rules the generated [tool.djlint] ignores (which --ignore replaces) and the
+# auto-fixable ones, as test_djlint_lint_passes passes them
+DJLINT_IGNORED = "H014,T001,H006,H030,H031,T002"
+
+
+def load_by_path(path: Path):
+    """A module of a generated project that imports the standard library alone, loaded
+    without the project on the path, and registered first: a dataclass looks its module up."""
+    name = f"generated_{path.stem}"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(("app", "model"), SCAFFOLDED_NAMES)
+@pytest.mark.parametrize("context_override", REST_API_COMBINATIONS)
+def test_an_app_the_scaffold_copies_passes_the_projects_checks(bake, tmp_path, context_override, app, model):
+    """The app template, copied and renamed as ``startapp`` does it and run through the
+    project's formatters as it does (the modules it does it with import nothing of Django's,
+    so they are loaded by path), passes the linters and the formatters' checks under its own
+    name, and renaming it again changes nothing: no placeholder is left in it. Whether the
+    copy's tests pass once it is registered, the integration scripts show (docs/adr/0032).
+    """
+    project = bake(context_override)
+    copy = tmp_path / project.root.name
+    shutil.copytree(project.root, copy)
+    scaffold = copy / project.package / "scaffold"
+    names = load_by_path(scaffold / "names.py")
+    copying = load_by_path(scaffold / "copying.py")
+    rename = partial(names.rename, names=names.Names(app=app, model=model))
+    directory = copy / project.package / app
+
+    written = copying.copy_renamed(names.APP_TEMPLATE, directory, rename)
+    assert copying.run_formatters(directory) == []
+
+    assert Path("models.py") in written
+    assert Path("templates", app, f"{model.lower()}_list.html") in written
+    for path in written:
+        text = (directory / path).read_text()
+        assert rename(text) == text, path
+    try:
+        sh.ruff("check", "--no-cache", str(directory), _cwd=str(copy))
+        sh.ruff("format", "--check", "--no-cache", str(directory), _cwd=str(copy))
+        sh.djlint("--lint", "--ignore", DJLINT_IGNORED, str(directory), _cwd=str(copy))
+        sh.djlint("--check", str(directory), _cwd=str(copy))
+    except sh.ErrorReturnCode as e:
+        pytest.fail(e.stdout.decode())
+
+
 def test_docker_builds_and_watches_the_stylesheet(bake, context):
     """The production image builds the stylesheet in its build stage; only the local stack runs the watcher."""
     project = bake({**context, "use_docker": "y"})
@@ -2076,6 +2140,27 @@ def machine_authentication_wiring(project, answers):
         assert ("identity.verification import bearer_token" in metrics) is verifier
 
 
+def scaffold_wiring(project, answers):
+    """The scaffold is installed in every project and the app template it copies is not:
+    pytest leaves the template's tests to the copy and coverage its files, and the
+    template's REST API arm and the registration the command prints follow the project's."""
+    installed = project.settings("base").literal("INSTALLED_APPS")
+    assert f"{project.package}.scaffold" in installed
+    assert f"{project.package}.scaffold.app_template" not in installed
+    pyproject = project.toml("pyproject.toml")
+    assert "--ignore-glob=*/scaffold/app_template" in pyproject["tool"]["pytest"]["addopts"]
+    assert "*/scaffold/app_template/*" in pyproject["tool"]["coverage"]["run"]["omit"]
+
+    rest_api = answers["rest_api"]
+    command = project.text("{package}/scaffold/management/commands/startapp.py")
+    assert ("config/api.py" in command) is (rest_api == "Django Ninja")
+    assert ("config/api_router.py" in command) is (rest_api == "DRF")
+    if rest_api != "None":
+        api_views = project.text("{package}/scaffold/app_template/api/views.py")
+        assert ("ModelViewSet" in api_views) is (rest_api == "DRF")
+        assert ("Router(" in api_views) is (rest_api == "Django Ninja")
+
+
 WIRINGS = [
     asgi_wiring,
     tasks_wiring,
@@ -2084,6 +2169,7 @@ WIRINGS = [
     telemetry_wiring,
     identity_provider_wiring,
     machine_authentication_wiring,
+    scaffold_wiring,
 ]
 
 
