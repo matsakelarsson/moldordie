@@ -38,8 +38,15 @@ if TYPE_CHECKING:
     Application = Callable[..., Awaitable[None]]
 
 
-def flushing_on_shutdown(application: Application) -> Application:
-    """``application``, answering the server's lifespan and flushing on shutdown."""
+def flushing_on_shutdown(
+    application: Application,
+    *,
+    flush: Callable[[], object] = flush,
+) -> Application:
+    """``application``, answering the server's lifespan and flushing on shutdown.
+
+    ``flush`` is the process's unless the caller hands one over, as the tests do.
+    """
 
     async def with_lifespan(scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "lifespan":

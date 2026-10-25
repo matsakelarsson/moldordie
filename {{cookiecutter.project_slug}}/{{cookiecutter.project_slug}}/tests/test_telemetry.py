@@ -7,6 +7,11 @@ can throw away: a tracer provider is set once and for all, and the Django
 instrumentation writes a middleware into ``MIDDLEWARE``. Nothing dials out either:
 the exporters are built, which opens no connection, and nothing records a span or a
 measurement for them to post.
+
+Everything else is done as the process does it. An entry point is driven the way its
+process drives it and read back through ``started``, so how each of them reaches
+``configure`` is its own business; a shutdown is watched on ``Exporters`` of the
+test's own, around providers that record what they are asked instead of exporting.
 """
 
 from __future__ import annotations
@@ -34,6 +39,8 @@ from opentelemetry.instrumentation.django import DjangoInstrumentor
 from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 
+from config import gunicorn
+
 from {{ cookiecutter.project_slug }}.telemetry import COMPONENT_VARIABLE
 from {{ cookiecutter.project_slug }}.telemetry import asgi
 from {{ cookiecutter.project_slug }}.telemetry import configure as telemetry
@@ -45,7 +52,14 @@ ENDPOINT = "https://collector.example.com:4318"
 
 @pytest.fixture
 def exported(monkeypatch):
-    """What ``configure`` installs, recorded rather than installed."""
+    """What ``configure`` installs, recorded rather than installed.
+
+    The process's own exporters are what ``configure`` starts, and they are stopped
+    on the way out as a process stops them. Which is also why this begins on a process
+    that exports nothing: the suite names no collector, and a test that left the
+    exporters started would be a defect of its own.
+    """
+    assert telemetry.started() is None
     recorded = SimpleNamespace(tracer=None, meter=None, instrumented=[])
 
     def install_tracer(provider):
@@ -57,7 +71,6 @@ def exported(monkeypatch):
     def record(instrumentor, **kwargs):
         recorded.instrumented.append(type(instrumentor))
 
-    monkeypatch.setattr(telemetry, "_started", {})
     monkeypatch.setattr(trace, "set_tracer_provider", install_tracer)
     monkeypatch.setattr(metrics, "set_meter_provider", install_meter)
     # The real instrumentations, asked and recorded: each of them would otherwise
@@ -270,6 +283,13 @@ class Raising:
         raise RuntimeError(REFUSED)
 
 
+def holding(tracing, metering):
+    """Exporters of a test's own, started on providers that export nothing."""
+    exporters = telemetry.Exporters()
+    exporters.start(COMPONENT, tracing, metering)
+    return exporters
+
+
 async def unreachable(scope, receive, send):
     """The wrapped application, which no lifespan message may reach."""
     raise AssertionError(scope)
@@ -298,37 +318,27 @@ def drive_lifespan(application, messages):
     return asyncio.run(driven())
 
 
-@pytest.fixture
-def holding(monkeypatch):
-    """A process that has started, with providers that record instead of exporting."""
-    tracing, metering = Recording(), Recording()
-    monkeypatch.setattr(
-        telemetry,
-        "_started",
-        {"component": COMPONENT, "tracing": tracing, "metering": metering},
-    )
-    return tracing, metering
-
-
-def test_a_stopping_process_sends_what_it_is_holding(holding):
+def test_a_stopping_process_sends_what_it_is_holding():
     """Up to a batch of spans and an interval of measurements have been recorded and
     not sent; a process that is stopped would otherwise take them with it."""
-    tracing, metering = holding
+    tracing, metering = Recording(), Recording()
+    exporters = holding(tracing, metering)
 
-    telemetry.shutdown()
+    exporters.shutdown()
 
     assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
     assert ("shutdown", None) in tracing.calls
     assert ("shutdown", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in metering.calls
-    assert telemetry.started() is None
+    assert exporters.component is None
 
 
-def test_stopping_twice_sends_nothing_the_second_time(holding):
-    tracing, _ = holding
-    telemetry.shutdown()
+def test_stopping_twice_sends_nothing_the_second_time():
+    tracing = Recording()
+    exporters = holding(tracing, Recording())
+    exporters.shutdown()
     sent = list(tracing.calls)
 
-    telemetry.shutdown()
+    exporters.shutdown()
 
     assert tracing.calls == sent
 
@@ -346,11 +356,13 @@ def test_a_process_that_started_nothing_has_nothing_to_send(settings, exported):
     assert telemetry.started() is None
 
 
-def test_the_server_lifespan_sends_what_the_worker_is_holding(holding):
+def test_the_server_lifespan_sends_what_the_worker_is_holding(settings, exported):
     """A web worker is ended by a signal its server re-raises once it has stopped
     serving, so this is the last thing it runs and the last time the exporters are
-    reachable."""
-    tracing, _ = holding
+    reachable. The wrapper is built as ``config/asgi.py`` builds it, on the process's
+    own exporters, started as a worker starts them."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+    telemetry.configure(COMPONENT)
 
     sent = drive_lifespan(
         asgi.flushing_on_shutdown(unreachable),
@@ -361,7 +373,7 @@ def test_the_server_lifespan_sends_what_the_worker_is_holding(holding):
         "lifespan.startup.complete",
         "lifespan.shutdown.complete",
     ]
-    assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
+    assert telemetry.started() is None
 
 
 # A deadline short enough to be missed on purpose, and a flush that will not meet it
@@ -369,26 +381,24 @@ DEADLINE = 0.05
 BLOCKED = 1.0
 
 
-def test_a_flush_that_overruns_does_not_hold_the_worker(monkeypatch):
+def test_a_flush_that_overruns_does_not_hold_the_worker():
     """What the deadline has to bound is the time the process takes, not the time the
     coroutine waits: a thread cannot be cancelled, and the loop joins the threads it
     started before ``asyncio.run`` returns. So this is timed rather than asked whether
     the shutdown was answered — the worker is held for exactly as long as this is.
 
-    ``flush`` is replaced where ``asgi`` binds it and not where it is defined, which
-    is the difference between driving this path and watching the one beside it.
+    The wrapper is handed the flush, as ``config/asgi.py`` leaves it the process's,
+    under a deadline short enough to be missed on purpose.
     """
     blocked = Blocking(BLOCKED)
-    monkeypatch.setattr(
-        telemetry,
-        "_started",
-        {"component": COMPONENT, "tracing": blocked, "metering": blocked},
-    )
-    monkeypatch.setattr(asgi, "flush", partial(telemetry.flush, DEADLINE))
+    exporters = holding(blocked, blocked)
 
     started = time.monotonic()
     sent = drive_lifespan(
-        asgi.flushing_on_shutdown(unreachable),
+        asgi.flushing_on_shutdown(
+            unreachable,
+            flush=partial(exporters.flush, DEADLINE),
+        ),
         [{"type": "lifespan.shutdown"}],
     )
     held = time.monotonic() - started
@@ -397,56 +407,36 @@ def test_a_flush_that_overruns_does_not_hold_the_worker(monkeypatch):
     assert held < BLOCKED
 
 
-def test_a_flush_says_whether_it_finished(monkeypatch):
+def test_a_flush_says_whether_it_finished():
     """What the deadline costs is what was still unsent when it passed, so a process
     that gave up on one has something to say that a process that did not has not."""
-    monkeypatch.setattr(
-        telemetry,
-        "_started",
-        {"component": COMPONENT, "tracing": Blocking(BLOCKED), "metering": None},
-    )
+    blocked = Blocking(BLOCKED)
 
-    assert telemetry.flush(DEADLINE) is False
-
-    tracing, metering = Recording(), Recording()
-    monkeypatch.setattr(
-        telemetry,
-        "_started",
-        {"component": COMPONENT, "tracing": tracing, "metering": metering},
-    )
-
-    assert telemetry.flush(DEADLINE) is True
+    assert holding(blocked, blocked).flush(DEADLINE) is False
+    assert holding(Recording(), Recording()).flush(DEADLINE) is True
 
 
-def test_a_signal_that_cannot_be_sent_does_not_take_the_other_with_it(monkeypatch):
+def test_a_signal_that_cannot_be_sent_does_not_take_the_other_with_it():
     """The two are stopped independently: an interval of measurements would otherwise
     be lost to a flush of spans that raised, and nothing would be left to try from."""
     tracing, metering = Raising(), Recording()
-    monkeypatch.setattr(
-        telemetry,
-        "_started",
-        {"component": COMPONENT, "tracing": tracing, "metering": metering},
-    )
+    exporters = holding(tracing, metering)
 
-    telemetry.shutdown()
+    exporters.shutdown()
 
     assert ("force_flush", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in tracing.calls
     assert ("shutdown", telemetry.SHUTDOWN_TIMEOUT_MILLIS) in metering.calls
-    assert telemetry.started() is None
+    assert exporters.component is None
 
 
-def test_a_shutdown_that_cannot_send_still_answers_the_server(monkeypatch):
+def test_a_shutdown_that_cannot_send_still_answers_the_server():
     """The server is in the middle of stopping and is waiting on this answer. Told
     that the shutdown failed, uvicorn reports the protocol as unsupported and the
     worker as having failed to stop, for a flush that no one was waiting for."""
-    monkeypatch.setattr(
-        telemetry,
-        "_started",
-        {"component": COMPONENT, "tracing": Raising(), "metering": Raising()},
-    )
+    exporters = holding(Raising(), Raising())
 
     sent = drive_lifespan(
-        asgi.flushing_on_shutdown(unreachable),
+        asgi.flushing_on_shutdown(unreachable, flush=exporters.flush),
         [{"type": "lifespan.shutdown"}],
     )
 
@@ -469,63 +459,77 @@ def test_every_other_scope_reaches_the_application():
     assert seen == ["http"]
 
 
-def test_the_app_starts_nothing_unless_the_environment_names_a_component(monkeypatch):
-    """ready() runs for every management command, and a command serves nothing."""
-    started: list[str] = []
+def test_the_app_starts_nothing_unless_the_environment_names_a_component(
+    settings,
+    exported,
+    monkeypatch,
+):
+    """ready() runs for every management command, and a command serves nothing. With
+    a collector named, so that starting would have shown."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
     monkeypatch.delenv(COMPONENT_VARIABLE, raising=False)
-    monkeypatch.setattr(telemetry, "configure", started.append)
 
     AppConfig.create(APP).ready()
 
-    assert started == []
+    assert telemetry.started() is None
 
 
-def test_the_app_starts_the_component_the_environment_names(monkeypatch):
+def test_the_app_starts_the_component_the_environment_names(
+    settings,
+    exported,
+    monkeypatch,
+):
     """The start script of a process that has no hook of its own names it here."""
-    started: list[str] = []
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
     monkeypatch.setenv(COMPONENT_VARIABLE, "taskworker")
-    monkeypatch.setattr(telemetry, "configure", started.append)
 
     AppConfig.create(APP).ready()
 
-    assert started == ["taskworker"]
+    assert telemetry.started() == "taskworker"
+
+
+def test_a_web_worker_starts_from_the_hook_the_server_calls_after_the_fork(
+    settings,
+    exported,
+):
+    """Gunicorn executes ``config/gunicorn.py`` by path and calls this in the worker,
+    before it loads the application; it is driven here as the module it also is."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+
+    gunicorn.post_fork(server=None, worker=None)
+
+    assert telemetry.started() == "web"
 {%- if celery %}
 
 
-@pytest.fixture
-def celery_starts(monkeypatch):
-    """What the Celery signals start, recorded rather than started.
-
-    ``config/celery_app.py`` calls ``configure`` through this module, so replacing it
-    here is what its handlers see; the app's own ``ready`` holds a reference of its
-    own and is patched where it is tested.
-    """
-    started: list[str] = []
-    monkeypatch.setattr(telemetry, "configure", started.append)
-    return started
-
-
-def test_a_worker_process_starts_its_own_telemetry(celery_starts):
+def test_a_worker_process_starts_its_own_telemetry(settings, exported):
     """The prefork pool sends this in the child, which is where the exporters belong:
     their threads would not survive the fork out of the parent."""
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+
     worker_process_init.send(sender=None)
 
-    assert celery_starts == ["celeryworker"]
+    assert telemetry.started() == "celeryworker"
 
 
-def test_the_scheduler_starts_its_own_telemetry(celery_starts):
+def test_the_scheduler_starts_its_own_telemetry(settings, exported):
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+
     beat_init.send(sender=None)
 
-    assert celery_starts == ["celerybeat"]
+    assert telemetry.started() == "celerybeat"
 
 
-def test_a_worker_process_sends_what_it_holds_before_the_pool_ends_it(monkeypatch):
+def test_a_worker_process_sends_what_it_holds_before_the_pool_ends_it(
+    settings,
+    exported,
+):
     """The pool ends its children itself, so this is where a worker's last spans and
     measurements go — under the deadline, because the pool waits for this handler."""
-    flushed: list[bool] = []
-    monkeypatch.setattr(telemetry, "flush", lambda: flushed.append(True))
+    settings.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+    worker_process_init.send(sender=None)
 
     worker_process_shutdown.send(sender=None)
 
-    assert flushed == [True]
+    assert telemetry.started() is None
 {%- endif %}
