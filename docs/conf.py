@@ -65,8 +65,7 @@ release = "{}.{}.{}".format(*now.isocalendar())
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-# docs/agents/ holds configuration for AI coding agents, not documentation pages
-exclude_patterns = ["_build", "agents"]
+exclude_patterns = ["_build"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
