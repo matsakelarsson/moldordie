@@ -12,6 +12,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
 
 from config.urls import urlpatterns as project_urlpatterns
+
 from {{ cookiecutter.project_slug }}.htmx import HtmxTemplateMixin
 
 if TYPE_CHECKING:

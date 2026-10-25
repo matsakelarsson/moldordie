@@ -239,6 +239,12 @@ lint.flake8-type-checking.runtime-evaluated-decorators = [
 ]
 {%- endif %}
 lint.isort.force-single-line = true
+# The project's package is a section of its own, after config and the root modules, so
+# that the order of a file's imports never depends on how the package's name sorts
+lint.isort.section-order = [ "future", "standard-library", "third-party", "first-party", "project", "local-folder" ]
+
+[tool.ruff.lint.isort.sections]
+project = [ "{{ cookiecutter.project_slug }}" ]
 
 # ==== pyproject-fmt ====
 [tool.pyproject-fmt]
