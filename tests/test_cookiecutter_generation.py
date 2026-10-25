@@ -14,6 +14,7 @@ from binaryornot.check import is_binary
 from cookiecutter.exceptions import FailedHookException
 from packaging.requirements import Requirement
 
+from hooks.post_gen_project import AGENT_GUIDE
 from hooks.post_gen_project import REMOVALS
 from local_extensions import FLAG
 from local_extensions import LIST
@@ -31,6 +32,7 @@ from tests.removal_coverage import coverage_gaps
 from tests.removal_coverage import fewest_answers_keeping
 from tests.removal_coverage import paths_kept
 from tests.removal_coverage import removed_paths
+from tests.removal_coverage import survives
 
 PATTERN = r"{{(\s?cookiecutter)[.](.*?)}}"
 RE_OBJ = re.compile(PATTERN)
@@ -481,6 +483,30 @@ def test_no_file_cites_a_path_its_answers_removed(bake, context_override):
     cited, _ = citations(files, removed, allowed, package=project.package)
 
     assert not cited, "\n".join(f"{citation.file} cites {citation.path}" for citation in cited)
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_the_tree_holds_the_paths_the_rules_leave(bake, context_override):
+    """Every path a removal rule lists is in the generated project exactly when no rule that
+    applies to its answers removes it or a directory above it. The hook's unit tests pin the
+    rules on the template tree; this is the same statement on the bake, for every supported
+    combination, in place of a file list written by hand beside each arm's wiring
+    (docs/adr/0026). The agent guide is moved after pruning to the file its agent reads,
+    so neither its own path nor the directory it goes into is the rules' to say.
+    """
+    project = bake(context_override)
+    answers = complete_answers(context_override)
+    removed = removed_paths(REMOVALS, answers)
+    placed = AGENT_FILES[answers["coding_agent"]]
+    moved = {Path(AGENT_GUIDE), *(Path(placed).parents if placed else ())}
+
+    present = {}
+    for _, paths in REMOVALS:
+        for path in paths:
+            if Path(path) in moved:
+                continue
+            present[path] = project.path(path.format(project_slug="{package}")).exists()
+    assert [path for path, kept in present.items() if kept != survives(path, removed)] == []
 
 
 @pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
@@ -1021,38 +1047,6 @@ def test_strict_typing_setup(bake, context, rest_api):
     assert ("class AuthenticatedApiRequest(Request):" in typedefs) is (rest_api == "DRF")
 
 
-@pytest.mark.parametrize("realtime", ["none", "channels"])
-def test_asgi_entrypoint(bake, context, realtime):
-    """Every project is served through ASGI; the Channels wiring is only generated on request."""
-    context.update({"realtime": realtime})
-    project = bake(context)
-
-    config = project.root / "config"
-    assert (config / "asgi.py").exists()
-    assert not (config / "wsgi.py").exists()
-    base = project.settings("base")
-    assert 'ASGI_APPLICATION = "config.asgi.application"' in base.source
-    assert "WSGI_APPLICATION" not in base.source
-
-    uses_channels = realtime == "channels"
-    assert (config / "websocket.py").exists() is uses_channels
-    websocket_test = project.path("{package}/tests/test_websocket.py")
-    assert websocket_test.exists() is uses_channels
-    assert ("channels" in base.literal("INSTALLED_APPS")) is uses_channels
-    assert "CHANNEL_LAYERS" not in base.source
-    assert ("InMemoryChannelLayer" in project.settings("local").source) is uses_channels
-    assert ("InMemoryChannelLayer" in project.settings("test").source) is uses_channels
-    assert ("channels_redis.core.RedisChannelLayer" in project.settings("production").source) is uses_channels
-    assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "uvicorn"] == [{"standard"}]
-    names = project.pinned
-    assert "uvicorn-worker" in names
-    assert ("channels-redis" in names) is uses_channels
-    assert ("types-channels" in names) is uses_channels
-    base_html = project.template("base.html")
-    assert ('{% htmx_script extensions="hx-ws" %}' in base_html) is uses_channels
-    assert ("{% htmx_script %}" in base_html) is not uses_channels
-
-
 @pytest.mark.parametrize("use_docker", ["y", "n"])
 def test_docker_compose_files_match_use_docker(bake, context, use_docker):
     """All docker-compose files, including the docs one, are only generated with use_docker=y."""
@@ -1548,38 +1542,6 @@ def test_cors_settings_follow_the_rest_api(bake, rest_api):
         assert "corsheaders.middleware.CorsMiddleware" in base.literal("MIDDLEWARE")
 
 
-@pytest.mark.parametrize("use_celery", ["n", "y"])
-def test_tasks_framework(bake, context, use_celery):
-    """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
-    context.update({"use_celery": use_celery, "use_docker": "y"})
-    project = bake(context)
-
-    celery = use_celery == "y"
-    assert "django-tasks-db" in project.pinned
-    assert "django_tasks_db" in project.settings("base").literal("INSTALLED_APPS")
-    immediate = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
-    assert project.settings("local").literal("TASKS") == immediate
-    assert project.settings("test").literal("TASKS") == immediate
-    database = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}
-    assert project.settings("production").literal("TASKS") == database
-
-    tasks = project.text("{package}/users/tasks.py")
-    assert "from django.tasks import task" in tasks
-    assert ("shared_task" in tasks) is celery
-    tests = project.text("{package}/users/tests/test_tasks.py")
-    assert "TaskResultStatus.SUCCESSFUL" in tests
-    assert ("EagerResult" in tests) is celery
-    assert (project.root / "config" / "celery_app.py").exists() is celery
-
-    production_compose = project.compose("production")
-    assert production_compose["services"]["taskworker"]["command"] == "/start-taskworker"
-    assert ("celeryworker" in production_compose["services"]) is celery
-    assert "taskworker" not in project.compose("local")["services"]
-    django_compose = Path("compose") / "production" / "django"
-    assert "db_worker" in project.text(django_compose / "tasks" / "worker" / "start")
-    assert "/start-taskworker" in project.text(django_compose / "Dockerfile")
-
-
 S3_STORAGE = "storages.backends.s3.S3Storage"
 S3_MANIFEST_STORAGE = "storages.backends.s3.S3ManifestStaticStorage"
 FILESYSTEM_STORAGE = "django.core.files.storage.FileSystemStorage"
@@ -1686,68 +1648,6 @@ def test_local_mail_without_a_catcher(bake, context):
     assert local.env_read("DJANGO_EMAIL_BACKEND").default == "django.core.mail.backends.console.EmailBackend"
 
 
-# (identity provider, its allauth provider app, the origin the Content Security Policy
-# lets the login form submit to, the credentials read from the environment)
-IDENTITY_PROVIDERS = [
-    (
-        "entra",
-        "allauth.socialaccount.providers.openid_connect",
-        "https://login.microsoftonline.com",
-        ("ENTRA_TENANT_ID", "ENTRA_LOGIN_CLIENT_ID", "ENTRA_LOGIN_CLIENT_SECRET"),
-    ),
-    (
-        "google",
-        "allauth.socialaccount.providers.google",
-        "https://accounts.google.com",
-        ("GOOGLE_LOGIN_CLIENT_ID", "GOOGLE_LOGIN_CLIENT_SECRET"),
-    ),
-]
-# The files that sign-in through a provider adds, relative to the project root; ``{package}``
-# stands for the project package
-IDENTITY_PROVIDER_FILES = [
-    "docs/authentication.rst",
-    "{package}/users/checks.py",
-    "{package}/users/tests/social.py",
-    "{package}/users/tests/test_checks.py",
-    "{package}/users/tests/test_social_login.py",
-]
-# The Entra provider subclass and its test
-ENTRA_FILES = ["{package}/users/providers.py", "{package}/users/tests/test_providers.py"]
-
-
-@pytest.mark.parametrize(
-    ("identity_provider", "app", "origin", "credentials"),
-    IDENTITY_PROVIDERS,
-    ids=[row[0] for row in IDENTITY_PROVIDERS],
-)
-def test_identity_provider_login(bake, identity_provider, app, origin, credentials):
-    """A provider is configured from the environment, and the policy lets the login form reach it."""
-    project = bake({"identity_provider": identity_provider})
-
-    base = project.settings("base")
-    assert app in base.literal("INSTALLED_APPS")
-    assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF"), origin]
-    (provider_settings,) = base.value("SOCIALACCOUNT_PROVIDERS").values()
-    (provider_app,) = provider_settings["APPS"]
-    # The credentials are the names read from the environment
-    assert provider_app["client_id"] == base.value(credentials[-2])
-    assert provider_app["secret"] == base.value(credentials[-1])
-    reads = {read.name: read for read in base.env_reads()}
-    assert all(reads[name].default == "" for name in credentials)
-    assert set(credentials) <= set(project.env("production", "django"))
-    assert set(credentials) <= set(project.env("local", "django"))
-
-    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
-    assert allauth.extras == {"mfa", "socialaccount"}
-    for path in IDENTITY_PROVIDER_FILES:
-        assert project.path(path).exists(), path
-    assert "authentication" in project.text("docs/index.rst")
-    entra = identity_provider == "entra"
-    for path in ENTRA_FILES:
-        assert project.path(path).exists() is entra, path
-    assert ("def get_provider(" in project.text("{package}/users/adapters.py")) is entra
-
-
 def test_entra_login_is_keyed_by_the_object_id(bake):
     """Entra goes through the generic OpenID Connect provider with UserInfo off (docs/adr/0007)."""
     project = bake({"identity_provider": "entra"})
@@ -1784,32 +1684,6 @@ def test_google_login_follows_its_own_verified_flag(bake):
 
 
 JWT_STRATEGY = "allauth.headless.tokens.strategies.jwt.JWTTokenStrategy"
-IDENTITY_APP_FILES = [
-    "{package}/identity/__init__.py",
-    "{package}/identity/admin.py",
-    "{package}/identity/api.py",
-    "{package}/identity/apps.py",
-    "{package}/identity/auth.py",
-    "{package}/identity/checks.py",
-    "{package}/identity/frontend.py",
-    "{package}/identity/management/commands/revoke_jwt_sessions.py",
-    "{package}/identity/migrations/0001_initial.py",
-    "{package}/identity/models.py",
-    "{package}/identity/permissions.py",
-    "{package}/identity/verification.py",
-    "{package}/identity/tests/headless.py",
-    "{package}/identity/tests/services.py",
-    "{package}/identity/tests/test_apps.py",
-    "{package}/identity/tests/test_auth.py",
-    "{package}/identity/tests/test_frontend.py",
-    "{package}/identity/tests/test_login.py",
-    "{package}/identity/tests/test_models.py",
-    "{package}/identity/tests/test_permissions.py",
-    "{package}/identity/tests/test_provider_login.py",
-    "{package}/identity/tests/test_revoke_jwt_sessions.py",
-    "{package}/identity/tests/test_services.py",
-    "{package}/identity/tests/test_verification.py",
-]
 # The pages of the frontend contract, as HEADLESS_FRONTEND_URLS names them
 FRONTEND_PAGES = {
     "account_confirm_email": "/account/verify-email/{key}",
@@ -1890,8 +1764,6 @@ def test_headless_login(bake, context_override):
     assert 'path("_allauth/", include("allauth.headless.urls"))' in project.text("config/urls.py")
     allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
     assert allauth.extras == {"headless", "mfa", "socialaccount"}
-    for path in IDENTITY_APP_FILES:
-        assert project.path(path).exists(), path
     # The API authenticates an app-issued JWT, or the session cookie with its CSRF check
     api = project.text("config/api.py")
     assert f"from {project.package}.identity.auth import user_auth" in api
@@ -1939,7 +1811,6 @@ def test_no_headless_login_without_ninja_and_a_provider(bake, context_override):
     assert "HEADLESS" not in base.source
     assert "FRONTEND" not in base.source
     assert "_allauth" not in project.text("config/urls.py")
-    assert not (project.root / project.package / "identity").exists()
     assert "is_safe_url" not in project.text(f"{project.package}/users/adapters.py")
     if context_override.get("rest_api") == "Django Ninja":
         assert "auth=SessionAuth()," in project.text("config/api.py")
@@ -1948,30 +1819,75 @@ def test_no_headless_login_without_ninja_and_a_provider(bake, context_override):
     assert "headless" not in allauth.extras
 
 
-def test_no_identity_provider(bake):
-    """Without a provider the project has password login only, as before the option."""
-    project = bake({"identity_provider": "none"})
+BEFORE_MIDDLEWARE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
+AFTER_MIDDLEWARE = "django_prometheus.middleware.PrometheusAfterMiddleware"
 
+
+TASK_WORKER_START = Path("compose") / "production" / "django" / "tasks" / "worker" / "start"
+COLLECTOR_CONFIG = Path("compose") / "local" / "otel-collector" / "config.yml"
+
+
+# The wiring of each option's arm: what the arm adds to a generated project beyond its
+# files, stated as a function of the complete answers and checked on every supported
+# combination (docs/adr/0026). Which files the arm adds is the removal rules' statement,
+# checked above. A wiring that reads a file only Docker generates forks on use_docker here,
+# so it is checked on the rows with Docker and the rows without.
+
+
+def asgi_wiring(project, answers):
+    """Every project is served through ASGI; the Channels wiring is only generated on request."""
+    assert project.path("config/asgi.py").exists()
+    assert not project.path("config/wsgi.py").exists()
     base = project.settings("base")
-    assert "SOCIALACCOUNT_PROVIDERS" not in base.source
-    assert not any("providers" in app for app in base.literal("INSTALLED_APPS"))
-    assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF")]
-    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
-    assert allauth.extras == {"mfa"}
-    for path in [*IDENTITY_PROVIDER_FILES, *ENTRA_FILES]:
-        assert not project.path(path).exists(), path
-    assert "authentication" not in project.text("docs/index.rst")
+    assert 'ASGI_APPLICATION = "config.asgi.application"' in base.source
+    assert "WSGI_APPLICATION" not in base.source
+
+    uses_channels = answers["realtime"] == "channels"
+    assert ("channels" in base.literal("INSTALLED_APPS")) is uses_channels
+    assert "CHANNEL_LAYERS" not in base.source
+    assert ("InMemoryChannelLayer" in project.settings("local").source) is uses_channels
+    assert ("InMemoryChannelLayer" in project.settings("test").source) is uses_channels
+    assert ("channels_redis.core.RedisChannelLayer" in project.settings("production").source) is uses_channels
+    assert [pin.extras for pin in project.pins["dependencies"] if pin.name == "uvicorn"] == [{"standard"}]
+    assert "uvicorn-worker" in project.pinned
+    assert ("channels-redis" in project.pinned) is uses_channels
+    assert ("types-channels" in project.pinned) is uses_channels
+    base_html = project.template("base.html")
+    assert ('{% htmx_script extensions="hx-ws" %}' in base_html) is uses_channels
+    assert ("{% htmx_script %}" in base_html) is not uses_channels
 
 
-@pytest.mark.parametrize("use_sentry", ["n", "y"])
-def test_sentry_wiring(bake, context, use_sentry):
+def tasks_wiring(project, answers):
+    """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
+    celery = answers["use_celery"] == "y"
+    assert "django-tasks-db" in project.pinned
+    assert "django_tasks_db" in project.settings("base").literal("INSTALLED_APPS")
+    immediate = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
+    assert project.settings("local").literal("TASKS") == immediate
+    assert project.settings("test").literal("TASKS") == immediate
+    database = {"default": {"BACKEND": "django_tasks_db.DatabaseBackend"}}
+    assert project.settings("production").literal("TASKS") == database
+
+    tasks = project.text("{package}/users/tasks.py")
+    assert "from django.tasks import task" in tasks
+    assert ("shared_task" in tasks) is celery
+    tests = project.text("{package}/users/tests/test_tasks.py")
+    assert "TaskResultStatus.SUCCESSFUL" in tests
+    assert ("EagerResult" in tests) is celery
+
+    if answers["use_docker"] == "y":
+        production_compose = project.compose("production")
+        assert production_compose["services"]["taskworker"]["command"] == "/start-taskworker"
+        assert ("celeryworker" in production_compose["services"]) is celery
+        assert "taskworker" not in project.compose("local")["services"]
+        django_compose = Path("compose") / "production" / "django"
+        assert "db_worker" in project.text(django_compose / "tasks" / "worker" / "start")
+        assert "/start-taskworker" in project.text(django_compose / "Dockerfile")
+
+
+def sentry_wiring(project, answers):
     """The production settings configure Sentry and install the app that initialises the SDK."""
-    context["use_sentry"] = use_sentry
-    project = bake(context)
-
-    selected = use_sentry == "y"
-    assert project.path("{package}/sentry/apps.py").exists() is selected
-    assert project.path("{package}/tests/test_sentry.py").exists() is selected
+    selected = answers["use_sentry"] == "y"
     assert ("sentry-sdk" in project.pinned) is selected
 
     # Importing the settings initialises nothing; the app does, once the registry is ready
@@ -1987,24 +1903,11 @@ def test_sentry_wiring(bake, context, use_sentry):
         assert "sentry_sdk.init(" in project.text("{package}/sentry/apps.py")
 
 
-BEFORE_MIDDLEWARE = "django_prometheus.middleware.PrometheusBeforeMiddleware"
-AFTER_MIDDLEWARE = "django_prometheus.middleware.PrometheusAfterMiddleware"
-
-
-OBSERVABILITY_ANSWERS = ["none", "prometheus", "opentelemetry"]
-
-
-@pytest.mark.parametrize("observability", OBSERVABILITY_ANSWERS)
-def test_metrics_wiring(bake, context, observability):
+def metrics_wiring(project, answers):
     """The metrics of django-prometheus: the app, the middleware pair that wraps the
     chain, the instrumented backends, and the endpoint behind its own credential."""
-    context["observability"] = observability
-    context["use_docker"] = "y"
-    project = bake(context)
-
-    selected = observability == "prometheus"
-    assert project.path("{package}/metrics.py").exists() is selected
-    assert project.path("{package}/tests/test_metrics.py").exists() is selected
+    selected = answers["observability"] == "prometheus"
+    docker = answers["use_docker"] == "y"
     assert ("django-prometheus" in project.pinned) is selected
 
     base = project.settings("base")
@@ -2025,14 +1928,17 @@ def test_metrics_wiring(bake, context, observability):
 
     # The endpoint is routed in every environment; nothing about it is conditional at runtime
     assert ('path("metrics", metrics, name="metrics")' in project.text("config/urls.py")) is selected
-    services = project.compose("local")["services"]
-    assert ("prometheus" in services) is selected
-    if selected:
-        # The scrape reads the container, not one worker of it
+    if docker:
+        services = project.compose("local")["services"]
+        assert ("prometheus" in services) is selected
+    if not selected:
+        return
+    # The scrape reads the container, not one worker of it
+    assert "mark_process_dead" in project.text(Path("config") / "gunicorn.py")
+    if docker:
         start = project.text(Path("compose") / "production" / "django" / "start")
         assert "export PROMETHEUS_MULTIPROC_DIR=" in start
         assert "--config /app/config/gunicorn.py" in start
-        assert "mark_process_dead" in project.text(Path("config") / "gunicorn.py")
         assert services["prometheus"]["depends_on"] == ["django"]
         # The local receiver presents the credential the local env file declares
         receiver = project.yaml(Path("compose") / "local" / "prometheus" / "prometheus.yml")
@@ -2040,54 +1946,124 @@ def test_metrics_wiring(bake, context, observability):
         assert [job["authorization"]["credentials"] for job in receiver["scrape_configs"]] == [credential]
 
 
-TASK_WORKER_START = Path("compose") / "production" / "django" / "tasks" / "worker" / "start"
-COLLECTOR_CONFIG = Path("compose") / "local" / "otel-collector" / "config.yml"
-
-
-@pytest.mark.parametrize("observability", OBSERVABILITY_ANSWERS)
-def test_telemetry_wiring(bake, context, observability):
+def telemetry_wiring(project, answers):
     """Traces and metrics over OTLP: the app, the settings with every default off, the
     entry point of each serving process, and the collector that receives them."""
-    context["observability"] = observability
-    context["use_docker"] = "y"
-    project = bake(context)
-
-    selected = observability == "opentelemetry"
-    package = Path(context["project_slug"])
-    assert (project.root / package / "telemetry" / "configure.py").exists() is selected
-    assert (project.root / package / "telemetry" / "asgi.py").exists() is selected
+    selected = answers["observability"] == "opentelemetry"
+    docker = answers["use_docker"] == "y"
     # A web worker is ended by a re-raised signal, so the lifespan is where it flushes
     assert ("flushing_on_shutdown" in project.text(Path("config") / "asgi.py")) is selected
-    assert (project.root / package / "tests" / "test_telemetry.py").exists() is selected
     assert (project.pinned >= TELEMETRY_PACKAGES) is selected
-    # Both arms measure something, and the page says where what they measure is read
-    measured = observability != "none"
-    assert (project.root / "docs" / "observability.rst").exists() is measured
-    assert (project.root / "config" / "gunicorn.py").exists() is measured
 
     base = project.settings("base")
     assert (f"{project.package}.telemetry" in base.value("INSTALLED_APPS")) is selected
     reads = {read.name: read for read in base.env_reads()}
     assert ("OTEL_EXPORTER_OTLP_ENDPOINT" in reads) is selected
 
-    services = project.compose("local")["services"]
-    assert ("otel-collector" in services) is selected
+    if docker:
+        services = project.compose("local")["services"]
+        assert ("otel-collector" in services) is selected
     if not selected:
         return
     # Nothing is exported until a deployment names a destination
     assert reads["OTEL_EXPORTER_OTLP_ENDPOINT"].default == ""
-    assert reads["OTEL_SERVICE_NAME"].default == context["project_slug"]
+    assert reads["OTEL_SERVICE_NAME"].default == project.package
     # Each process that serves something starts its own exporters, and no command does
     assert "post_fork" in project.text(Path("config") / "gunicorn.py")
-    start = project.text(Path("compose") / "production" / "django" / "start")
-    assert "--config /app/config/gunicorn.py" in start
-    assert "DJANGO_TELEMETRY_COMPONENT=taskworker" in project.text(TASK_WORKER_START)
-    # The application exports to the collector, so the collector is up first
-    assert "otel-collector" in services["django"]["depends_on"]
-    # And the address it is given is the one the collector listens on
-    receiver = yaml.safe_load(project.text(COLLECTOR_CONFIG))["receivers"]["otlp"]
-    _, _, port = receiver["protocols"]["http"]["endpoint"].rpartition(":")
-    assert project.env("local", "django")["OTEL_EXPORTER_OTLP_ENDPOINT"].endswith(f":{port}")
+    if docker:
+        start = project.text(Path("compose") / "production" / "django" / "start")
+        assert "--config /app/config/gunicorn.py" in start
+        assert "DJANGO_TELEMETRY_COMPONENT=taskworker" in project.text(TASK_WORKER_START)
+        # The application exports to the collector, so the collector is up first
+        assert "otel-collector" in services["django"]["depends_on"]
+        # And the address it is given is the one the collector listens on
+        receiver = yaml.safe_load(project.text(COLLECTOR_CONFIG))["receivers"]["otlp"]
+        _, _, port = receiver["protocols"]["http"]["endpoint"].rpartition(":")
+        assert project.env("local", "django")["OTEL_EXPORTER_OTLP_ENDPOINT"].endswith(f":{port}")
+
+
+# The identity providers, by answer: the allauth app, the origin the policy lets the login
+# form submit to, and the credentials read from the environment
+IDENTITY_PROVIDERS = {
+    "entra": (
+        "allauth.socialaccount.providers.openid_connect",
+        "https://login.microsoftonline.com",
+        ("ENTRA_TENANT_ID", "ENTRA_LOGIN_CLIENT_ID", "ENTRA_LOGIN_CLIENT_SECRET"),
+    ),
+    "google": (
+        "allauth.socialaccount.providers.google",
+        "https://accounts.google.com",
+        ("GOOGLE_LOGIN_CLIENT_ID", "GOOGLE_LOGIN_CLIENT_SECRET"),
+    ),
+}
+
+
+def identity_provider_wiring(project, answers):
+    """A provider is configured from the environment, and the policy lets the login form
+    reach it; without one the project has password login only, as before the option."""
+    provider = answers["identity_provider"]
+    base = project.settings("base")
+    allauth = next(pin for pin in project.pins["dependencies"] if pin.name == "django-allauth")
+    extras = {"mfa"}
+    if provider != "none":
+        extras.add("socialaccount")
+    if answers["headless"]:
+        extras.add("headless")
+    assert allauth.extras == extras
+    assert ("authentication" in project.text("docs/index.rst")) is (provider != "none")
+    adapters = project.text("{package}/users/adapters.py")
+    assert ("def get_provider(" in adapters) is (provider == "entra")
+    if provider == "none":
+        assert "SOCIALACCOUNT_PROVIDERS" not in base.source
+        assert not any("providers" in app for app in base.literal("INSTALLED_APPS"))
+        assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF")]
+        return
+
+    app, origin, credentials = IDENTITY_PROVIDERS[provider]
+    assert app in base.literal("INSTALLED_APPS")
+    assert base.value("SECURE_CSP")["form-action"] == [Expression("CSP.SELF"), origin]
+    (provider_settings,) = base.value("SOCIALACCOUNT_PROVIDERS").values()
+    (provider_app,) = provider_settings["APPS"]
+    # The credentials are the names read from the environment
+    assert provider_app["client_id"] == base.value(credentials[-2])
+    assert provider_app["secret"] == base.value(credentials[-1])
+    reads = {read.name: read for read in base.env_reads()}
+    assert all(reads[name].default == "" for name in credentials)
+    assert set(credentials) <= set(project.env("production", "django"))
+    assert set(credentials) <= set(project.env("local", "django"))
+
+
+def machine_authentication_wiring(project, answers):
+    """The identity app verifies the tokens of calling services wherever something reads
+    one: the API with a provider, or a scrape of the metrics (docs/adr/0019)."""
+    verifier = answers["service_tokens"]
+    assert ("pyjwt" in project.pinned) is verifier
+
+    base = project.settings("base")
+    assert (f"{project.package}.identity" in base.value("INSTALLED_APPS")) is verifier
+    assert ("IDENTITY_SERVICE_ISSUERS" in base.source) is verifier
+
+    # A scrape presents a token of the provider's, and the permission says it may
+    if answers["observability"] == "prometheus":
+        assert ("identity.read_metrics" in project.text("{package}/metrics.py")) is verifier
+
+
+WIRINGS = [
+    asgi_wiring,
+    tasks_wiring,
+    sentry_wiring,
+    metrics_wiring,
+    telemetry_wiring,
+    identity_provider_wiring,
+    machine_authentication_wiring,
+]
+
+
+@pytest.mark.parametrize("wiring", WIRINGS, ids=lambda wiring: wiring.__name__.removesuffix("_wiring"))
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_wiring(bake, context_override, wiring):
+    """Each arm's wiring holds on every supported combination, as its complete answers say."""
+    wiring(bake(context_override), complete_answers(context_override))
 
 
 @pytest.mark.parametrize("observability", ["prometheus", "opentelemetry"])
@@ -2137,48 +2113,6 @@ def test_a_celery_worker_starts_and_stops_its_own_telemetry(bake, context):
     # Under the deadline, which is what a worker child shares with a web worker
     assert "worker_process_shutdown" in celery_app
     assert "telemetry.flush()" in celery_app
-
-
-# Whether a project has the verifier of calling services, and whether it also has the API
-# that reads one: the answers that decide are the provider and what consumes its tokens.
-MACHINE_AUTHENTICATION = [
-    ({"identity_provider": "none", "rest_api": "Django Ninja"}, False, False),
-    ({"identity_provider": "entra"}, False, False),
-    ({"identity_provider": "entra", "rest_api": "Django Ninja"}, True, True),
-    ({"identity_provider": "google", "observability": "prometheus"}, True, False),
-]
-
-
-@pytest.mark.parametrize(
-    ("answers", "verifier", "api"),
-    MACHINE_AUTHENTICATION,
-    ids=["no provider", "nothing reads a token", "the api reads one", "a scrape reads one"],
-)
-def test_machine_authentication_wiring(bake, context, answers, verifier, api):
-    """The identity app verifies the tokens of calling services wherever something reads
-    one, and the policies Django Ninja's routes run under are generated only with it."""
-    project = bake({**context, **answers})
-
-    identity = project.path("{package}/identity")
-    assert (identity / "verification.py").exists() is verifier
-    assert (identity / "models.py").exists() is verifier
-    assert (identity / "tests" / "services.py").exists() is verifier
-    # The API's side: the policies, the routes they guard and what drives them in the tests
-    assert (identity / "auth.py").exists() is api
-    assert (identity / "tests" / "headless.py").exists() is api
-    assert ("pyjwt" in project.pinned) is verifier
-
-    base = project.settings("base")
-    installed = f"{project.package}.identity"
-    assert (installed in base.value("INSTALLED_APPS")) is verifier
-    assert ("IDENTITY_SERVICE_ISSUERS" in base.source) is verifier
-
-    # A scrape presents a token of the provider's, and the permission says it may
-    scraped = answers.get("observability") == "prometheus"
-    permission = identity / "migrations" / "0002_the_metrics_permission.py"
-    assert permission.exists() is (verifier and scraped)
-    if scraped:
-        assert ("identity.read_metrics" in project.text("{package}/metrics.py")) is verifier
 
 
 # The agent guide: where each coding agent reads its instructions, as the agent's own

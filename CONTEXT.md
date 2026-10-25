@@ -226,6 +226,16 @@ marks the choice.
 
 _Avoid_: partial response.
 
+## Wiring
+
+What an option's arm adds to a generated project beyond its files: the settings, pins,
+routes, Compose services and scripts that make the arm work. Stated as a function of a
+project and its complete answers, and checked on every supported combination
+(`WIRINGS` and `test_wiring` in `tests/test_cookiecutter_generation.py`, `docs/adr/0026`).
+Which files the arm adds is the removal rules' statement, not the wiring's.
+
+_Avoid_: integration, feature test.
+
 ## Template context
 
 Django's rendering context, always so qualified. Unqualified, "context" is the answers the
