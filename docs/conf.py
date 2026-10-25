@@ -65,7 +65,8 @@ release = "{}.{}.{}".format(*now.isocalendar())
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build"]
+# docs/adr/ holds the decision records, cited by path from the code and the guide; they are not pages of these docs
+exclude_patterns = ["_build", "adr"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
