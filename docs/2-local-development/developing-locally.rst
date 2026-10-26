@@ -132,19 +132,19 @@ The project layout looks something like this: ::
     └── ...
 
 
-Following this structured approach, here's how to add a new app:
+Following this structured approach, the project's own ``startapp`` adds a new app in one step, replacing ``<name-of-the-app>`` with your desired app name and ``<Model>`` with the name of its model in CapWords: ::
 
-#. **Create the app** using Django's ``startapp`` command, replacing ``<name-of-the-app>`` with your desired app name: ::
+    uv run python manage.py startapp <name-of-the-app> --model <Model>
 
-    uv run python manage.py startapp <name-of-the-app>
+It copies the app template under ``<django_project_root>/scaffold/app_template/`` into the Django Project Root under those names: a model with its first migration and its admin, a form, the list, detail, create, update and delete views, each answering htmx with a partial of its template, the templates, a factory and the tests of all of it, and, if the project has a REST API, the model's routes on it. Then it prints where the app is registered:
 
-#. **Move the app** to the Django Project Root, maintaining the project's two-tier structure: ::
+#. **Register the new app** by adding it to the ``LOCAL_APPS`` list in ``config/settings/base.py``.
 
-    mv <name-of-the-app> <django_project_root>/
+#. **Route its pages** with an include in ``config/urls.py``, and its REST API routes where the project has one.
 
-#. **Edit the app's apps.py** change ``name = '<name-of-the-app>'`` to ``name = '<django_project_root>.<name-of-the-app>'``.
+#. **Migrate**, and the app's tests pass. Replace the model's fields with your own; the form, the templates and the tests name them.
 
-#. **Register the new app** by adding it to the ``LOCAL_APPS`` list in ``config/settings/base.py``, integrating it as an official component of your project.
+The app template is a complete app under placeholder names, checked by the same tools as the rest of the project, so an addition to it reaches every app created after it.
 
 
 

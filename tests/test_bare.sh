@@ -24,6 +24,11 @@ sudo utility/install_os_dependencies.sh install
 # Install Python deps
 uv sync
 
+# Scaffold an app from the app template and register it where the command says, so the
+# checks below run with it: the template's tests run as the copy's (docs/adr/0032)
+uv run python manage.py startapp blog --model Post
+python3 ../../../tests/register_app.py my_awesome_project blog Post
+
 # run the project's type checks
 uv run mypy .
 

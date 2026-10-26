@@ -253,3 +253,20 @@ Django's rendering context, always so qualified. Unqualified, "context" is the a
 hooks receive.
 
 _Avoid_: context (unqualified) for Django's.
+
+## Scaffold
+
+The installed app `scaffold/` of a generated project: its own `startapp`, which copies the
+app template into the package under the names given and says where to register the copy,
+and the renaming and the copy behind it (`docs/adr/0032`).
+
+_Avoid_: generator, boilerplate, blueprint, cookiecutter (the repository is one; this is not).
+
+## App template
+
+The complete app under placeholder names, `app_template` with its model `Item`, beside the
+scaffold's command: checked where it stands by the project's tools, never installed, its tests
+left uncollected and run as a copy's. A convention changed there reaches every app created
+after.
+
+_Avoid_: sample app, example app (the examples page is something else), skeleton, stub.

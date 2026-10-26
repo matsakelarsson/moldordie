@@ -412,9 +412,18 @@ NO_CELERY = {"config/celery_app.py"}
 NO_CELERY_IMAGES = {"compose/local/django/celery", "compose/production/django/celery"}
 CI_CONFIGS = {"Gitlab": ".gitlab-ci.yml", "Github": ".github"}
 NO_CI = set(CI_CONFIGS.values())
-NO_DRF = {"config/api_router.py", f"{PKG}/users/api/serializers.py"}
-NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py"}
-NO_REST_API = {"config/api_router.py", "config/api.py", f"{PKG}/users/api", f"{PKG}/users/tests/api"}
+# The REST API's arm: in the users app, and in the app template the scaffold copies
+APP_TEMPLATE = f"{PKG}/scaffold/app_template"
+NO_DRF = {"config/api_router.py", f"{PKG}/users/api/serializers.py", f"{APP_TEMPLATE}/api/serializers.py"}
+NO_NINJA = {"config/api.py", f"{PKG}/users/api/schema.py", f"{APP_TEMPLATE}/api/schema.py"}
+NO_REST_API = {
+    "config/api_router.py",
+    "config/api.py",
+    f"{PKG}/users/api",
+    f"{PKG}/users/tests/api",
+    f"{APP_TEMPLATE}/api",
+    f"{APP_TEMPLATE}/tests/api",
+}
 NO_CHANNELS = {"config/websocket.py", f"{PKG}/tests/test_websocket.py"}
 NO_SENTRY = {f"{PKG}/sentry", f"{PKG}/tests/test_sentry.py"}
 # The metrics endpoint a scrape reads, and the app that exports over OTLP. The Gunicorn

@@ -51,6 +51,27 @@ To run the tests, check your test coverage, and generate an HTML coverage report
 
     uv run pytest
 
+### Adding an app
+
+The project's own `startapp` copies a complete app into `{{cookiecutter.project_slug}}/` under
+the name you give, with its model called what `--model` says:
+{%- if cookiecutter.use_docker == "y" %}
+
+    docker compose -f docker-compose.local.yml run --rm django python manage.py startapp blog --model Post
+{%- else %}
+
+    uv run python manage.py startapp blog --model Post
+{%- endif %}
+
+The copy holds the model with its first migration and its admin, a form, the list, detail,
+create, update and delete views, each answering htmx with a partial of its template, the
+templates, a factory and the tests of all of it
+{%- if cookiecutter.rest_api != "None" %}, and the model's routes on the REST API{% endif %}.
+The command prints where to register the app; once registered, the app's tests pass, and
+you replace the model's fields with your own. The app template it copies is
+`{{cookiecutter.project_slug}}/scaffold/app_template/`, checked by the same tools as the
+rest of the project, so an addition to it reaches every app created after.
+
 ### Frontend
 
 The frontend is server-rendered Django templates enhanced with [htmx](https://htmx.org) (via

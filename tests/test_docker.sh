@@ -36,6 +36,11 @@ docker compose -f docker-compose.local.yml run django uv lock
 
 docker compose -f docker-compose.local.yml build
 
+# Scaffold an app from the app template and register it where the command says, so the
+# checks below run with it: the template's tests run as the copy's (docs/adr/0032)
+docker compose -f docker-compose.local.yml run --rm django python manage.py startapp blog --model Post
+python3 ../../../tests/register_app.py my_awesome_project blog Post
+
 # the watcher service downloads the Tailwind CLI, builds the stylesheet and stays up:
 # Tailwind's CLI stops watching when its standard input closes, which tty: true prevents
 docker compose -f docker-compose.local.yml up -d tailwind

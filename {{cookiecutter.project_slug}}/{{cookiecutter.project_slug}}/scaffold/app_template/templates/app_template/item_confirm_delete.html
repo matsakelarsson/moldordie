@@ -1,0 +1,40 @@
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {% blocktranslate with name=item.name %}Delete {{ name }}?{% endblocktranslate %}
+{% endblock title %}
+{% block content %}
+  {% comment %}
+  The confirmation before a record is deleted (ItemDeleteView). The "dialog" partial is daisyUI's modal
+  on a dialog element, shown by its open attribute and closed by the form whose method is "dialog",
+  neither of which needs a script; the delete link fetches it into #modal, and the whole page shows it
+  over the record's card. The other form posts, and the view sends the browser to the list: with a
+  client redirect for htmx, since a dialog has no page of its own to stay on.
+  {% endcomment %}
+  {% partialdef dialog %}
+    <dialog class="modal" aria-labelledby="item-delete-title" open>
+      <div class="modal-box">
+        <h3 class="text-lg font-bold" id="item-delete-title">
+          {% blocktranslate with name=item.name %}Delete {{ name }}?{% endblocktranslate %}
+        </h3>
+        <p class="py-4">{% translate "This cannot be undone." %}</p>
+        <div class="modal-action">
+          <form method="dialog">
+            <button class="btn" type="submit" autofocus>{% translate "Cancel" %}</button>
+          </form>
+          <form method="post"
+                action="{% url 'app_template:delete' item.pk %}"
+                hx-post="{% url 'app_template:delete' item.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-error" type="submit">{% translate "Delete" %}</button>
+          </form>
+        </div>
+      </div>
+    </dialog>
+  {% endpartialdef dialog %}
+  {% include "app_template/item_detail.html#card" %}
+  {% partial dialog %}
+{% endblock content %}
+{%- endraw %}

@@ -177,6 +177,8 @@ LOCAL_APPS = [
     # unless the environment names the component this process serves as
     "{{ cookiecutter.project_slug }}.telemetry",
 {%- endif %}
+    # The project's startapp command and the app template it copies (scaffold/apps.py)
+    "{{ cookiecutter.project_slug }}.scaffold",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

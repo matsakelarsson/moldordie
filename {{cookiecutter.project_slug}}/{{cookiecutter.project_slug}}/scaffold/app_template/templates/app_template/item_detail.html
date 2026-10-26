@@ -1,0 +1,42 @@
+{% raw %}{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {{ item.name }}
+{% endblock title %}
+{% block content %}
+  {% comment %}
+  One record. The "card" partial is the page content for a plain request and the fragment an htmx
+  request receives (ItemDetailView.htmx_partial): the edit link swaps the form into it, and the saved
+  card comes back the same way. The delete link fetches the confirmation into #modal.
+  {% endcomment %}
+  {% partialdef card inline %}
+    <article class="card card-border bg-base-100 shadow-sm" id="item-card">
+      <div class="card-body">
+        <h1 class="card-title text-2xl">{{ item.name }}</h1>
+        <p class="text-base-content/70">{% translate "Created" %} {{ item.created|date:"SHORT_DATETIME_FORMAT" }}</p>
+        {% if item.notes %}
+          <p class="whitespace-pre-line">{{ item.notes }}</p>
+        {% endif %}
+        <div class="card-actions mt-4">
+          <a class="btn btn-primary"
+             href="{% url 'app_template:update' item.pk %}"
+             hx-get="{% url 'app_template:update' item.pk %}"
+             hx-target="#item-card"
+             hx-swap="outerHTML"
+             hx-push-url="true">{% translate "Edit" %}</a>
+          <a class="btn btn-ghost text-error"
+             href="{% url 'app_template:delete' item.pk %}"
+             hx-get="{% url 'app_template:delete' item.pk %}"
+             hx-target="#modal"
+             hx-swap="innerHTML">{% translate "Delete" %}</a>
+          <a class="btn btn-ghost" href="{% url 'app_template:list' %}">
+            {% blocktranslate with name=opts.verbose_name_plural %}All {{ name }}{% endblocktranslate %}
+          </a>
+        </div>
+      </div>
+    </article>
+  {% endpartialdef card %}
+{% endblock content %}
+{%- endraw %}
