@@ -1,44 +1,75 @@
 {% raw %}{% extends "base.html" %}
 
-{% load i18n %}
+{% load allauth i18n %}
 
 {% block title %}
   User: {{ object.display_name }}
 {% endblock title %}
+{% block sidebar %}
+  {{ block.super }}
+  {% if object == request.user %}
+    {% include "partials/navigation.html#account" %}
+  {% endif %}
+{% endblock sidebar %}
 {% block content %}
   {% comment %}
-  The "profile" partial is the page content for normal requests and the fragment returned to htmx
-  requests (UserDetailView.htmx_partial), to which the mixin appends the messages for an out-of-band swap.
+  The profile: the card of the account pages (allauth/layouts/manage.html), its sections allauth's own
+  panel element, so they are the ones the other account pages have. The "profile" partial is the page
+  content for normal requests and the fragment returned to htmx requests (UserDetailView.htmx_partial),
+  to which the mixin appends the messages for an out-of-band swap.
   {% endcomment %}
-  {% partialdef profile inline %}
-    <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
-      <div class="card-body">
-        <h1 class="card-title text-2xl">{{ object.display_name }}</h1>
-        {%- endraw %}
-        {%- if cookiecutter.username_type == "username" %}
-        {%- raw %}
-        {% if object.display_name != object.username %}
-          <p class="text-base-content/70">{{ object.username }}</p>
-        {% endif %}
-        {%- endraw %}
-        {%- endif %}
-        {%- raw %}
-        {% if object == request.user %}
-          <div class="card-actions mt-4">
-            {# Works without JavaScript through href; htmx swaps the edit form into this card #}
-            <a class="btn btn-primary"
-               href="{% url 'users:update' %}"
-               hx-get="{% url 'users:update' %}"
-               hx-target="#user-profile"
-               hx-swap="outerHTML"
-               hx-push-url="true">{% translate "My Info" %}</a>
-            <a class="btn" href="{% url 'account_email' %}">{% translate "E-Mail" %}</a>
-            <a class="btn" href="{% url 'mfa_index' %}">{% translate "MFA" %}</a>
-            {# Your Stuff: Custom user template urls #}
-          </div>
-        {% endif %}
-      </div>
-    </article>
-  {% endpartialdef profile %}
+  <div class="mx-auto w-full max-w-2xl">
+    {% partialdef profile inline %}
+      <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
+        <div class="card-body gap-4">
+          <h1 class="card-title text-2xl">{{ object.display_name }}</h1>
+          {%- endraw %}
+          {%- if cookiecutter.username_type == "username" %}
+          {%- raw %}
+          {% if object.display_name != object.username %}
+            <p class="text-base-content/70">{{ object.username }}</p>
+          {% endif %}
+          {%- endraw %}
+          {%- endif %}
+          {%- raw %}
+          {% if object == request.user %}
+            {% element panel %}
+              {% slot title %}
+                {% translate "Name" %}
+              {% endslot %}
+              {% slot body %}
+                {% if object.name %}
+                  <p>{{ object.name }}</p>
+                {% else %}
+                  <p class="text-base-content/70">{% translate "Not set" %}</p>
+                {% endif %}
+              {% endslot %}
+              {% slot actions %}
+                {# Works without JavaScript through href; htmx swaps the edit form into this card #}
+                <a class="btn btn-primary"
+                   href="{% url 'users:update' %}"
+                   hx-get="{% url 'users:update' %}"
+                   hx-target="#user-profile"
+                   hx-swap="outerHTML"
+                   hx-push-url="true">{% translate "Edit" %}</a>
+              {% endslot %}
+            {% endelement %}
+            {% element panel %}
+              {% slot title %}
+                {% translate "Email" %}
+              {% endslot %}
+              {% slot body %}
+                <p>{{ object.email }}</p>
+              {% endslot %}
+              {% slot actions %}
+                {# URL provided by django-allauth/account/urls.py #}
+                <a class="btn" href="{% url 'account_email' %}">{% translate "Email Addresses" %}</a>
+              {% endslot %}
+            {% endelement %}
+          {% endif %}
+        </div>
+      </article>
+    {% endpartialdef profile %}
+  </div>
 {% endblock content %}
 {%- endraw %}

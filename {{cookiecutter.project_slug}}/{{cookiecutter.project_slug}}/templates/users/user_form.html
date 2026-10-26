@@ -5,38 +5,44 @@
 {% block title %}
   {{ user.display_name }}
 {% endblock title %}
+{% block sidebar %}
+  {{ block.super }}
+  {% include "partials/navigation.html#account" %}
+{% endblock sidebar %}
 {% block content %}
   {% comment %}
-  The "profile" partial is the page content for normal requests and the fragment returned to htmx
-  requests (UserUpdateView.htmx_partial), with the messages appended by the mixin. Without JavaScript
-  the form posts normally and the view redirects to the profile; with htmx the redirect is followed
-  and the profile card is swapped in place.
+  The profile's form, in the profile's card. The "profile" partial is the page content for normal
+  requests and the fragment returned to htmx requests (UserUpdateView.htmx_partial), with the messages
+  appended by the mixin. Without JavaScript the form posts normally and the view redirects to the
+  profile; with htmx the redirect is followed and the profile card is swapped in place.
   {% endcomment %}
-  {% partialdef profile inline %}
-    <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
-      <div class="card-body">
-        <h1 class="card-title text-2xl">{{ user.display_name }}</h1>
-        <form class="flex max-w-md flex-col gap-2"
-              method="post"
-              action="{% url 'users:update' %}"
-              hx-post="{% url 'users:update' %}"
-              hx-target="#user-profile"
-              hx-swap="outerHTML"
-              hx-push-url="true">
-          {% csrf_token %}
-          {{ form }}
-          <div class="card-actions mt-2">
-            <button class="btn btn-primary" type="submit">{% translate "Update" %}</button>
-            <a class="btn btn-ghost"
-               href="{{ user.get_absolute_url }}"
-               hx-get="{{ user.get_absolute_url }}"
-               hx-target="#user-profile"
-               hx-swap="outerHTML"
-               hx-push-url="true">{% translate "Cancel" %}</a>
-          </div>
-        </form>
-      </div>
-    </article>
-  {% endpartialdef profile %}
+  <div class="mx-auto w-full max-w-2xl">
+    {% partialdef profile inline %}
+      <article class="card card-border bg-base-100 shadow-sm" id="user-profile">
+        <div class="card-body gap-4">
+          <h1 class="card-title text-2xl">{{ user.display_name }}</h1>
+          <form class="border-base-300 mt-2 flex flex-col gap-4 border-t pt-6"
+                method="post"
+                action="{% url 'users:update' %}"
+                hx-post="{% url 'users:update' %}"
+                hx-target="#user-profile"
+                hx-swap="outerHTML"
+                hx-push-url="true">
+            {% csrf_token %}
+            {{ form }}
+            <div class="flex flex-wrap items-center gap-2">
+              <button class="btn btn-primary" type="submit">{% translate "Save" %}</button>
+              <a class="btn btn-ghost"
+                 href="{{ user.get_absolute_url }}"
+                 hx-get="{{ user.get_absolute_url }}"
+                 hx-target="#user-profile"
+                 hx-swap="outerHTML"
+                 hx-push-url="true">{% translate "Cancel" %}</a>
+            </div>
+          </form>
+        </div>
+      </article>
+    {% endpartialdef profile %}
+  </div>
 {% endblock content %}
 {%- endraw %}

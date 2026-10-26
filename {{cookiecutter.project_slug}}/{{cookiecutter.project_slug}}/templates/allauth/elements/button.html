@@ -2,13 +2,15 @@
 
 {% comment %}
 allauth's button element: a link drawn as a button when it has an href, a button otherwise, submitting
-by default as allauth's own does. Its tags choose the look: danger or delete, link (ghost), secondary
-(daisyUI's plain button: allauth means a lesser action, not daisyUI's secondary colour), outline and
-prominent (full width). The form, id, name and value it names are written when given, even empty.
+by default as allauth's own does. Its tags choose the look: danger or delete, red where it acts at once
+(a button) and quiet red text where it opens a page that asks first (a link, which is what allauth
+makes of every destructive action that has a confirmation), link (ghost), secondary (daisyUI's plain
+button: allauth means a lesser action, not daisyUI's secondary colour), outline and prominent (full
+width). The form, id, name and value it names are written when given, even empty.
 {% endcomment %}
 {% if attrs.href %}
   <a href="{{ attrs.href }}"
-     class="btn{% if 'danger' in attrs.tags or 'delete' in attrs.tags %} btn-error{% elif 'link' in attrs.tags %} btn-ghost{% elif 'secondary' in attrs.tags %}{% else %} btn-primary{% endif %}{% if 'outline' in attrs.tags %} btn-outline{% endif %}{% if 'prominent' in attrs.tags %} btn-block{% endif %}"
+     class="btn{% if 'danger' in attrs.tags or 'delete' in attrs.tags %} btn-ghost text-error{% elif 'link' in attrs.tags %} btn-ghost{% elif 'secondary' in attrs.tags %}{% else %} btn-primary{% endif %}{% if 'outline' in attrs.tags %} btn-outline{% endif %}{% if 'prominent' in attrs.tags %} btn-block{% endif %}"
      {% if attrs.id is not None %}id="{{ attrs.id }}"{% endif %}>
     {% slot %}
     {% endslot %}

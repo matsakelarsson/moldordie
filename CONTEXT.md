@@ -198,9 +198,22 @@ The column of `base.html` that holds the site's pages and, under them, what a pa
 through the `sidebar` block: daisyUI's drawer on a checkbox alone, a column beside the page on a
 large screen and, on a small one, a drawer that the bar's menu button opens. The **bar** is the strip
 above the page that keeps the theme picker and the account links. The two are the partials of
-`partials/navigation.html`, `pages` and `bar`, which `base.html` includes by name (`docs/adr/0033`).
+`partials/navigation.html`, `pages` and `bar`, which `base.html` includes by name (`docs/adr/0033`);
+the third, `account`, is the account menu.
 
 _Avoid_: side nav, side menu, topics; navbar (for the bar); drawer (the mechanism, not the thing).
+
+## Account menu
+
+The entries a page of the signed-in user's own account adds to the sidebar, under the site's pages:
+the profile, the email addresses, the password, two-factor authentication, the account connections
+when an identity provider is configured, and sign out, in that order, with the current page marked
+like the pages. It is the `account` partial of `partials/navigation.html`, which allauth's management
+layout and the profile templates include through the `sidebar` block. An **account page** is a page
+that carries it: one card whose title is the page's and whose sections start under a rule, allauth's
+panel element among them (`docs/adr/0034`).
+
+_Avoid_: user menu, settings menu, account navigation, account sidebar.
 
 ## Examples page
 

@@ -1,10 +1,11 @@
-{% raw %}{% load i18n %}
+{% raw %}{% load i18n socialaccount %}
 
 {% comment %}
 The navigation, in the two partials base.html places in its drawer: "pages", the site's pages in the
 sidebar, which a large screen shows as a column and a small one as the drawer the menu button opens, and
-"bar", the top bar with that button, the theme picker and the account links. A link marked
-aria-current="page" is the one daisyUI's menu draws as active.
+"bar", the top bar with that button, the theme picker and the account links; and "account", the account
+menu, which the pages of the signed-in user's own account add to the sidebar under the site's pages. A
+link marked aria-current="page" is the one daisyUI's menu draws as active.
 {% endcomment %}
 {% partialdef brand %}
   {# A button cannot shrink, so the name is cut short inside one that may #}
@@ -110,4 +111,48 @@ aria-current="page" is the one daisyUI's menu draws as active.
     </div>
   </header>
 {% endpartialdef bar %}
+{% partialdef account %}
+  {% comment %}
+  The account menu: the pages of the signed-in user's own account, in the sidebar of each of them
+  (allauth/layouts/manage.html, users/user_detail.html, users/user_form.html). Its links leave the page,
+  so the drawer of a small screen shows them too.
+  {% endcomment %}
+  {% if request.user.is_authenticated %}
+    {% with name=request.resolver_match.url_name %}
+      <ul class="menu w-full px-2">
+        <li class="menu-title">{% translate "Account" %}</li>
+        <li>
+          <a href="{{ request.user.get_absolute_url }}"
+             {% if request.resolver_match.namespace == 'users' %}aria-current="page"{% endif %}>{% translate "Profile" %}</a>
+        </li>
+        {# URLs provided by django-allauth/account/urls.py, mfa/base/urls.py and socialaccount/urls.py #}
+        <li>
+          <a href="{% url 'account_email' %}"
+             {% if name == 'account_email' %}aria-current="page"{% endif %}>{% translate "Email Addresses" %}</a>
+        </li>
+        <li>
+          <a href="{% url 'account_change_password' %}"
+             {% if name == 'account_change_password' or name == 'account_set_password' %}aria-current="page"{% endif %}>{% translate "Password" %}</a>
+        </li>
+        <li>
+          <a href="{% url 'mfa_index' %}"
+             {% if name|slice:':4' == 'mfa_' %}aria-current="page"{% endif %}>{% translate "Two-Factor Authentication" %}</a>
+        </li>
+        {# The connections page lists the identity providers to connect, so it is a page when there is one #}
+        {% get_providers as socialaccount_providers %}
+        {% if socialaccount_providers %}
+          <li>
+            <a href="{% url 'socialaccount_connections' %}"
+               {% if name == 'socialaccount_connections' %}aria-current="page"{% endif %}>{% translate "Account Connections" %}</a>
+          </li>
+        {% endif %}
+        <li>
+          <a href="{% url 'account_logout' %}"
+             {% if name == 'account_logout' %}aria-current="page"{% endif %}>{% translate "Sign Out" %}</a>
+        </li>
+        {# Your Stuff: a page of the account goes here #}
+      </ul>
+    {% endwith %}
+  {% endif %}
+{% endpartialdef account %}
 {%- endraw %}

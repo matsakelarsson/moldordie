@@ -1,5 +1,5 @@
 """django-allauth in daisyUI's classes: its elements, overridden under
-``templates/allauth/elements/``, and the pages its layouts give a card."""
+``templates/allauth/elements/``, and the card each of its layouts gives a page."""
 
 from http import HTTPStatus
 
@@ -13,6 +13,15 @@ from {{ cookiecutter.project_slug }}.tests.markup import element
 from {{ cookiecutter.project_slug }}.tests.markup import elements
 
 CARD = "card card-border bg-base-100 shadow-sm"
+# The account card: a second-level heading at top level starts a section under a rule
+ACCOUNT_BODY = (
+    "card-body gap-4 [&>h2]:border-base-300 [&>h2]:mt-2 [&>h2]:border-t [&>h2]:pt-6"
+)
+# A panel: the same rule, its title in one of three columns, the rest in the other two
+SECTION = "border-base-300 mt-2 grid gap-2 border-t pt-6 sm:grid-cols-3 sm:gap-6"
+SECTION_BODY = "flex flex-col gap-4 sm:col-span-2"
+ACTIONS = {"class": "flex flex-wrap items-center gap-2"}
+HEADING = {"class": "text-lg font-semibold"}
 CHECK_LABEL = "label text-base-content whitespace-normal"
 ARIA = {"aria-invalid": "true", "aria-describedby": "mail_helptext mail_error"}
 
@@ -31,14 +40,15 @@ def html(rf, fixture_templates):
 
 def test_a_button_is_a_link_with_an_href_and_submits_without(html):
     remove, act, acme, wide = elements(html, "a")
-    assert remove == {"href": "/remove/", "class": "btn btn-error"}
+    # a destructive link opens a page that asks first, so it is quiet
+    assert remove == {"href": "/remove/", "class": "btn btn-ghost text-error"}
     assert act == {"href": "/act/", "class": "btn btn-primary"}
     # prominent is full width and outline an outline; neither chooses the colour
     assert wide == {"href": "/wide/", "class": "btn btn-primary btn-outline btn-block"}
     # a provider is a full-width link, named in its title as well
     assert acme == {"href": "/acme/", "class": "btn btn-block", "title": "Acme"}
 
-    skip, go = elements(html, "button")
+    skip, go, delete = elements(html, "button")
     # a value is written even when empty; link is the quiet button
     assert skip == {
         "type": "submit",
@@ -48,31 +58,36 @@ def test_a_button_is_a_link_with_an_href_and_submits_without(html):
     }
     # secondary is allauth's lesser action: the plain button, not a colour
     assert go == {"type": "submit", "class": "btn", "form": "other", "id": "go"}
+    # a destructive button acts at once, so it is red
+    assert delete == {
+        "type": "submit",
+        "class": "btn btn-error",
+        "name": "action_remove",
+    }
 
 
 def test_badges_and_alerts_take_their_colour_from_allauth(html):
     badges = of_class(html, "span", "badge")
     assert [attrs["class"] for attrs in badges] == [
-        "badge badge-sm badge-success",
-        "badge badge-sm badge-error",
-        "badge badge-sm badge-primary",
-        "badge badge-sm badge-neutral",
+        "badge badge-sm badge-soft badge-success",
+        "badge badge-sm badge-soft badge-error",
+        "badge badge-sm badge-soft badge-primary",
+        "badge badge-sm badge-soft badge-neutral",
     ]
     assert [attrs for attrs in badges if "title" in attrs] == [
-        {"class": "badge badge-sm badge-error", "title": "Why"},
+        {"class": "badge badge-sm badge-soft badge-error", "title": "Why"},
     ]
     # in the page from the start, so it has no role and is not announced
     assert of_class(html, "div", "alert") == [{"class": "alert alert-info"}]
 
 
 def test_the_structural_elements(html):
-    # panel: a card with a second-level heading and its actions at the end
-    assert element(html, "section") == {"class": CARD}
-    titles = elements(html, "h2")
-    assert titles == [{"class": "card-title"}, {"class": "text-xl font-semibold"}]
-    assert of_class(html, "div", "card-actions") == [
-        {"class": "card-actions justify-end"},
-    ]
+    # panel: a section under a rule, its heading beside its body and its actions
+    assert element(html, "section") == {"class": SECTION}
+    assert elements(html, "h2") == [HEADING, HEADING]
+    assert of_class(html, "div", SECTION_BODY) == [{"class": SECTION_BODY}]
+    # the panel's actions and the form's are the same row
+    assert of_class(html, "div", ACTIONS["class"]) == [ACTIONS, ACTIONS]
     assert element(html, "h1") == {"class": "text-2xl font-bold"}
     assert element(html, "hr") == {"class": "border-base-300"}
     assert len(of_class(html, "div", "flex gap-2 flex-col")) == 1
@@ -96,7 +111,7 @@ def test_the_structural_elements(html):
 
 
 def test_a_field_names_its_help_text_and_its_errors(html):
-    mail, saved, pick = elements(html, "input")
+    mail, saved, pick = elements(html, "input")[:3]
     assert mail == {
         "class": "input aria-invalid:input-error w-full",
         "name": "email",
@@ -146,20 +161,36 @@ class TestPages:
             assert response.status_code == HTTPStatus.OK
             html = response.content.decode()
             assert of_class(html, "div", "card ") == [{"class": CARD}]
+            assert of_class(html, "div", "card-body") == [{"class": "card-body gap-4"}]
             assert 'class="fieldset"' in html
             buttons = elements(html, "button")
             submits = [attrs for attrs in buttons if attrs.get("type") == "submit"]
             assert (submits[0]["class"] or "").startswith("btn btn-primary")
             assert element(html, "h1") == {"class": "text-2xl font-bold"}
 
-    def test_the_password_page_is_one_card(self, user, client):
+    @pytest.mark.parametrize(
+        "name",
+        ["account_email", "account_change_password", "mfa_index", "account_logout"],
+    )
+    def test_an_account_page_is_one_card(self, user, client, name):
+        client.force_login(user)
+
+        response = client.get(reverse(name))
+
+        assert response.status_code == HTTPStatus.OK
+        html = response.content.decode()
+        assert len(of_class(html, "div", "mx-auto w-full max-w-2xl")) == 1
+        assert of_class(html, "div", "card ") == [{"class": CARD}]
+        assert of_class(html, "div", "card-body") == [{"class": ACCOUNT_BODY}]
+        assert element(html, "h1") == {"class": "text-2xl font-bold"}
+
+    def test_the_password_page_labels_its_fields(self, user, client):
         client.force_login(user)
 
         response = client.get(reverse("account_change_password"))
 
         assert response.status_code == HTTPStatus.OK
         html = response.content.decode()
-        assert of_class(html, "div", "card ") == [{"class": CARD}]
         # The form's labels; the drawer's two are the sidebar's, on every page
         assert of_class(html, "label", "fieldset-legend") == [
             {"class": "fieldset-legend", "for": "id_oldpassword"},
@@ -167,18 +198,20 @@ class TestPages:
             {"class": "fieldset-legend", "for": "id_password2"},
         ]
 
-    def test_the_management_pages_stack_their_panels(self, user, client):
+    def test_the_two_factor_page_is_sections(self, user, client):
         client.force_login(user)
 
         response = client.get(reverse("mfa_index"))
 
         assert response.status_code == HTTPStatus.OK
         html = response.content.decode()
-        assert len(of_class(html, "div", "mx-auto flex w-full max-w-2xl flex-col")) == 1
-        panels = elements(html, "section")
-        assert panels
-        assert all(attrs == {"class": CARD} for attrs in panels)
-        assert of_class(html, "h2", "card-title")
+        sections = elements(html, "section")
+        assert sections
+        assert all(attrs == {"class": SECTION} for attrs in sections)
+        assert len(of_class(html, "h2", HEADING["class"])) == len(sections)
+        # the authenticator app's action, a link to its activation page
+        activate = element(html, "a", "href", reverse("mfa_activate_totp"))
+        assert activate["class"] == "btn btn-primary"
 
     def test_the_email_page_shows_its_badges(self, user, client):
         EmailAddress.objects.create(
@@ -195,6 +228,9 @@ class TestPages:
         html = response.content.decode()
         badges = of_class(html, "span", "badge")
         assert [attrs["class"] for attrs in badges] == [
-            "badge badge-sm badge-success",
-            "badge badge-sm badge-primary",
+            "badge badge-sm badge-soft badge-success",
+            "badge badge-sm badge-soft badge-primary",
         ]
+        # removing an address acts at once, so that button is red
+        remove = element(html, "button", "name", "action_remove")
+        assert remove["class"] == "btn btn-error"
