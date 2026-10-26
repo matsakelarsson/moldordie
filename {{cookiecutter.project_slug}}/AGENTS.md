@@ -32,7 +32,9 @@ already there.
   module only binds names; every deployed environment runs `production.py`
 - Accounts through django-allauth on a custom user model, with
   {%- if cookiecutter.username_type == 'email' %} the email address as the login{% else %} a username as the login{% endif %};
-  `User.get_absolute_url` says how a user is addressed and `User.display_name` how one is shown
+  `User.get_absolute_url` says how a user is addressed and `User.display_name` how one is shown.
+  The account pages are one card each under `templates/allauth/layouts/manage.html`, the
+  profile included, and add the account menu to the sidebar from `partials/navigation.html`
 - Server-rendered templates with htmx (through django-htmx), styled with Tailwind CSS and
   daisyUI through django-tailwind-cli, which runs Tailwind's standalone CLI: no Node.js, no
   CDN and no JavaScript of the project's own. `{{ cookiecutter.project_slug }}/styles/` holds

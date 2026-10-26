@@ -1,7 +1,7 @@
 {% raw %}{% load allauth %}
 
-{# allauth's badge element; its tags choose the colour: success, warning, danger (error), primary #}
-<span class="badge badge-sm {% if 'success' in attrs.tags %}badge-success{% elif 'warning' in attrs.tags %}badge-warning{% elif 'danger' in attrs.tags %}badge-error{% elif 'primary' in attrs.tags %}badge-primary{% else %}badge-neutral{% endif %}"
+{# allauth's badge element, a status beside a line, so soft; its tags choose the colour: success, warning, danger (error), primary #}
+<span class="badge badge-sm badge-soft {% if 'success' in attrs.tags %}badge-success{% elif 'warning' in attrs.tags %}badge-warning{% elif 'danger' in attrs.tags %}badge-error{% elif 'primary' in attrs.tags %}badge-primary{% else %}badge-neutral{% endif %}"
       {% if attrs.title %}title="{{ attrs.title }}"{% endif %}>
   {% slot %}
   {% endslot %}

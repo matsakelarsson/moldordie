@@ -4,11 +4,24 @@
   {% block head_title %}
   {% endblock head_title %}
 {% endblock title %}
+{% block sidebar %}
+  {{ block.super }}
+  {% include "partials/navigation.html#account" %}
+{% endblock sidebar %}
 {% block main %}
-  {# The account pages (email addresses, sessions, ...): their panels in a column. allauth writes its links bare #}
-  <div class="mx-auto flex w-full max-w-2xl flex-col gap-4 [&_a:not(.btn)]:underline [&_a:not(.btn)]:underline-offset-2">
-    {% block content %}
-    {% endblock content %}
+  {% comment %}
+  The account pages (email addresses, password, two-factor authentication, sign out, ...): one card
+  each, whose first-level heading is the page's title and whose sections start under a rule, allauth's
+  panels (elements/panel.html) and the second-level headings it writes at the top level alike. Each
+  adds the account menu to the sidebar. allauth writes its links bare, so they are underlined here.
+  {% endcomment %}
+  <div class="mx-auto w-full max-w-2xl [&_a:not(.btn)]:underline [&_a:not(.btn)]:underline-offset-2">
+    <div class="card card-border bg-base-100 shadow-sm">
+      <div class="card-body gap-4 [&>h2]:border-base-300 [&>h2]:mt-2 [&>h2]:border-t [&>h2]:pt-6">
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </div>
   </div>
 {% endblock main %}
 {%- endraw %}

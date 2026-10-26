@@ -1,16 +1,16 @@
 {% raw %}{% load allauth %}
 
-{# allauth's panel element: a card whose title is a second-level heading, with its actions at the end #}
-<section class="card card-border bg-base-100 shadow-sm">
-  <div class="card-body">
-    <h2 class="card-title">
-      {% slot title %}
-      {% endslot %}
-    </h2>
+{# allauth's panel element: a section of the account card under a rule, its title in the first of three columns on a wide screen and its body and actions in the other two (allauth/layouts/manage.html) #}
+<section class="border-base-300 mt-2 grid gap-2 border-t pt-6 sm:grid-cols-3 sm:gap-6">
+  <h2 class="text-lg font-semibold">
+    {% slot title %}
+    {% endslot %}
+  </h2>
+  <div class="flex flex-col gap-4 sm:col-span-2">
     {% slot body %}
     {% endslot %}
     {% if slots.actions %}
-      <div class="card-actions justify-end">{% for action in slots.actions %}{{ action }}{% endfor %}</div>
+      <div class="flex flex-wrap items-center gap-2">{% for action in slots.actions %}{{ action }}{% endfor %}</div>
     {% endif %}
   </div>
 </section>

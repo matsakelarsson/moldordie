@@ -10,6 +10,8 @@ from django.test import Client
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from {{ cookiecutter.project_slug }}.tests.markup import element
+from {{ cookiecutter.project_slug }}.tests.markup import elements
 from {{ cookiecutter.project_slug }}.tests.responses import fragment
 from {{ cookiecutter.project_slug }}.tests.responses import login_redirect
 from {{ cookiecutter.project_slug }}.tests.responses import page
@@ -198,6 +200,22 @@ class TestUserDetailView:
         heading = f'<h1 class="card-title text-2xl">{nameless.display_name}</h1>'
         assert heading.encode() in response.content
         assert b"hidden@example.com" not in response.content
+        # Nor the sections of the account, which are the user's own
+        assert elements(response.content.decode(), "section") == []
+
+    def test_the_users_own_profile_has_its_sections(self, user: User, client: Client):
+        client.force_login(user)
+
+        html = page(client.get(user.get_absolute_url()))
+
+        # allauth's panel element, as the other account pages have it
+        assert re.findall(r"<h2[^>]*>\s*(\w+)\s*</h2>", html) == ["Name", "Email"]
+        assert user.name in html
+        assert user.email in html
+        edit = element(html, "a", "href", reverse("users:update"))
+        assert edit["hx-target"] == "#user-profile"
+        hrefs = [attrs["href"] for attrs in elements(html, "a")]
+        assert reverse("account_email") in hrefs
     {%- if cookiecutter.username_type == "username" %}
 
     def test_named_user_keeps_the_username_as_a_sub_line(self, client: Client):

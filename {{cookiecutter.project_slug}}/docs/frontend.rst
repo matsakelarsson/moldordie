@@ -190,8 +190,16 @@ which page it is.
 
 A page adds entries of its own to the sidebar by overriding the ``sidebar`` block and
 keeping the pages with ``{{ block.super }}``, as the examples page does with its sections.
-Such entries are for the column, ``hidden lg:flex``: a link within the page leaves the
-drawer of a small screen open, since nothing but a page load unchecks the box.
+Entries that stay within the page are for the column alone, ``hidden lg:flex``: such a link
+leaves the drawer of a small screen open, since nothing but a page load unchecks the box.
+
+The pages of the signed-in user's own account add the account menu that way, the third
+partial of ``navigation.html``, ``account``: the profile, the email addresses, the
+password, two-factor authentication, the account connections when an identity provider is
+configured, and sign out, with the current page marked like the pages. allauth's management
+layout includes it, so every page of the account carries it, and the profile templates
+include it for the user's own profile. Its links leave the page, so the drawer of a small
+screen shows them too. A page of the account you add goes into that partial, at the comment.
 
 Forms
 -----
@@ -238,17 +246,20 @@ allauth's pages are its own templates, built from elements it renders through
 Tailwind's preflight an element without classes has no look:
 
 - ``button`` is a link drawn as a button when it has an ``href``, else a button that
-  submits, as allauth's own does. Its tags choose the look: ``danger`` or ``delete``,
+  submits, as allauth's own does. Its tags choose the look: ``danger`` or ``delete``, red
+  where it acts at once (a button) and quiet red text where it opens a page that asks first
+  (a link, which is what allauth makes of every destructive action that has a confirmation),
   ``link`` (daisyUI's ghost button), ``secondary`` (the plain button: allauth means a
   lesser action, not daisyUI's secondary colour), ``outline`` and ``prominent`` (full
   width). The ``form``, ``id``, ``name`` and ``value`` it names are written when given,
   even empty.
 - ``alert`` is an alert without a role, since it is in the page from the start; ``badge``
-  maps the tags ``success``, ``warning``, ``danger`` and ``primary`` onto daisyUI's
-  colours; ``panel`` is a card with a second-level heading and its actions at the end;
-  ``button_group`` is a row, or a column when allauth asks for ``vertical``;
-  ``provider_list`` and ``provider`` are a column of full-width button links; ``table``
-  is daisyUI's table around allauth's own rows and cells.
+  is a soft badge, a status beside a line, and maps the tags ``success``, ``warning``,
+  ``danger`` and ``primary`` onto daisyUI's colours; ``panel`` is a section of the account
+  card under a rule, its title in the first of three columns on a wide screen and its body
+  and actions in the other two; ``button_group`` is a row, or a column when allauth asks
+  for ``vertical``; ``provider_list`` and ``provider`` are a column of full-width button
+  links; ``table`` is daisyUI's table around allauth's own rows and cells.
 - ``field``, for the inputs allauth writes outside a Django form, is written by hand with
   the classes and the associations of ``django/forms/field.html``. ``fields`` renders the
   form through Django, so through that template.
@@ -257,12 +268,20 @@ Tailwind's preflight an element without classes has no look:
   setup is a dark drawing on a transparent one. ``p`` and the table's rows and cells stay
   allauth's own: the layouts space the paragraphs, and daisyUI's table styles the cells.
 
-The entrance layout (sign in, sign up, ...) and the password pages are one card; the
-management pages stack their panels. allauth writes the links in its running text bare,
-so the two layouts underline every link that is not a button. The opt-in email and phone
-change pages carry an inline ``style`` attribute in allauth's templates and are not
-overridden: override them before enabling those flows. ``tests/test_allauth.py`` in the
-package renders the elements and the pages.
+The entrance layout (sign in, sign up, the password reset, ...) is one narrow card. The
+management layout, which every page of the account extends (the email addresses, the
+password, two-factor authentication, sign out, ...), is one card too, wider: its
+first-level heading is the page's title, and its sections start under a rule, allauth's
+panels and the second-level headings it writes at the top level of a page alike (the
+layout's own selector draws that rule, because on the entrance pages allauth writes an
+``hr`` before such a heading). The profile, ``templates/users/user_detail.html``, is
+built from the same panel element and so is the same card; its form,
+``user_form.html``, is the card with the form under the rule. allauth writes the links in
+its running text bare, so the two layouts underline every link that is not a button. The
+opt-in email and phone change pages carry an inline ``style`` attribute in allauth's
+templates and are not overridden: override them before enabling those flows.
+``tests/test_allauth.py`` in the package renders the elements and the pages, and
+``tests/test_pages.py`` the account menu they add to the sidebar.
 
 Messages
 --------

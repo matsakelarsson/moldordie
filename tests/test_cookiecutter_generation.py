@@ -1486,14 +1486,52 @@ def test_the_pages_are_in_a_sidebar(bake, context):
     # The page links are in the sidebar alone, marked for daisyUI's menu to draw the current one
     pages = navigation.partition("{% partialdef pages %}")[2].partition("{% endpartialdef pages %}")[0]
     assert pages.count('aria-current="page"') == pages.count("<li>")
-    assert 'aria-current="page"' not in navigation.partition("{% partialdef bar %}")[2]
-    assert '<label for="sidebar"' in navigation.partition("{% partialdef bar %}")[2]
+    bar = navigation.partition("{% partialdef bar %}")[2].partition("{% endpartialdef bar %}")[0]
+    assert 'aria-current="page"' not in bar
+    assert '<label for="sidebar"' in bar
     # The examples page puts its sections under the pages, from a template it shows as written
     index = project.template("examples/index.html")
     examples_sidebar = index.partition("{% block sidebar %}")[2].partition("{% endblock sidebar %}")[0]
     assert "{{ block.super }}" in examples_sidebar
     assert '{% include "examples/sidebar.html" %}' in examples_sidebar
     assert project.module("{package}/examples/content.py").literal("SIDEBAR_EXAMPLE") == "sidebar"
+
+
+def test_the_account_pages_are_one_frame(bake, context):
+    """An account page is one card whose sections start under a rule and adds the account menu to the
+    sidebar; the profile is built from the same elements (docs/adr/0034)."""
+    project = bake(context)
+
+    manage = project.template("allauth/layouts/manage.html")
+    assert '<div class="card card-border bg-base-100 shadow-sm">' in manage
+    assert "[&>h2]:border-t" in manage
+    sidebar = manage.partition("{% block sidebar %}")[2].partition("{% endblock sidebar %}")[0]
+    assert "{{ block.super }}" in sidebar
+    assert '{% include "partials/navigation.html#account" %}' in sidebar
+    assert not project.path("{package}/templates/account/base_manage_password.html").exists()
+    panel = project.template("allauth/elements/panel.html")
+    assert "border-t" in panel
+    assert "sm:grid-cols-3" in panel
+    # The menu: the account's pages in order, each marked when current, the connections behind a provider
+    navigation = project.template("partials/navigation.html")
+    account = navigation.partition("{% partialdef account %}")[2].partition("{% endpartialdef account %}")[0]
+    assert account
+    assert account.count('aria-current="page"') == account.count("<li>")
+    urls = re.findall(r"{% url '([a-z_]+)' %}", account)
+    assert urls == [
+        "account_email",
+        "account_change_password",
+        "mfa_index",
+        "socialaccount_connections",
+        "account_logout",
+    ]
+    assert "{% if socialaccount_providers %}" in account
+    # The profile: the same card and sections, the menu for the user's own
+    detail = project.template("users/user_detail.html")
+    assert detail.count("{% element panel %}") == 2  # noqa: PLR2004 - the name and the email
+    assert '{% include "partials/navigation.html#account" %}' in detail.partition("{% block sidebar %}")[2]
+    form = project.template("users/user_form.html")
+    assert '{% include "partials/navigation.html#account" %}' in form.partition("{% block sidebar %}")[2]
 
 
 def test_examples_page(bake, context):
