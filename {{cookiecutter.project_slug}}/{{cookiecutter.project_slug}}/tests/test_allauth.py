@@ -160,7 +160,8 @@ class TestPages:
         assert response.status_code == HTTPStatus.OK
         html = response.content.decode()
         assert of_class(html, "div", "card ") == [{"class": CARD}]
-        assert elements(html, "label") == [
+        # The form's labels; the drawer's two are the sidebar's, on every page
+        assert of_class(html, "label", "fieldset-legend") == [
             {"class": "fieldset-legend", "for": "id_oldpassword"},
             {"class": "fieldset-legend", "for": "id_password1"},
             {"class": "fieldset-legend", "for": "id_password2"},

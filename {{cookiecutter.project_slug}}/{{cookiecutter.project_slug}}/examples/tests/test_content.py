@@ -3,6 +3,7 @@
 import pytest
 
 from {{ cookiecutter.project_slug }}.examples.content import HTMX_EXAMPLES
+from {{ cookiecutter.project_slug }}.examples.content import SIDEBAR_EXAMPLE
 from {{ cookiecutter.project_slug }}.examples.content import STATIC_EXAMPLES
 from {{ cookiecutter.project_slug }}.examples.content import TABS
 from {{ cookiecutter.project_slug }}.examples.content import TASKS
@@ -26,7 +27,7 @@ def test_every_example_has_a_template():
     for example in STATIC_EXAMPLES:
         assert example.template_name == f"examples/{example.name}.html"
         assert example.source == source(example.name)
-    for name in HTMX_EXAMPLES:
+    for name in (SIDEBAR_EXAMPLE, *HTMX_EXAMPLES):
         assert source(name)
 
 

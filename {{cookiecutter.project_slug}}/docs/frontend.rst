@@ -155,8 +155,9 @@ Building pages
 --------------
 
 A page extends ``base.html`` and fills ``content``; ``title``, ``css``, ``javascript``,
-``bodyclass``, ``main`` (the width-limited column around ``content``), ``body`` and
-``modal`` are there to be overridden as well. Markup is daisyUI's component classes
+``bodyclass``, ``main`` (the width-limited column around ``content``), ``sidebar``
+(below), ``body`` and ``modal`` are there to be overridden as well. Markup is daisyUI's
+component classes
 (``btn``, ``card``, ``alert``, ``badge``, ``table``, ``navbar``, ``menu`` and the rest,
 documented at daisyui.com) with Tailwind's utilities for layout and spacing, written in
 the template where they apply. There is no component layer of the project's own between a
@@ -169,11 +170,28 @@ exception worth a tool: ``prose``, from Tailwind's typography plugin, styles wha
 wraps, as ``templates/pages/about.html`` shows.
 
 daisyUI's interactive components work without a script, and those are the variants to
-use under the policy: a ``dropdown`` opens while it holds the focus (the navigation's
-menu), a ``collapse`` rides on ``<details>``, and tabs, drawers and swaps ride on radio
-buttons and checkboxes. Its documentation shows some components with a ``style``
+use under the policy: a ``dropdown`` opens while it holds the focus (the theme picker), a
+``collapse`` rides on ``<details>``, and tabs, drawers (the sidebar) and swaps ride on
+radio buttons and checkboxes. Its documentation shows some components with a ``style``
 attribute for a value, ``radial-progress`` and ``countdown`` among them; write that value
 as an arbitrary property class instead, ``[--value:70]``, which the policy allows.
+
+The sidebar and the bar
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``base.html`` is daisyUI's ``drawer``, on a checkbox alone. The site's pages are in the
+sidebar: a column beside the page on a large screen (``lg:drawer-open``) and, on a small
+one, a drawer that the bar's menu button opens and the overlay closes, each a ``<label>``
+for the checkbox. The bar keeps the theme picker and the account links, and on a small
+screen the brand. Both are partials of ``templates/partials/navigation.html``, ``pages``
+and ``bar``, which ``base.html`` includes by name. The link of the current page carries
+``aria-current="page"``, which daisyUI's ``menu`` draws as the active one, so no class says
+which page it is.
+
+A page adds entries of its own to the sidebar by overriding the ``sidebar`` block and
+keeping the pages with ``{{ block.super }}``, as the examples page does with its sections.
+Such entries are for the column, ``hidden lg:flex``: a link within the page leaves the
+drawer of a small screen open, since nothing but a page load unchecks the box.
 
 Forms
 -----
@@ -334,8 +352,12 @@ the navigation links to it. Each example is a small template under
 ``templates/examples/``, rendered live and shown beneath as it is written: the view reads
 the template's source, of the examples ``examples/content.py`` names and of no other
 template, so an example cannot show one thing and render another. Its first section shows
-the colours of the theme in use, which makes it the page to keep open while you edit
-``styles/theme.css``.
+the theme in use, its colours and its corners, which makes it the page to keep open while
+you edit ``styles/theme.css``. The sections of the page are in the sidebar, under the
+site's pages, from ``examples/sidebar.html``, which the page shows as written: the pattern
+for a page with sections of its own. The dropdown and the progress examples carry the rule
+the policy sets for each: a dropdown opens on focus, and a value goes on an element's
+attribute or into a class written whole, never into a ``style`` attribute.
 
 The htmx demos are the patterns worth copying:
 

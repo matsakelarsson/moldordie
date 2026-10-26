@@ -1,4 +1,4 @@
-"""The starter pages and the navigation bar every page carries."""
+"""The starter pages, and the sidebar and the bar every page carries."""
 
 from http import HTTPStatus
 
@@ -9,6 +9,7 @@ from {{ cookiecutter.project_slug }}.tests.markup import element
 from {{ cookiecutter.project_slug }}.tests.markup import elements
 
 pytestmark = pytest.mark.django_db
+SIDEBAR_AND_HERO = 2
 
 
 def links(html):
@@ -23,9 +24,17 @@ def test_the_home_page_invites_a_visitor_to_sign_in(client):
     html = response.content.decode()
     assert element(html, "h1") == {"class": "text-4xl font-bold"}
     assert element(html, "nav")["aria-label"] == "Main navigation"
-    # The page links are written once and rendered twice, the account links once
+    # The pages are in the sidebar, a drawer on a checkbox that the bar's menu button
+    # and the overlay check; the account links are in the bar
+    assert element(html, "input", "id", "sidebar")["class"] == "drawer-toggle"
+    labels = [a for a in elements(html, "label") if a.get("for") == "sidebar"]
+    assert [attrs["class"] for attrs in labels] == [
+        "btn btn-ghost btn-square drawer-button",
+        "drawer-overlay",
+    ]
     assert [attrs["id"] for attrs in links(html)] == ["sign-up-link", "log-in-link"]
-    assert html.count(f'href="{reverse("about")}"') > 1
+    # Once in the sidebar, and once more where the hero links to it
+    assert html.count(f'href="{reverse("about")}"') == SIDEBAR_AND_HERO
     current = [attrs for attrs in elements(html, "a") if "aria-current" in attrs]
     assert {attrs["href"] for attrs in current} == {reverse("home")}
 

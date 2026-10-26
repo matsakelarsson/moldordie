@@ -24,6 +24,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
 
 from {{ cookiecutter.project_slug }}.examples.content import HTMX_EXAMPLES
+from {{ cookiecutter.project_slug }}.examples.content import SIDEBAR_EXAMPLE
 from {{ cookiecutter.project_slug }}.examples.content import STATIC_EXAMPLES
 from {{ cookiecutter.project_slug }}.examples.content import TABS
 from {{ cookiecutter.project_slug }}.examples.content import TASKS_PER_PAGE
@@ -70,7 +71,9 @@ class ExamplesView(HtmxTemplateMixin, TemplateView):
         notifications = self.request.COOKIES.get(NOTIFICATIONS_COOKIE) == "on"
         defaults: dict[str, Any] = {
             "static_examples": STATIC_EXAMPLES,
-            "sources": {name: source(name) for name in HTMX_EXAMPLES},
+            "sources": {
+                name: source(name) for name in (SIDEBAR_EXAMPLE, *HTMX_EXAMPLES)
+            },
             "filter_form": filter_form,
             "query": query,
             "page": page,

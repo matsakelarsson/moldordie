@@ -38,44 +38,66 @@
   </head>
   {# htmx sends Django's CSRF token with every request: https://django-htmx.readthedocs.io/en/latest/tips.html #}
   {# djlint:off H008 #}
-  <body class="bg-base-200 text-base-content flex min-h-screen flex-col {% block bodyclass %}{% endblock bodyclass %}"
+  <body class="bg-base-200 text-base-content {% block bodyclass %}{% endblock bodyclass %}"
         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {# djlint:on #}
     {% block body %}
-      {% include "partials/navigation.html" %}
-      {# htmx snapshots and restores this element alone, so going back never restores a theme picker of the past #}
-      <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6" hx-history-elt>
-        {# Rendered on every page, and appended to every fragment by HtmxTemplateMixin with #}
-        {# htmx_fragment set, so a message added during an htmx request is swapped in out of band #}
-        {% partialdef messages inline %}
-          <div class="sticky top-2 z-40"
-               id="messages"
-               {% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
-            {% for message in messages %}
-              <div class="alert {% if message.level_tag == 'success' %}alert-success{% elif message.level_tag == 'warning' %}alert-warning{% elif message.level_tag == 'error' %}alert-error{% else %}alert-info{% endif %} mb-4 has-[:checked]:hidden"
-                   role="{% if message.level_tag == 'warning' or message.level_tag == 'error' %}alert{% else %}status{% endif %}">
-                <span>{{ message }}</span>
-                {# Dismissed without JavaScript: checking the box hides the alert (has-[:checked]:hidden) #}
-                <label class="btn btn-ghost btn-sm btn-circle relative justify-self-end">
-                  <input type="checkbox"
-                         class="sr-only"
-                         autocomplete="off"
-                         aria-label="{% translate 'Dismiss' %}" />
-                  <span aria-hidden="true">✕</span>
-                </label>
+      {% comment %}
+      daisyUI's drawer, on a checkbox alone: on a large screen the sidebar is a column beside the page
+      (lg:drawer-open), on a small one a drawer that the bar's menu button opens and the overlay closes. The
+      bar and the sidebar's pages are the two partials of partials/navigation.html.
+      {% endcomment %}
+      <div class="drawer lg:drawer-open">
+        <input type="checkbox" class="drawer-toggle" id="sidebar" autocomplete="off" />
+        <div class="drawer-content flex min-h-screen flex-col">
+          {% include "partials/navigation.html#bar" %}
+          {# htmx snapshots and restores this element alone, so going back never restores a theme picker of the past #}
+          <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6" hx-history-elt>
+            {# Rendered on every page, and appended to every fragment by HtmxTemplateMixin with #}
+            {# htmx_fragment set, so a message added during an htmx request is swapped in out of band #}
+            {% partialdef messages inline %}
+              <div class="sticky top-2 z-40"
+                   id="messages"
+                   {% if htmx_fragment %} hx-swap-oob="true"{% endif %}>
+                {% for message in messages %}
+                  <div class="alert {% if message.level_tag == 'success' %}alert-success{% elif message.level_tag == 'warning' %}alert-warning{% elif message.level_tag == 'error' %}alert-error{% else %}alert-info{% endif %} mb-4 has-[:checked]:hidden"
+                       role="{% if message.level_tag == 'warning' or message.level_tag == 'error' %}alert{% else %}status{% endif %}">
+                    <span>{{ message }}</span>
+                    {# Dismissed without JavaScript: checking the box hides the alert (has-[:checked]:hidden) #}
+                    <label class="btn btn-ghost btn-sm btn-circle relative justify-self-end">
+                      <input type="checkbox"
+                             class="sr-only"
+                             autocomplete="off"
+                             aria-label="{% translate 'Dismiss' %}" />
+                      <span aria-hidden="true">✕</span>
+                    </label>
+                  </div>
+                {% endfor %}
               </div>
-            {% endfor %}
-          </div>
-        {% endpartialdef messages %}
-        {% block main %}
-          {% block content %}
-            <p>Use this document as a way to quick start any new project.</p>
-          {% endblock content %}
-        {% endblock main %}
-      </main>
-      <footer class="footer footer-center text-base-content/70 p-6 text-sm">
-        <p>{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</p>
-      </footer>
+            {% endpartialdef messages %}
+            {% block main %}
+              {% block content %}
+                <p>Use this document as a way to quick start any new project.</p>
+              {% endblock content %}
+            {% endblock main %}
+          </main>
+          <footer class="footer footer-center text-base-content/70 p-6 text-sm">
+            <p>{% endraw %}{{ cookiecutter.project_name | e }}{% raw %}</p>
+          </footer>
+        </div>
+        <aside class="drawer-side z-50">
+          <label for="sidebar"
+                 class="drawer-overlay"
+                 aria-label="{% translate 'Close the menu' %}"></label>
+          <nav class="bg-base-100 border-base-300 flex min-h-full w-72 flex-col border-e"
+               aria-label="{% translate 'Main navigation' %}">
+            {# The site's pages, and under them what a page adds for itself: its own sections, as the examples page does #}
+            {% block sidebar %}
+              {% include "partials/navigation.html#pages" %}
+            {% endblock sidebar %}
+          </nav>
+        </aside>
+      </div>
     {% endblock body %}
     {% block modal %}
       {# Where an htmx request puts a dialog: daisyUI's modal, held open by its modal-open class #}

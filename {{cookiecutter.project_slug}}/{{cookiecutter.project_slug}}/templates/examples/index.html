@@ -7,9 +7,10 @@
   {% comment %}
   The examples page (examples/views.py), routed in every environment until the project deletes it.
   Each example is a template under examples/, rendered live and shown as written by the "source"
-  partial. The partials named after the htmx demos are the fragments their requests receive. The copy
-  is plain English on purpose: it is starter content, and an example shown as written reads better
-  without translation tags (docs/frontend.rst).
+  partial. The partials named after the htmx demos are the fragments their requests receive; the
+  sidebar block puts the page's sections in the sidebar, from a template shown as written too. The
+  copy is plain English on purpose: it is starter content, and an example shown as written reads
+  better without translation tags (docs/frontend.rst).
   {% endcomment %}
   {% partialdef source %}
     <details class="collapse collapse-arrow border-base-300 bg-base-100 border">
@@ -38,6 +39,18 @@
       {% endwith %}
     </section>
   {% endfor %}
+  <section class="mt-10 flex flex-col gap-4" id="example-sidebar">
+    <h2 class="text-2xl font-bold">The sidebar</h2>
+    <p>
+      The sections of this page are in the sidebar, under the site's pages: the template below fills the
+      <code>sidebar</code> block of <code>base.html</code>, which is how a page adds links of its own there. On a small
+      screen the sidebar is a drawer the menu button opens, and the sections stay out of it, since a link within the page
+      would leave it open.
+    </p>
+    {% with name="examples/sidebar.html" source=sources.sidebar %}
+      {% partial source %}
+    {% endwith %}
+  </section>
   <section class="mt-10 flex flex-col gap-4" id="example-form">
     <h2 class="text-2xl font-bold">A form validated on the server</h2>
     <p>
@@ -115,6 +128,10 @@
     {% endwith %}
   </section>
 {% endblock content %}
+{% block sidebar %}
+  {{ block.super }}
+  {% include "examples/sidebar.html" %}
+{% endblock sidebar %}
 {% block modal %}
   <div id="modal">
     {% partialdef modal inline %}

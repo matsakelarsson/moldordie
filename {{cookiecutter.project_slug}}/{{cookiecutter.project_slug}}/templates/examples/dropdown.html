@@ -1,0 +1,18 @@
+{% raw %}{# daisyUI's dropdown opens while it holds the focus and closes when it loses it, so it needs no script: the theme picker is one #}
+{# tabindex="0" and role="button" make the trigger focusable and announced; the content is a menu of links, nothing a script would do #}
+<div class="dropdown">
+  <div tabindex="0" role="button" class="btn">Go to</div>
+  <ul tabindex="-1"
+      class="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow-sm">
+    <li>
+      <a href="{% url 'home' %}">Home</a>
+    </li>
+    <li>
+      <a href="{% url 'about' %}">About</a>
+    </li>
+    <li>
+      <a href="#example-form">The form on this page</a>
+    </li>
+  </ul>
+</div>
+{%- endraw %}

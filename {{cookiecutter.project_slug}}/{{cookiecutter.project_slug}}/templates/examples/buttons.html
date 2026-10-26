@@ -1,17 +1,30 @@
-{% raw %}<div class="flex flex-wrap items-center gap-2">
+{% raw %}{# The theme's colours, each with the colour of what is written on it #}
+<div class="flex flex-wrap items-center gap-2">
   <button class="btn btn-primary" type="button">Primary</button>
   <button class="btn btn-secondary" type="button">Secondary</button>
   <button class="btn btn-accent" type="button">Accent</button>
+  <button class="btn btn-neutral" type="button">Neutral</button>
   <button class="btn" type="button">Default</button>
-  <button class="btn btn-ghost" type="button">Ghost</button>
-  <button class="btn btn-outline btn-primary" type="button">Outline</button>
   <button class="btn btn-error" type="button">Delete</button>
-  <button class="btn btn-primary" type="button" disabled>Disabled</button>
 </div>
+{# The styles, in one colour: the quieter the button, the lesser the action #}
+<div class="flex flex-wrap items-center gap-2">
+  <button class="btn btn-primary" type="button">Solid</button>
+  <button class="btn btn-soft btn-primary" type="button">Soft</button>
+  <button class="btn btn-outline btn-primary" type="button">Outline</button>
+  <button class="btn btn-dash btn-primary" type="button">Dash</button>
+  <button class="btn btn-ghost" type="button">Ghost</button>
+  {# A link drawn as a button: the class is the same #}
+  <a class="btn btn-link" href="{% url 'about' %}">A link</a>
+</div>
+{# The sizes and the states; a loading element in a disabled button is a request under way, as the form example shows #}
 <div class="flex flex-wrap items-center gap-2">
   <button class="btn btn-primary btn-sm" type="button">Small</button>
   <button class="btn btn-primary btn-lg" type="button">Large</button>
-  {# A link drawn as a button: the class is the same #}
-  <a class="btn btn-link" href="{% url 'about' %}">A link</a>
+  <button class="btn btn-primary" type="button" disabled>Disabled</button>
+  <button class="btn btn-primary" type="button" disabled>
+    <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+    Sending
+  </button>
 </div>
 {%- endraw %}

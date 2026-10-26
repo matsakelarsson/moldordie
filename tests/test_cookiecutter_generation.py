@@ -1468,6 +1468,34 @@ def test_themes(bake, context):
     assert project.path("{package}/tests/test_themes.py").is_file()
 
 
+def test_the_pages_are_in_a_sidebar(bake, context):
+    """The site's pages are in a sidebar, daisyUI's drawer on a checkbox alone, which a page adds its own
+    entries to through a block; the bar keeps the theme picker and the account links (docs/adr/0033)."""
+    project = bake(context)
+
+    base_html = project.template("base.html")
+    assert '<div class="drawer lg:drawer-open">' in base_html
+    assert '<input type="checkbox" class="drawer-toggle" id="sidebar" autocomplete="off" />' in base_html
+    assert '{% include "partials/navigation.html#bar" %}' in base_html
+    sidebar = base_html.partition("{% block sidebar %}")[2].partition("{% endblock sidebar %}")[0]
+    assert '{% include "partials/navigation.html#pages" %}' in sidebar
+    navigation = project.template("partials/navigation.html")
+    assert "{% partialdef pages %}" in navigation
+    assert "{% partialdef bar %}" in navigation
+    assert navigation.index("{% partialdef bar %}") > navigation.index("{% endpartialdef pages %}")
+    # The page links are in the sidebar alone, marked for daisyUI's menu to draw the current one
+    pages = navigation.partition("{% partialdef pages %}")[2].partition("{% endpartialdef pages %}")[0]
+    assert pages.count('aria-current="page"') == pages.count("<li>")
+    assert 'aria-current="page"' not in navigation.partition("{% partialdef bar %}")[2]
+    assert '<label for="sidebar"' in navigation.partition("{% partialdef bar %}")[2]
+    # The examples page puts its sections under the pages, from a template it shows as written
+    index = project.template("examples/index.html")
+    examples_sidebar = index.partition("{% block sidebar %}")[2].partition("{% endblock sidebar %}")[0]
+    assert "{{ block.super }}" in examples_sidebar
+    assert '{% include "examples/sidebar.html" %}' in examples_sidebar
+    assert project.module("{package}/examples/content.py").literal("SIDEBAR_EXAMPLE") == "sidebar"
+
+
 def test_examples_page(bake, context):
     """The examples page is routed in every environment, and a project that deletes it needs no other edit."""
     project = bake(context)
@@ -1480,8 +1508,9 @@ def test_examples_page(bake, context):
     templates = project.path("{package}/templates/examples")
     names = sorted(path.stem for path in templates.iterdir())
     content = project.module("{package}/examples/content.py")
-    static = ["theme", "buttons", "alerts", "badges", "card"]
-    assert names == sorted(["index", *static, *content.literal("HTMX_EXAMPLES")])
+    static = ["theme", "buttons", "alerts", "badges", "card", "dropdown", "progress"]
+    sidebar = content.literal("SIDEBAR_EXAMPLE")
+    assert names == sorted(["index", *static, sidebar, *content.literal("HTMX_EXAMPLES")])
 
     # Outside the DEBUG block, unlike the error page previews
     routed, _, debug_only = project.text("config/urls.py").partition("if settings.DEBUG:")

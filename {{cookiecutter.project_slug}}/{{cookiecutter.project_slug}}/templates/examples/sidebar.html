@@ -1,0 +1,32 @@
+{% raw %}{# This page's sections, under the site's pages: index.html puts them in the sidebar block of base.html #}
+{# Only on a large screen, where the sidebar is a column: in the drawer of a small one a link within the page would leave it open #}
+<ul class="menu hidden w-full px-2 lg:flex">
+  <li class="menu-title">On this page</li>
+  {% for example in static_examples %}
+    <li>
+      <a href="#example-{{ example.name }}">{{ example.title }}</a>
+    </li>
+  {% endfor %}
+  <li>
+    <a href="#example-sidebar">The sidebar</a>
+  </li>
+  <li>
+    <a href="#example-form">A form validated on the server</a>
+  </li>
+  <li>
+    <a href="#example-results">A filtered table with pagination</a>
+  </li>
+  <li>
+    <a href="#example-toggle">A toggle that tells the server</a>
+  </li>
+  <li>
+    <a href="#example-tabs">Tabs fetched when they are chosen</a>
+  </li>
+  <li>
+    <a href="#example-modal">A dialog from the server</a>
+  </li>
+  <li>
+    <a href="#example-notices">Messages out of band</a>
+  </li>
+</ul>
+{%- endraw %}

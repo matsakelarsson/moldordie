@@ -12,6 +12,15 @@
   <div class="alert alert-error" role="alert">
     <span>It failed, and this is announced at once.</span>
   </div>
+  {# A title, a line under it and the actions: a column on a small screen, a row from the sm breakpoint #}
+  <div class="alert alert-vertical sm:alert-horizontal">
+    <div>
+      <h3 class="font-bold">A new version is ready.</h3>
+      <div class="text-xs">Reload to get it.</div>
+    </div>
+    <button class="btn btn-sm" type="button">Later</button>
+    <button class="btn btn-sm btn-primary" type="button">Reload</button>
+  </div>
   {# Dismissed without a script: checking the hidden box hides the alert, as the messages in base.html do #}
   <div class="alert alert-soft alert-info has-[:checked]:hidden">
     <span>This one can be dismissed.</span>
