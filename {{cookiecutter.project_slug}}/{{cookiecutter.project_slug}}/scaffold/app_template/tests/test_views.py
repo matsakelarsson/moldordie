@@ -32,12 +32,6 @@ OPTS = Item._meta  # noqa: SLF001
 RE_ROW_LINK = re.compile(r'<a class="link" href="[^"]+">([^<]+)</a>')
 
 
-@pytest.fixture
-def signed_in(client: Client, user: User) -> Client:
-    client.force_login(user)
-    return client
-
-
 def rows(html: str) -> list[str]:
     """The names in the table, in order."""
     return RE_ROW_LINK.findall(html)

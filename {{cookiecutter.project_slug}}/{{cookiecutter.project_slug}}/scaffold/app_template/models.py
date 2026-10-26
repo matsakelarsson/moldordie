@@ -12,8 +12,9 @@ from django.utils.translation import gettext_lazy as _
 class Item(models.Model):
     """One record of the app: a name, free-form notes and when it was created.
 
-    Replace the fields with the app's own. The form, the templates and the tests name
-    ``name`` and ``notes``, so they change in the same step.
+    Replace the fields with the app's own. They are named in the form, the admin, the
+    views (the filter and the success messages), the templates, the factory, the
+    migration{% if cookiecutter.rest_api != 'None' %}, the API{% endif %} and the tests, so they change in the same step.
     """
 
     name = models.CharField(_("name"), max_length=200)

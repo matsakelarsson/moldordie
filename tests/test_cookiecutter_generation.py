@@ -30,6 +30,7 @@ from tests.citations import citations
 from tests.generated_project import NO_DEFAULT
 from tests.generated_project import Expression
 from tests.generated_project import GeneratedProject
+from tests.register_app import edits
 from tests.removal_coverage import MOST_CHANGED_ANSWERS
 from tests.removal_coverage import coverage_gaps
 from tests.removal_coverage import fewest_answers_keeping
@@ -2142,8 +2143,9 @@ def machine_authentication_wiring(project, answers):
 
 def scaffold_wiring(project, answers):
     """The scaffold is installed in every project and the app template it copies is not:
-    pytest leaves the template's tests to the copy and coverage its files, and the
-    template's REST API arm and the registration the command prints follow the project's."""
+    pytest leaves the template's tests to the copy and coverage its files, the template's
+    REST API arm and the registration the command prints follow the project's, and what
+    it prints is what the integration scripts' registration inserts, line for line."""
     installed = project.settings("base").literal("INSTALLED_APPS")
     assert f"{project.package}.scaffold" in installed
     assert f"{project.package}.scaffold.app_template" not in installed
@@ -2159,6 +2161,15 @@ def scaffold_wiring(project, answers):
         api_views = project.text("{package}/scaffold/app_template/api/views.py")
         assert ("ModelViewSet" in api_views) is (rest_api == "DRF")
         assert ("Router(" in api_views) is (rest_api == "Django Ninja")
+
+    steps = project.module("{package}/scaffold/management/commands/startapp.py").literal("NEXT_STEPS")
+    printed = steps.format(package=project.package, app="blog", model="Post", plural="posts", directory="-")
+    for relative, anchor, replacement in edits(project.package, "blog", "Post"):
+        if not (project.root / relative).exists():
+            continue
+        assert relative.as_posix() in printed, relative
+        for line in replacement.replace(anchor, "").splitlines():
+            assert line.strip().rstrip(",") in printed, line
 
 
 WIRINGS = [

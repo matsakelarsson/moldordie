@@ -1,10 +1,10 @@
 from django.urls import path
 
-from .views import ItemCreateView
-from .views import ItemDeleteView
-from .views import ItemDetailView
-from .views import ItemListView
-from .views import ItemUpdateView
+from {{ cookiecutter.project_slug }}.scaffold.app_template.views import ItemCreateView
+from {{ cookiecutter.project_slug }}.scaffold.app_template.views import ItemDeleteView
+from {{ cookiecutter.project_slug }}.scaffold.app_template.views import ItemDetailView
+from {{ cookiecutter.project_slug }}.scaffold.app_template.views import ItemListView
+from {{ cookiecutter.project_slug }}.scaffold.app_template.views import ItemUpdateView
 
 app_name = "app_template"
 urlpatterns = [

@@ -60,6 +60,21 @@ def test_a_drf_viewset_is_imported_and_registered_beside_the_users(project):
     )
 
 
+def test_a_drf_viewset_sorting_after_the_users_is_imported_after_it(project):
+    router = project / "config" / "api_router.py"
+    router.write_text(
+        'from my_awesome_project.users.api.views import UserViewSet\n\nrouter.register("users", UserViewSet)\n',
+    )
+
+    register(project, PACKAGE, "zoo", "Animal")
+
+    assert router.read_text() == (
+        "from my_awesome_project.users.api.views import UserViewSet\n"
+        "from my_awesome_project.zoo.api.views import AnimalViewSet\n\n"
+        'router.register("users", UserViewSet)\nrouter.register("animals", AnimalViewSet)\n'
+    )
+
+
 def test_a_moved_marker_is_an_error(project):
     (project / "config" / "urls.py").write_text("urlpatterns = []\n")
 

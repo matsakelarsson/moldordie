@@ -55,7 +55,8 @@ def update_item(
     data: ItemPatchSchema,
 ) -> Item:
     item = get_object_or_404(Item, pk=pk)
-    for field, value in data.dict(exclude_unset=True).items():
+    # A null leaves the field as it is: none of them is nullable
+    for field, value in data.dict(exclude_unset=True, exclude_none=True).items():
         setattr(item, field, value)
     item.save()
     return item

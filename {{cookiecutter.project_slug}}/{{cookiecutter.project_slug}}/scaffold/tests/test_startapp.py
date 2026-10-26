@@ -107,12 +107,23 @@ def test_the_model_is_the_apps_name_in_capwords_unless_given(apps_dir: Path):
     assert "class BlogPosts(models.Model)" in models
 
 
+def test_a_name_that_holds_a_placeholder_word_is_renamed_once(apps_dir: Path):
+    startapp("item_tracker", "--model", "Tracker")
+
+    app = apps_dir / "item_tracker"
+    assert f'name = "{PACKAGE}.item_tracker"' in (app / "apps.py").read_text()
+    assert "class ItemTrackerConfig" in (app / "apps.py").read_text()
+    assert 'app_name = "item_tracker"' in (app / "urls.py").read_text()
+    assert "class Tracker(models.Model)" in (app / "models.py").read_text()
+
+
 def test_the_formatters_not_found_are_said(apps_dir: Path, monkeypatch, tmp_path: Path):
     monkeypatch.setenv("PATH", str(tmp_path))
 
     out = startapp("blog")
 
-    assert "ruff and djlint are not on the path" in out
+    assert "ruff is not on the path" in out
+    assert "djlint is not on the path" in out
     assert "models.py" in files_of(apps_dir / "blog")
 
 
@@ -122,9 +133,11 @@ def test_the_formatters_not_found_are_said(apps_dir: Path, monkeypatch, tmp_path
         (("Blog",), "'Blog' is not a lowercase identifier"),
         (("1blog",), "'1blog' is not a lowercase identifier"),
         (("class",), "'class' is not a lowercase identifier"),
-        (("json",), "'json' is the name of a module"),
         (("blog", "--model", "post"), "'post' is not in CapWords"),
         (("blog", "--model", "Blog Post"), "'Blog Post' is not in CapWords"),
+        # The test helper that reads a page, and the filter's form
+        (("blog", "--model", "Page"), "'Page' cannot name a model: .* has page"),
+        (("blog", "--model", "Filter"), "the app template has FilterForm"),
     ],
 )
 def test_a_name_that_cannot_name_an_app_or_a_model_is_refused(
@@ -136,6 +149,15 @@ def test_a_name_that_cannot_name_an_app_or_a_model_is_refused(
         startapp(*args)
 
     assert list(apps_dir.iterdir()) == []
+
+
+def test_a_module_of_the_package_is_not_shadowed(apps_dir: Path):
+    (apps_dir / "htmx.py").write_text("")
+
+    with pytest.raises(CommandError, match="'htmx' is the name of a module"):
+        startapp("htmx")
+
+    assert not (apps_dir / "htmx").exists()
 
 
 def test_an_existing_directory_is_left_alone(apps_dir: Path):

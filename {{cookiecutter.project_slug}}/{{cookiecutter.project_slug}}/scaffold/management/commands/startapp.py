@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import keyword
 from functools import partial
-from importlib.util import find_spec
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -22,13 +21,19 @@ from django.core.management.base import CommandError
 from {{ cookiecutter.project_slug }}.scaffold.copying import copy_renamed
 from {{ cookiecutter.project_slug }}.scaffold.copying import run_formatters
 from {{ cookiecutter.project_slug }}.scaffold.names import APP_TEMPLATE
+from {{ cookiecutter.project_slug }}.scaffold.names import PLACEHOLDER_APP
+from {{ cookiecutter.project_slug }}.scaffold.names import PLACEHOLDER_MODEL
 from {{ cookiecutter.project_slug }}.scaffold.names import Names
 from {{ cookiecutter.project_slug }}.scaffold.names import camel_case
+from {{ cookiecutter.project_slug }}.scaffold.names import clashes
+from {{ cookiecutter.project_slug }}.scaffold.names import identifiers_of
 from {{ cookiecutter.project_slug }}.scaffold.names import rename
 
 if TYPE_CHECKING:
     from django.core.management.base import CommandParser
 
+# What to add where, the code as it goes in: the repository's integration scripts make
+# these edits, and its tests hold each line here to what they insert
 NEXT_STEPS = """\
 Created the app {package}.{app} with its model {model} in {directory}.
 Register it, then run "manage.py migrate" for its first migration:
@@ -40,12 +45,14 @@ Register it, then run "manage.py migrate" for its first migration:
   - add api.add_router("/{plural}/", "{package}.{app}.api.views.router")
     to config/api.py
 {%- elif cookiecutter.rest_api == 'DRF' %}
-  - register {model}ViewSet as "{plural}" on the router in config/api_router.py
+  - add from {package}.{app}.api.views import {model}ViewSet and
+    router.register("{plural}", {model}ViewSet) to config/api_router.py
 {%- endif %}
 """
 NOT_FORMATTED = """\
-{formatters} not on the path, so the copy is not laid out as the pre-commit hooks
-want it; they do that at the first commit.
+The copy is not laid out as the pre-commit hooks want it; they do that at the first
+commit:
+{problems}
 """
 
 
@@ -78,33 +85,45 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **options: Any) -> None:
         name: str = options["name"]
         model: str = options["model"] or camel_case(name)
+        package = settings.APPS_DIR.name
         if not is_app_name(name):
             msg = f"'{name}' is not a lowercase identifier, so it cannot name an app."
-            raise CommandError(msg)
-        if find_spec(name) is not None:
-            msg = f"'{name}' is the name of a module that can be imported already."
-            raise CommandError(msg)
-        if not is_model_name(model):
-            msg = f"'{model}' is not in CapWords, so it cannot name a model."
             raise CommandError(msg)
         directory = settings.APPS_DIR / name
         if directory.exists():
             msg = f"{directory} exists already."
             raise CommandError(msg)
+        if (settings.APPS_DIR / f"{name}.py").exists():
+            msg = f"'{name}' is the name of a module of {package} already."
+            raise CommandError(msg)
+        if not is_model_name(model):
+            msg = f"'{model}' is not in CapWords, so it cannot name a model."
+            raise CommandError(msg)
+        # A name the template uses for something else would be renamed onto it
+        identifiers = identifiers_of(APP_TEMPLATE)
+        checks = [
+            (name, "an app", Names(app=name, model=PLACEHOLDER_MODEL)),
+            (model, "a model", Names(app=PLACEHOLDER_APP, model=model)),
+        ]
+        for given, what, names in checks:
+            taken = clashes(names, identifiers)
+            if taken:
+                listed = ", ".join(sorted(taken))
+                msg = f"'{given}' cannot name {what}: the app template has {listed}."
+                raise CommandError(msg)
         names = Names(app=name, model=model)
         copy_renamed(APP_TEMPLATE, directory, partial(rename, names=names))
-        missing = run_formatters(directory)
+        problems = run_formatters(directory)
         self.stdout.write(
             NEXT_STEPS.format(
-                package=settings.APPS_DIR.name,
+                package=package,
                 app=name,
                 model=model,
                 plural=f"{names.model_name}s",
                 directory=directory.relative_to(settings.BASE_DIR),
             ),
         )
-        if missing:
-            verb = " is" if len(missing) == 1 else " are"
-            formatters = " and ".join(missing) + verb
-            warning = NOT_FORMATTED.format(formatters=formatters)
+        if problems:
+            listed = "\n".join(f"  - {problem}" for problem in problems)
+            warning = NOT_FORMATTED.format(problems=listed)
             self.stdout.write(self.style.WARNING(warning))

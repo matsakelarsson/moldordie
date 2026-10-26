@@ -23,6 +23,9 @@ def edits(package: str, app: str, model: str) -> list[tuple[Path, str, str]]:
     users_router = f'api.add_router("/users/", "{package}.users.api.views.router")\n'
     users_import = f"from {package}.users.api.views import UserViewSet\n"
     users_viewset = 'router.register("users", UserViewSet)\n'
+    viewset_import = f"from {package}.{app}.api.views import {model}ViewSet\n"
+    # In the order ruff's isort keeps: by the app's name against the users app's
+    imports = viewset_import + users_import if app < "users" else users_import + viewset_import
     return [
         (Path("config/settings/base.py"), apps_marker, f'    "{package}.{app}",\n{apps_marker}'),
         (
@@ -35,11 +38,7 @@ def edits(package: str, app: str, model: str) -> list[tuple[Path, str, str]]:
             users_router,
             f'{users_router}api.add_router("/{plural}/", "{package}.{app}.api.views.router")\n',
         ),
-        (
-            Path("config/api_router.py"),
-            users_import,
-            f"from {package}.{app}.api.views import {model}ViewSet\n{users_import}",
-        ),
+        (Path("config/api_router.py"), users_import, imports),
         (
             Path("config/api_router.py"),
             users_viewset,

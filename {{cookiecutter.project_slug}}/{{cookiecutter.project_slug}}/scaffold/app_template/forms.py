@@ -3,7 +3,7 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from .models import Item
+from {{ cookiecutter.project_slug }}.scaffold.app_template.models import Item
 
 
 class ItemForm(forms.ModelForm[Item]):

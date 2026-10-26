@@ -16,17 +16,9 @@ from {{ cookiecutter.project_slug }}.scaffold.app_template.tests.factories impor
 if TYPE_CHECKING:
     from django.test import Client
 
-    from {{ cookiecutter.project_slug }}.users.models import User
-
 pytestmark = pytest.mark.django_db
 
 JSON = "application/json"
-
-
-@pytest.fixture
-def signed_in(client: Client, user: User) -> Client:
-    client.force_login(user)
-    return client
 
 
 def detail_url(item: Item) -> str:
@@ -102,17 +94,9 @@ from {{ cookiecutter.project_slug }}.scaffold.app_template.tests.factories impor
 if TYPE_CHECKING:
     from django.test import Client
 
-    from {{ cookiecutter.project_slug }}.users.models import User
-
 pytestmark = pytest.mark.django_db
 
 JSON = "application/json"
-
-
-@pytest.fixture
-def signed_in(client: Client, user: User) -> Client:
-    client.force_login(user)
-    return client
 
 
 def detail_url(item: Item) -> str:
@@ -150,6 +134,18 @@ def test_a_record_is_changed(signed_in: Client):
     url = reverse("api:update_item", kwargs={"pk": item.pk})
 
     response = signed_in.patch(url, '{"notes": "Ripe"}', content_type=JSON)
+
+    assert response.status_code == HTTPStatus.OK, response.json()
+    item.refresh_from_db()
+    assert (item.name, item.notes) == ("Apple", "Ripe")
+
+
+def test_a_null_leaves_a_field_as_it_is(signed_in: Client):
+    item = ItemFactory.create(name="Apple")
+    url = reverse("api:update_item", kwargs={"pk": item.pk})
+    data = '{"name": null, "notes": "Ripe"}'
+
+    response = signed_in.patch(url, data, content_type=JSON)
 
     assert response.status_code == HTTPStatus.OK, response.json()
     item.refresh_from_db()

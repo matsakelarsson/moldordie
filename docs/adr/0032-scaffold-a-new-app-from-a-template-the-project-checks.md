@@ -21,9 +21,10 @@ migration and its admin, a form, the list filtered and paged, the detail, the cr
 update forms and the delete confirmation in a dialog, each view answering htmx with a
 partial, the templates, a factory, the tests of all of it, and the model's routes on the
 REST API when the project has one. The command copies it into the package under the name
-given, renaming paths and contents, runs the project's ruff over the copy, and prints where
-the app is registered. Nothing edits the settings or the URL configuration: the command
-says what to add, where, and the copy's tests pass once it is added.
+given, renaming paths and contents, runs the project's formatters, ruff and djLint, over
+the copy, and prints where the app is registered. Nothing edits the settings or the URL
+configuration: the command says what to add, where, as the code that goes in, and the
+copy's tests pass once it is added.
 
 The app template is not installed. It is checked where it stands, by ruff, mypy and djLint
 as any other module of the project, so a convention that changes is changed there and
@@ -38,10 +39,19 @@ The renaming is by whole names: `Item` and `item`, `Items` and `items`, `app_tem
 it and no lowercase letter or digit follows, with a hyphen allowed after the lowercase
 model name. So `ItemForm` and `item-card` become the new app's while `items-center` and
 `join-item`, class names of Tailwind's and daisyUI's, are untouched; the template's own
-prose avoids the English word. After the copy, ruff sorts the imports, whose order within
-the package's section depends on how the app's name sorts against the package's other
-modules, and formats what a longer name pushed past the line length, as Django's own
-`startapp` runs black over what it writes.
+prose avoids the English word. The text is scanned once, so a name that holds a
+placeholder word, `item_tracker`, is put in once and not renamed again. A name the
+template uses for something else is refused before anything is copied: a model called
+`Page` would rename every record `page`, the test helper that reads a page, and `Filter`
+would make the record's form a second `FilterForm`, so the command reads the identifiers
+the template's Python binds and the variables its templates name and refuses a name the
+renaming would double. After the copy, ruff sorts the imports, whose order within the
+package's section depends on how the app's name sorts against the package's other
+modules, and formats what a longer name pushed past the line length, and djLint lays out
+the attributes a longer name pushed past its limit, as Django's own `startapp` runs black
+over what it writes. The formatters are found on the path; without them, or when one
+fails, the copy stands and the command says so, and the pre-commit hooks of the first
+commit finish it.
 
 ## Considered options
 
