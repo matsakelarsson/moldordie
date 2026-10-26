@@ -192,6 +192,16 @@ choice in a cookie, from which the server writes `data-theme` on the next page.
 
 _Avoid_: theme switcher, theme toggle, dark mode switch.
 
+## Sidebar
+
+The column of `base.html` that holds the site's pages and, under them, what a page adds for itself
+through the `sidebar` block: daisyUI's drawer on a checkbox alone, a column beside the page on a
+large screen and, on a small one, a drawer that the bar's menu button opens. The **bar** is the strip
+above the page that keeps the theme picker and the account links. The two are the partials of
+`partials/navigation.html`, `pages` and `bar`, which `base.html` includes by name (`docs/adr/0033`).
+
+_Avoid_: side nav, side menu, topics; navbar (for the bar); drawer (the mechanism, not the thing).
+
 ## Examples page
 
 The page, routed in every environment and linked from the navigation, that shows daisyUI

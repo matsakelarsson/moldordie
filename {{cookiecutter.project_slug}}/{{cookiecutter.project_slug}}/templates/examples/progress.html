@@ -1,0 +1,21 @@
+{% raw %}{# A value a view hands over goes on a progress element, as its attribute. radial-progress reads a custom property, which #}
+{# the policy's ban on style attributes makes a class, [--value:70], generated only where it is written whole, so a value #}
+{# from the server has to be one of a known set, written out #}
+<div class="flex flex-wrap items-center gap-6">
+  <progress class="progress progress-primary w-56" value="70" max="100">70%</progress>
+  <div class="radial-progress text-primary [--size:4rem] [--value:70]"
+       role="progressbar"
+       aria-valuenow="70"
+       aria-valuemin="0"
+       aria-valuemax="100">70%</div>
+  {# The loading element is what shows while an htmx request runs, with htmx-indicator on it (styles/main.css) #}
+  <span class="loading loading-spinner" aria-hidden="true"></span>
+  <span class="loading loading-dots" aria-hidden="true"></span>
+  <span class="loading loading-ring" aria-hidden="true"></span>
+  {# A skeleton stands where content is still to arrive #}
+  <div class="flex w-40 flex-col gap-2" aria-hidden="true">
+    <div class="skeleton h-4 w-full"></div>
+    <div class="skeleton h-4 w-3/4"></div>
+  </div>
+</div>
+{%- endraw %}

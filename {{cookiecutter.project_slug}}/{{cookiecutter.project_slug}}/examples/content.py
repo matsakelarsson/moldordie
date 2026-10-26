@@ -45,12 +45,17 @@ class Tab:
 
 # The examples without a request of their own, in the order the page shows them
 STATIC_EXAMPLES: Final = (
-    Example("theme", "The theme's colours"),
+    Example("theme", "The theme"),
     Example("buttons", "Buttons"),
     Example("alerts", "Alerts"),
     Example("badges", "Badges"),
     Example("card", "Cards"),
+    Example("dropdown", "A dropdown"),
+    Example("progress", "Progress and loading"),
 )
+# The template of the page's own entries in the sidebar, which base.html's sidebar block
+# places; the page shows it as written beside the demos
+SIDEBAR_EXAMPLE: Final = "sidebar"
 # The templates of the htmx demos, which the page places itself
 HTMX_EXAMPLES: Final = (
     "form",
@@ -91,7 +96,8 @@ def source(name: str) -> str:
     Only the examples this module names have a source: the page never reads a
     template a request could name.
     """
-    names = (*(example.name for example in STATIC_EXAMPLES), *HTMX_EXAMPLES)
+    static = (example.name for example in STATIC_EXAMPLES)
+    names = (*static, SIDEBAR_EXAMPLE, *HTMX_EXAMPLES)
     if name not in names:
         msg = f"{name!r} is not an example"
         raise ValueError(msg)

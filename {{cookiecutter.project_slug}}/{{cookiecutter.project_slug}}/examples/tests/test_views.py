@@ -20,6 +20,7 @@ from django.utils.html import escape
 
 from {{ cookiecutter.project_slug }}.examples import views
 from {{ cookiecutter.project_slug }}.examples.content import HTMX_EXAMPLES
+from {{ cookiecutter.project_slug }}.examples.content import SIDEBAR_EXAMPLE
 from {{ cookiecutter.project_slug }}.examples.content import STATIC_EXAMPLES
 from {{ cookiecutter.project_slug }}.examples.content import source
 from {{ cookiecutter.project_slug }}.tests.markup import element
@@ -45,16 +46,37 @@ def test_the_page_renders_every_example_and_shows_it_as_written(client: Client):
     html = page(client.get(reverse("examples:index")))
 
     sections = {attrs.get("id") for attrs in elements(html, "section")}
-    shown = {"form", "results", "toggle", "tabs", "modal", "notices"}
+    shown = {SIDEBAR_EXAMPLE, "form", "results", "toggle", "tabs", "modal", "notices"}
     for name in (*(example.name for example in STATIC_EXAMPLES), *shown):
         assert f"example-{name}" in sections, name
-    for name in (*(example.name for example in STATIC_EXAMPLES), *HTMX_EXAMPLES):
+    static = (example.name for example in STATIC_EXAMPLES)
+    for name in (*static, SIDEBAR_EXAMPLE, *HTMX_EXAMPLES):
         assert escape(source(name)) in html, name
     current = [attrs for attrs in elements(html, "a") if "aria-current" in attrs]
     assert {attrs["href"] for attrs in current} >= {reverse("examples:index")}
     # One container for a dialog, and none open
     assert html.count('id="modal"') == 1
     assert "modal-open" not in html.replace(escape(source("modal")), "")
+
+
+def test_the_sidebar_lists_the_sections_in_their_order(client: Client):
+    html = page(client.get(reverse("examples:index")))
+
+    # The page's own entries follow the site's pages in the sidebar, one per section
+    sidebar = html.partition('aria-label="Main navigation"')[2].partition("</nav>")[0]
+    listed = re.findall(r'<a href="#example-([\w-]+)">([^<]+)</a>', sidebar)
+    sections = re.findall(
+        r'<section[^>]*\bid="example-([\w-]+)"[^>]*>\s*<h2[^>]*>([^<]+)</h2>',
+        html,
+    )
+    assert listed == sections
+    # After the brand and the site's pages
+    assert [attrs["href"] for attrs in elements(sidebar, "a")][:4] == [
+        reverse("home"),
+        reverse("home"),
+        reverse("about"),
+        reverse("examples:index"),
+    ]
 
 
 def test_the_form_shows_a_widget_of_each_kind(client: Client):
