@@ -11,6 +11,10 @@ Welcome to {{ cookiecutter.project_name }}'s documentation!
    :caption: Contents:
 
    howto
+   local-development
+   settings
+   deployment
+   tasks
    frontend
    users
 {%- if cookiecutter.identity_provider != 'none' %}

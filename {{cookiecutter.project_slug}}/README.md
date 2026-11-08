@@ -9,9 +9,45 @@
 License: {{cookiecutter.open_source_license}}
 {%- endif %}
 
+## Getting started
+{%- if cookiecutter.use_docker == "y" %}
+
+You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin. Build the images, write the lock file, and build again so that the images install from it:
+
+    docker compose -f docker-compose.local.yml build
+    docker compose -f docker-compose.local.yml run --rm django uv lock
+    docker compose -f docker-compose.local.yml build
+
+Commit `uv.lock`, then start the stack. It applies the migrations and serves the site at <http://localhost:8000>:
+
+    docker compose -f docker-compose.local.yml up
+{%- else %}
+
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/) and [PostgreSQL](https://www.postgresql.org/download/). On Debian or Ubuntu, install the compiler and the libraries the dependencies build against:
+
+    sudo utility/install_os_dependencies.sh install
+
+Install the dependencies, create the database and apply the migrations, then commit the `uv.lock` the first command writes:
+
+    uv sync
+    createdb --username=postgres {{ cookiecutter.project_slug }}
+    export POSTGRES_HOST=localhost POSTGRES_USER=postgres POSTGRES_PASSWORD= POSTGRES_DB={{ cookiecutter.project_slug }}
+    uv run python manage.py migrate
+
+Start the Tailwind watcher in a second terminal, with the same variables set, and leave it running:
+
+    uv run python manage.py tailwind watch
+
+Then serve the site at <http://localhost:8000>:
+
+    uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html' --reload-include '*.css' --timeout-graceful-shutdown 1
+{%- endif %}
+
+`docs/local-development.rst` has the rest.
+
 ## Settings
 
-The settings are in `config/settings/`: `base.py` holds what every environment shares, and `local.py`, `test.py` and `production.py` hold what differs. A variable an environment can set is one those modules read with `env`.
+The settings are in `config/settings/`: `base.py` holds what every environment shares, and `local.py`, `test.py` and `production.py` hold what differs. `docs/settings.rst` lists every variable they read.
 
 ## Basic Commands
 
@@ -20,8 +56,13 @@ The settings are in `config/settings/`: `base.py` holds what every environment s
 - To create a **normal user account**, just go to Sign Up and fill out the form. Once you submit it, you'll see a "Verify Your E-mail Address" page. Go to your console to see a simulated email verification message. Copy the link into your browser. Now the user's email should be verified and ready to go.
 
 - To create a **superuser account**, use this command:
+{%- if cookiecutter.use_docker == "y" %}
+
+      docker compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
+{%- else %}
 
       uv run python manage.py createsuperuser
+{%- endif %}
 
 For convenience, you can keep your normal user logged in on Chrome and your superuser logged in on Firefox (or similar), so that you can see how the site behaves for both kinds of users.
 
@@ -41,14 +82,26 @@ The same check runs before every `git push` through pre-commit, and in CI. Share
 ### Test coverage
 
 To run the tests, check your test coverage, and generate an HTML coverage report:
+{%- if cookiecutter.use_docker == "y" %}
+
+    docker compose -f docker-compose.local.yml run --rm django coverage run -m pytest
+    docker compose -f docker-compose.local.yml run --rm django coverage html
+    open htmlcov/index.html
+{%- else %}
 
     uv run coverage run -m pytest
     uv run coverage html
     open htmlcov/index.html
+{%- endif %}
 
 #### Running tests with pytest
+{%- if cookiecutter.use_docker == "y" %}
+
+    docker compose -f docker-compose.local.yml run --rm django pytest
+{%- else %}
 
     uv run pytest
+{%- endif %}
 
 ### Adding an app
 
@@ -115,11 +168,21 @@ production they are stored in PostgreSQL by django-tasks-db and executed by a wo
     uv run python manage.py db_worker
 {%- endif %}
 
+`docs/tasks.rst` says how to define, enqueue and test a task.
+
 {%- if cookiecutter.use_celery == "y" %}
 
 ### Celery
 
 Celery sits next to the Tasks framework above, for the work that framework has no answer for: jobs on a schedule, jobs with a retry policy, and workflows. The example is `cache_users_count` in `{{cookiecutter.project_slug}}/users/tasks.py`, which retries itself on a transient database error and is meant to be scheduled under _Periodic Tasks_ in the admin. Work that needs neither a schedule nor retries belongs in a `django.tasks` task instead.
+{%- if cookiecutter.use_docker == "y" %}
+
+The `celeryworker` and `celerybeat` services of `docker-compose.local.yml` start with the stack. To follow the worker:
+
+    docker compose -f docker-compose.local.yml logs -f celeryworker
+
+Flower is at <http://localhost:5555>, with the `CELERY_FLOWER_USER` and `CELERY_FLOWER_PASSWORD` of `.envs/.local/.django`.
+{%- else %}
 
 Please note: for Celery's import magic to work, it is important _where_ the celery commands are run. Run them from the project root, the folder holding _manage.py_.
 
@@ -140,6 +203,7 @@ or you can embed the beat service inside a worker with the `-B` option (not reco
 ```bash
 uv run celery -A config.celery_app worker -B -l info
 ```
+{%- endif %}
 
 {%- endif %}
 {%- if cookiecutter.mail_catcher == "Mailpit" %}
@@ -156,7 +220,7 @@ Start them with `docker compose -f docker-compose.local.yml up`.
 With Mailpit running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:8025`
 {%- else %}
 
-In development, it is often nice to be able to see emails that are being sent from your application. If you choose to use [Mailpit](https://github.com/axllent/mailpit) when generating the project a local SMTP server with a web interface will be available.
+In development, it is often nice to be able to see emails that are being sent from your application. [Mailpit](https://github.com/axllent/mailpit) is a local SMTP server with a web interface for that.
 
 1.  [Download the latest Mailpit release](https://github.com/axllent/mailpit/releases) for your OS.
 
@@ -191,7 +255,7 @@ Start them with `docker compose -f docker-compose.local.yml up`.
 With Mailtrap Local running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:3550`
 {%- else %}
 
-In development, it is often nice to be able to see emails that are being sent from your application. If you choose to use [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) when generating the project a local SMTP server with a web interface will be available.
+In development, it is often nice to be able to see emails that are being sent from your application. [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) is a local SMTP server with a web interface for that.
 
 1.  [Download the latest Mailtrap Local release](https://github.com/mailtrap/mailtrap-local/releases) for your OS.
 
@@ -239,16 +303,27 @@ Nothing is exported until `OTEL_EXPORTER_OTLP_ENDPOINT` names a collector, so a 
 {%- endif %}
 
 ## Deployment
-
-The following details how to deploy this application.
 {%- if cookiecutter.use_docker == "y" %}
 
-### Docker
+Each deployed environment, `dev`, `test` and `production`, is a Compose file in the root of the project with its env files under `.envs/`. Before the first deployment, commit `uv.lock`, point the host's DNS records at the server so that Traefik can obtain a certificate, copy `.envs/` to the server, and fill in what its `.django` file leaves empty.
 
-Each deployed environment, `dev`, `test` and `production`, is a Compose file in the root of the project with its env files under `.envs/`. Build and start one with:
+Then build the images, apply the migrations and start the stack. For the first deployment, also create a superuser:
 
     docker compose -f docker-compose.production.yml build
+    docker compose -f docker-compose.production.yml run --rm django python manage.py migrate
     docker compose -f docker-compose.production.yml up -d
+    docker compose -f docker-compose.production.yml run --rm django python manage.py createsuperuser
 
+Point `-f` at another environment's file to deploy that one.
+{%- else %}
+
+The project does not choose how it is hosted. A server needs uv, PostgreSQL, Redis and a reverse proxy that terminates HTTPS. With the production environment set, install, build the stylesheet, collect the static files and apply the migrations:
+
+    uv sync --locked --no-dev
+    uv run --no-dev python manage.py tailwind build
+    uv run --no-dev python manage.py collectstatic --noinput
+    uv run --no-dev python manage.py migrate
 {%- endif %}
+
+`docs/deployment.rst` has the details, including what the environment must set and what to keep running.
 

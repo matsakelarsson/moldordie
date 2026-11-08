@@ -85,6 +85,10 @@ RE_DRAWN_VALUE = re.compile(r"[A-Za-z0-9]{32,}")
 # What a generated project must not name: this template, the owner of its repository, the tool
 # that renders it, and the project it was forked from with that project's author.
 RE_TEMPLATE_TRACE = re.compile(rb"mold[-_ ]?or[-_ ]?die|matsakelarsson|cookiecutter|greenfeld|pydanny", re.IGNORECASE)
+# A variable read in a settings module, through ``env`` or one of its typed forms
+RE_ENV_READ = re.compile(r'\benv(?:\.\w+)?\(\s*"([A-Z][A-Z0-9_]*)"')
+# A row of a table on the generated settings page, which starts with the variable
+RE_SETTINGS_ROW = re.compile(r"^   ``([A-Z][A-Z0-9_]*)`` \|", re.MULTILINE)
 # The frontends this template removed, as no generated file may spell them any more: their
 # names, the component syntax, the filters, settings, attributes and custom properties, the
 # class prefix (case-sensitive and not after a hyphen: "swagger-ui-bundle" and "daisyui-"
@@ -1323,6 +1327,46 @@ def test_no_trace_of_the_template(bake, context_override):
         matches = RE_TEMPLATE_TRACE.finditer((project.root / path).read_bytes())
         offenders.extend(f"{path}: {match.group(0).decode()}" for match in matches)
     assert offenders == []
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_the_settings_page_lists_what_the_settings_read(bake, context_override):
+    """The settings page has one row for each variable the settings modules read, so a fork
+    in the settings cannot leave the page behind."""
+    project = bake(context_override)
+    read = {
+        name
+        for module in ("base", "local", "test", "production")
+        for name in RE_ENV_READ.findall(project.text(f"config/settings/{module}.py"))
+    }
+
+    listed = RE_SETTINGS_ROW.findall(project.text("docs/settings.rst"))
+
+    assert sorted(listed) == sorted(read)
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_every_documentation_page_is_in_the_contents(bake, context_override):
+    """Sphinx only warns about a page outside the toctree, and a reader never finds it."""
+    project = bake(context_override)
+    pages = {path.stem for path in project.files() if path.parent == Path("docs") and path.suffix == ".rst"}
+
+    entries = re.findall(r"^   ([a-z-]+)$", project.text("docs/index.rst"), re.MULTILINE)
+
+    assert sorted(entries) == sorted(pages - {"index"})
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_the_guides_give_the_commands_of_the_way_the_project_runs(bake, context_override):
+    """A project with Docker runs its commands through Compose and one without never does. A
+    deployment applies the migrations itself, because no deployed container does on starting."""
+    project = bake(context_override)
+    guides = ("README.md", "docs/local-development.rst", "docs/deployment.rst", "docs/tasks.rst")
+    foreign = "uv run" if complete_answers(context_override)["use_docker"] == "y" else "docker compose"
+
+    assert [guide for guide in guides if foreign in project.text(guide)] == []
+    assert "manage.py migrate" in project.text("README.md")
+    assert "manage.py migrate" in project.text("docs/deployment.rst")
 
 
 def test_class_names_are_written_whole(bake, context):

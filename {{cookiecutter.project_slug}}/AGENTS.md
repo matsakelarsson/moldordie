@@ -292,6 +292,10 @@ Rename and replace the model's fields from there; the tests name them. The place
 
 - `README.md` — setting up, the commands, and what the chosen options added
 - `docs/howto.rst` — how to write and build these docs
+- `docs/local-development.rst` says how to set up and run the project on a developer's machine
+- `docs/settings.rst` lists every variable the settings read, with its defaults
+- `docs/deployment.rst` says what a deployment needs and which commands run it
+- `docs/tasks.rst` says how to define, enqueue, run and test a background task
 - `docs/frontend.rst` — the stylesheet and the themes, forms, allauth, htmx, the examples page and how to delete
   it, and the policy's rules for templates
 - `docs/users.rst` — the user model and its views

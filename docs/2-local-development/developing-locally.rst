@@ -50,6 +50,7 @@ Make sure to have the following on your host:
 
 #. Set the environment variables for your database(s): ::
 
+    export POSTGRES_HOST=localhost
     export POSTGRES_USER=postgres
     export POSTGRES_PASSWORD=
     export POSTGRES_DB=<DB name given to createdb>
