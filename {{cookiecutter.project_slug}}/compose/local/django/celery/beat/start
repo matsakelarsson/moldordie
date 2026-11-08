@@ -4,5 +4,13 @@ set -o errexit
 set -o nounset
 
 
+# The django service applies the migrations as the stack starts, and beat reads its
+# schedule from the tables they create. Started first, beat would exit while watchfiles
+# keeps the container up, so it waits for its own migrations.
+until python manage.py migrate --check django_celery_beat; do
+    >&2 echo 'Waiting for the django service to apply the django_celery_beat migrations'
+    sleep 2
+done
+
 rm -f './celerybeat.pid'
 exec watchfiles --filter python celery.__main__.main --args '-A config.celery_app beat -l INFO'

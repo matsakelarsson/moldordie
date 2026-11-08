@@ -2077,6 +2077,10 @@ def asgi_wiring(project, answers):
 def tasks_wiring(project, answers):
     """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
     celery = answers["use_celery"] == "y"
+    # kombu's Redis transport imports ``packaging``, which only this extra installs. The dev
+    # dependencies bring it in as well, so without the extra only a production install fails.
+    celery_extras = [pin.extras for pin in project.pins["dependencies"] if pin.name == "celery"]
+    assert celery_extras == ([{"redis"}] if celery else [])
     assert "django-tasks-db" in project.pinned
     assert "django_tasks_db" in project.settings("base").literal("INSTALLED_APPS")
     immediate = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
@@ -2100,6 +2104,10 @@ def tasks_wiring(project, answers):
         django_compose = Path("compose") / "production" / "django"
         assert "db_worker" in project.text(django_compose / "tasks" / "worker" / "start")
         assert "/start-taskworker" in project.text(django_compose / "Dockerfile")
+        if celery:
+            # django migrates as the local stack starts, and beat exits if it runs before that
+            beat = project.text(Path("compose") / "local" / "django" / "celery" / "beat" / "start")
+            assert beat.index("migrate --check django_celery_beat") < beat.index("exec watchfiles")
 
 
 def sentry_wiring(project, answers):
