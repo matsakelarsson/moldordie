@@ -82,6 +82,9 @@ FRONTEND_TOOLCHAIN_TOKENS = [
 # Masked before a scan for forbidden words, which a random run could otherwise spell, and by
 # scripts/compare_generated.py before it compares two bakes.
 RE_DRAWN_VALUE = re.compile(r"[A-Za-z0-9]{32,}")
+# What a generated project must not name: this template, the owner of its repository, the tool
+# that renders it, and the project it was forked from with that project's author.
+RE_TEMPLATE_TRACE = re.compile(rb"mold[-_ ]?or[-_ ]?die|matsakelarsson|cookiecutter|greenfeld|pydanny", re.IGNORECASE)
 # The frontends this template removed, as no generated file may spell them any more: their
 # names, the component syntax, the filters, settings, attributes and custom properties, the
 # class prefix (case-sensitive and not after a hyphen: "swagger-ui-bundle" and "daisyui-"
@@ -1306,6 +1309,19 @@ def test_no_trace_of_a_removed_frontend(bake, context_override):
         content = RE_DRAWN_VALUE.sub("", project.text(path))
         offenders.extend(f"{path}: {token}" for token in FRONTEND_TOOLCHAIN_TOKENS if token in content.lower())
         offenders.extend(f"{path}: {match.group(0)}" for match in RE_REMOVED_FRONTEND.finditer(content))
+    assert offenders == []
+
+
+@pytest.mark.parametrize("context_override", GROUPED_COMBINATIONS)
+def test_no_trace_of_the_template(bake, context_override):
+    """No generated file, whatever the answers, names this template, its repository or the
+    project it was forked from, in its path or its bytes."""
+    project = bake(context_override)
+
+    offenders = [f"{path}: its path" for path in project.files() if RE_TEMPLATE_TRACE.search(str(path).encode())]
+    for path in project.files():
+        matches = RE_TEMPLATE_TRACE.finditer((project.root / path).read_bytes())
+        offenders.extend(f"{path}: {match.group(0).decode()}" for match in matches)
     assert offenders == []
 
 

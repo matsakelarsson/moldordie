@@ -1,5 +1,1 @@
-"""
-To understand why this file is here, please read:
-
-https://github.com/matsakelarsson/moldordie/blob/main/docs/5-help/faq.rst
-"""
+"""The ``sites`` migrations; ``0003`` sets this project's domain and name."""

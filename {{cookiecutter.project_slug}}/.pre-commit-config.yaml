@@ -56,8 +56,6 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        # The conditional is quoted so this file stays valid YAML: the daily
-        # autoupdate workflow parses it as it stands, before Cookiecutter renders it.
         entry: "{% if cookiecutter.use_docker == 'y' %}docker compose -f docker-compose.local.yml run --rm django mypy .{% else %}uv run mypy .{% endif %}"
         language: system
         always_run: true

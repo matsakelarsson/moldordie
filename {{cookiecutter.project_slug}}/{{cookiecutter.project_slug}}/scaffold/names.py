@@ -40,8 +40,9 @@ APP_TEMPLATE = Path(__file__).resolve().parent / PLACEHOLDER_APP
 
 # What a Django template binds or reads by name: the variable at the head of an
 # expression, a loop's variable and what it loops over, a ``with`` assignment and an
-# ``if`` operand. The braces are joined at runtime because Cookiecutter renders this
-# file and would read them.
+# ``if`` operand.
+{#- The braces are joined at runtime because Cookiecutter renders this file and would
+    read them. #}
 _NAME = r"([A-Za-z_]\w*)"
 _VARIABLE = "{" + "{" + r"\s*" + _NAME
 _LOOP_OR_IF = rf"(?:for\s+{_NAME}\s+in\s+{_NAME}|(?:if|elif)\s+(?:not\s+)?{_NAME})"
