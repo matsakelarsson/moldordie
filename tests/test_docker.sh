@@ -128,6 +128,12 @@ docker build -f ./compose/production/django/Dockerfile -t django-prod .
 docker run --rm --entrypoint sh django-prod -c \
   'test -s /app/my_awesome_project/static/css/tailwind.css && ! ls /app/.django_tailwind_cli/tailwindcss-* > /dev/null 2>&1'
 
+# Celery reaches Redis through this module. The image installs no dev dependencies, which
+# also bring in what it imports, so only here does a missing production dependency show
+if [ -d compose/production/django/celery ]; then
+  docker run --rm --entrypoint python django-prod -c 'import kombu.transport.redis'
+fi
+
 docker run --rm \
 --env-file .envs/.local/.django \
 --env-file .envs/.local/.postgres \

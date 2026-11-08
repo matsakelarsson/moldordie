@@ -2077,6 +2077,10 @@ def asgi_wiring(project, answers):
 def tasks_wiring(project, answers):
     """Django's Tasks framework is configured in every project; Celery stays an opt-in extra."""
     celery = answers["use_celery"] == "y"
+    # kombu's Redis transport imports ``packaging``, which only this extra installs. The dev
+    # dependencies bring it in as well, so without the extra only a production install fails.
+    celery_extras = [pin.extras for pin in project.pins["dependencies"] if pin.name == "celery"]
+    assert celery_extras == ([{"redis"}] if celery else [])
     assert "django-tasks-db" in project.pinned
     assert "django_tasks_db" in project.settings("base").literal("INSTALLED_APPS")
     immediate = {"default": {"BACKEND": "django.tasks.backends.immediate.ImmediateBackend"}}
