@@ -25,13 +25,15 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # once ``uv sync`` has written it, so the build works either way.
 COPY pyproject.toml uv.loc[k] ${APP_HOME}/
 
+# Some hosts give a build a soft limit of 1024 open files, which uv's bytecode step
+# exceeds, so each ``uv sync`` first raises the soft limit to the hard one.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-install-project
+    ulimit -Sn "$(ulimit -Hn)" && uv sync --no-install-project
 
 COPY . ${APP_HOME}
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync
+    ulimit -Sn "$(ulimit -Hn)" && uv sync
 
 ENV PATH="/${APP_HOME}/.venv/bin:$PATH"
 ENV PYTHONPATH="${APP_HOME}/.venv/lib/python3.14/site-packages:$PYTHONPATH"
