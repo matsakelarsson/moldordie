@@ -39,6 +39,10 @@ jobs:
             --repo https://github.com/pre-commit/pre-commit-hooks \
             --repo https://github.com/tox-dev/pyproject-fmt
 
+      - name: Pin pyproject-fmt at the hook's version
+        # The template's own checks have to run the version the generated project's hook names
+        run: uv run scripts/python_dependency_version.py pyproject-fmt
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:

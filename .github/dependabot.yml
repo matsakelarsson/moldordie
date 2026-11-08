@@ -12,11 +12,13 @@ updates:
     labels:
       - "project infrastructure"
     # The generated project's pyproject.toml is the source of truth for the linter
-    # pins; align-versions.yml mirrors them here. See docs/6-about/maintainer-guide.md.
+    # pins; align-versions.yml mirrors them here. pre-commit-autoupdate.yml pins
+    # pyproject-fmt at its hook's version. See docs/6-about/maintainer-guide.md.
     ignore:
       - dependency-name: "ruff"
       - dependency-name: "djlint"
       - dependency-name: "django-upgrade"
+      - dependency-name: "pyproject-fmt"
 
   # Update GitHub actions in workflows
   - package-ecosystem: "github-actions"
