@@ -16,17 +16,19 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 
 # Requirements are installed here to ensure they will be cached.
+# Some hosts give a build a soft limit of 1024 open files, which uv's bytecode step
+# exceeds, so each ``uv sync`` first raises the soft limit to the hard one.
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+    ulimit -Sn "$(ulimit -Hn)" && uv sync --locked --no-install-project --no-dev
 
 COPY . ${APP_HOME}
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-dev
+    ulimit -Sn "$(ulimit -Hn)" && uv sync --locked --no-dev
 
 # Build the stylesheet, which collectstatic collects when a container starts. The
 # Tailwind CLI is downloaded into a build cache, so it never becomes part of the image;

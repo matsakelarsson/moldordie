@@ -16,12 +16,6 @@ See `0003_set_site_domain_and_name.py`_.
 Why aren't you using just one configuration file (12-Factor App)
 ----------------------------------------------------------------------
 
-TODO
-.. TODO
+A settings module belongs to a kind of configuration: development, tests or a deployment. ``config/settings/`` has one of each on top of ``base.py``, because those kinds differ in code. The development module installs the debug toolbar, for example, and the production module sets up the storage backends.
 
-Why doesn't this follow the layout from Two Scoops of Django?
--------------------------------------------------------------
-
-You may notice that some elements of this project do not exactly match what we describe in chapter 3 of `Two Scoops of Django 3.x`_. The reason for that is this project, amongst other things, serves as a test bed for trying out new ideas and concepts. Sometimes they work, sometimes they don't, but the end result is that it won't necessarily match precisely what is described in the book I co-authored.
-
-.. _Two Scoops of Django 3.x: https://www.feldroy.com/two-scoops-of-django
+What differs between deployments is their variables, as the 12-Factor App asks. ``dev``, ``test`` and ``production`` all run ``config/settings/production.py`` and differ only in their env files.
