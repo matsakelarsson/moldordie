@@ -8,6 +8,87 @@ including release 2026.9.8, is kept in
 
 <!-- GENERATOR_PLACEHOLDER -->
 
+## 2026.11.8
+
+
+### Changed
+
+- Fix Celery startup in production and beat startup on a new local stack ([#140](https://github.com/matsakelarsson/moldordie/pull/140))
+
+- Document setting up, configuring and deploying a generated project ([#139](https://github.com/matsakelarsson/moldordie/pull/139))
+
+- Leave no trace of the template in a generated project ([#138](https://github.com/matsakelarsson/moldordie/pull/138))
+
+- Give the account pages one frame and an account menu ([#136](https://github.com/matsakelarsson/moldordie/pull/136))
+
+- Put the pages in a sidebar a page adds its sections to ([#135](https://github.com/matsakelarsson/moldordie/pull/135))
+
+- Scaffold a new app from an app template the project checks ([#134](https://github.com/matsakelarsson/moldordie/pull/134))
+
+- Stop merging upstream, and read its releases instead ([#133](https://github.com/matsakelarsson/moldordie/pull/133))
+
+- Index the generated layout in the repository guide ([#132](https://github.com/matsakelarsson/moldordie/pull/132))
+
+- Let telemetry's tests cross its interface ([#131](https://github.com/matsakelarsson/moldordie/pull/131))
+
+- Give the project's package an import section of its own ([#130](https://github.com/matsakelarsson/moldordie/pull/130))
+
+- Read and route a calling service's token in one place ([#129](https://github.com/matsakelarsson/moldordie/pull/129))
+
+- Check an arm's wiring on every supported combination ([#128](https://github.com/matsakelarsson/moldordie/pull/128))
+
+- Put the fragment contract inside the htmx module ([#127](https://github.com/matsakelarsson/moldordie/pull/127))
+
+- Finish the reader's lookup half ([#126](https://github.com/matsakelarsson/moldordie/pull/126))
+
+- Remove what the skills plugin's setup wrote into the repository ([#125](https://github.com/matsakelarsson/moldordie/pull/125))
+
+- Fix what the September review listed and nothing had fixed ([#124](https://github.com/matsakelarsson/moldordie/pull/124))
+
+- Leave the generated pyproject.toml as its own hook would ([#123](https://github.com/matsakelarsson/moldordie/pull/123))
+
+- Verify the collector's certificate whatever the environment says ([#94](https://github.com/matsakelarsson/moldordie/pull/94))
+
+- Read the derived answers everywhere, and let no template re-derive them ([#121](https://github.com/matsakelarsson/moldordie/pull/121))
+
+- Fail for a removable path that no CI row keeps ([#115](https://github.com/matsakelarsson/moldordie/pull/115))
+
+- Generate the Sentry and nginx arms in CI ([#114](https://github.com/matsakelarsson/moldordie/pull/114))
+
+- Fail for a removable path that no supported combination keeps ([#113](https://github.com/matsakelarsson/moldordie/pull/113))
+
+- Tidy what the observability work left behind ([#98](https://github.com/matsakelarsson/moldordie/pull/98))
+
+- Start the arm that measures where no Compose file starts it ([#95](https://github.com/matsakelarsson/moldordie/pull/95))
+
+- Render the deployed Compose files and Traefik routers from one source ([#120](https://github.com/matsakelarsson/moldordie/pull/120))
+
+- Render the deployed environments' env files from one source ([#119](https://github.com/matsakelarsson/moldordie/pull/119))
+
+- Declare a secret drawn per deployed environment once ([#117](https://github.com/matsakelarsson/moldordie/pull/117))
+
+- Fail for a generated file that cites a path its answers removed ([#116](https://github.com/matsakelarsson/moldordie/pull/116))
+
+- Compare every combination's generated tree between two revisions ([#112](https://github.com/matsakelarsson/moldordie/pull/112))
+
+- Bound what an unverified caller can start ([#97](https://github.com/matsakelarsson/moldordie/pull/97))
+
+- Bound the shutdown a process actually keeps ([#96](https://github.com/matsakelarsson/moldordie/pull/96))
+
+- Bind the derived answers once, before any file renders ([#118](https://github.com/matsakelarsson/moldordie/pull/118))
+
+- Export traces and metrics over OTLP from each serving process ([#93](https://github.com/matsakelarsson/moldordie/pull/93))
+
+- Let a scrape present the token its identity provider issued ([#92](https://github.com/matsakelarsson/moldordie/pull/92))
+
+- Measure the project with django-prometheus behind its own credential ([#91](https://github.com/matsakelarsson/moldordie/pull/91))
+
+### Updated
+
+- Auto-update pre-commit hooks ([#137](https://github.com/matsakelarsson/moldordie/pull/137))
+
+- Auto-update pre-commit hooks ([#122](https://github.com/matsakelarsson/moldordie/pull/122))
+
 ## 2026.9.20
 
 
