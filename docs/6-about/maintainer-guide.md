@@ -10,6 +10,8 @@ Nothing updates the generated project's Python deps automatically. They are pinn
 
 Three of those pins — `ruff`, `djlint` and `django-upgrade` — also appear in the template's own `pyproject.toml` and `uv.lock` and in the generated project's `.pre-commit-config.yaml`, because the template's test suite lints the generated output with them; `ruff` is in the template's own `.pre-commit-config.yaml` as well. The generated project's pin is the source of truth: `align-versions.yml` copies it to the other places whenever a pull request changes `{{cookiecutter.project_slug}}/pyproject.toml`. Dependabot is told to ignore those three so it cannot bump them out of step.
 
+`pyproject-fmt` is pinned in the template's own `pyproject.toml` and `uv.lock` for the same reason, but the generated project runs it only through its hook, so the hook's `rev` is the source of truth. `pre-commit-autoupdate.yml` copies it to the pin, and Dependabot ignores this one too.
+
 The Tailwind CLI is one more pin. `TAILWIND_CLI_VERSION` in `{{cookiecutter.project_slug}}/config/settings/base.py` names a release of [`dobicinaitis/tailwind-cli-extra`](https://github.com/dobicinaitis/tailwind-cli-extra/releases), the standalone Tailwind CLI with daisyUI bundled: the number is that repository's own, and its release notes say which Tailwind CSS and which daisyUI it carries. Nothing watches it, here or in a generated project, because it is a string in a settings module and a release asset rather than a package. To bump it, pick a release within Tailwind CSS 4 and daisyUI 5 (a new major of either is a change to the template, not a bump), check that it ships the `linux` and `macos` assets for `x64` and `arm64`, change the setting and the comment above it, and run both integration scripts, which download the binary and build with it. The setting is the only place the version is written; bump `django-tailwind-cli` in the generated `pyproject.toml` with the other pins.
 
 Updates for the template should be labelled as `project infrastructure` while the ones about the generated project should be labelled as `update`. This is use to work in conjunction with our changelog script (see later).
@@ -82,7 +84,7 @@ We wait 10 days before closing issues labelled `needs-info` or `wontfix`, with a
 
 `pre-commit-autoupdate.yml`
 
-Run daily, to do `pre-commit autoupdate` on the template as well as the generated project, and opens a pull request with the changes.
+Run daily, to do `pre-commit autoupdate` on the template as well as the generated project, and opens a pull request with the changes. Before opening it, the workflow runs `scripts/python_dependency_version.py pyproject-fmt`, which pins `pyproject-fmt` in the template's own `pyproject.toml` and `uv.lock` at the version the hook now names.
 
 #### Limitations
 

@@ -2,7 +2,6 @@
 
 {{ cookiecutter.description }}
 
-[![Built with moldordie](https://img.shields.io/badge/built%20with-moldordie-ff69b4.svg?logo=cookiecutter)](https://github.com/matsakelarsson/moldordie/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 {%- if cookiecutter.open_source_license != "Not open source" %}
@@ -12,7 +11,7 @@ License: {{cookiecutter.open_source_license}}
 
 ## Settings
 
-Moved to [settings](https://github.com/matsakelarsson/moldordie/blob/main/docs/1-getting-started/settings.rst).
+The settings are in `config/settings/`: `base.py` holds what every environment shares, and `local.py`, `test.py` and `production.py` hold what differs. A variable an environment can set is one those modules read with `env`.
 
 ## Basic Commands
 
@@ -101,8 +100,7 @@ keeps a visitor's choice in a cookie, through htmx and without a script. The exa
 shows the components and the htmx patterns at work, each with its template as written: it is starter
 content, and `docs/frontend.rst` says how to delete it. htmx fragments are Django template partials, and every response carries a
 nonce-based Content Security Policy, so templates must not contain inline scripts or styles.
-`docs/frontend.rst` has the details; see also the
-[frontend guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/frontend.rst).
+`docs/frontend.rst` has the details.
 
 ### Background tasks
 
@@ -117,13 +115,11 @@ production they are stored in PostgreSQL by django-tasks-db and executed by a wo
     uv run python manage.py db_worker
 {%- endif %}
 
-See the [tasks guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/tasks.rst).
-
 {%- if cookiecutter.use_celery == "y" %}
 
 ### Celery
 
-Celery sits next to the Tasks framework above, for the work that framework has no answer for: jobs on a schedule, jobs with a retry policy, and workflows. The example is `cache_users_count` in `{{cookiecutter.project_slug}}/users/tasks.py`, which retries itself on a transient database error and is meant to be scheduled under _Periodic Tasks_ in the admin. Work that needs neither a schedule nor retries belongs in a `django.tasks` task instead; the [tasks guide](https://github.com/matsakelarsson/moldordie/blob/main/docs/4-guides/tasks.rst) draws the line.
+Celery sits next to the Tasks framework above, for the work that framework has no answer for: jobs on a schedule, jobs with a retry policy, and workflows. The example is `cache_users_count` in `{{cookiecutter.project_slug}}/users/tasks.py`, which retries itself on a transient database error and is meant to be scheduled under _Periodic Tasks_ in the admin. Work that needs neither a schedule nor retries belongs in a `django.tasks` task instead.
 
 Please note: for Celery's import magic to work, it is important _where_ the celery commands are run. Run them from the project root, the folder holding _manage.py_.
 
@@ -155,7 +151,7 @@ uv run celery -A config.celery_app worker -B -l info
 In development, it is often nice to be able to see emails that are being sent from your application. For that reason local SMTP server [Mailpit](https://github.com/axllent/mailpit) with a web interface is available as docker container.
 
 Container mailpit will start automatically when you will run all docker containers.
-Please check [moldordie Docker documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/2-local-development/developing-locally-docker.rst) for more details how to start all containers.
+Start them with `docker compose -f docker-compose.local.yml up`.
 
 With Mailpit running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:8025`
 {%- else %}
@@ -190,7 +186,7 @@ Now you have your own mail server running locally, ready to receive whatever you
 In development, it is often nice to be able to see emails that are being sent from your application. For that reason local SMTP server [Mailtrap Local](https://github.com/mailtrap/mailtrap-local) with a web interface is available as docker container.
 
 Container mailtrap-local will start automatically when you will run all docker containers.
-Please check [moldordie Docker documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/2-local-development/developing-locally-docker.rst) for more details how to start all containers.
+Start them with `docker compose -f docker-compose.local.yml up`.
 
 With Mailtrap Local running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:3550`
 {%- else %}
@@ -249,7 +245,10 @@ The following details how to deploy this application.
 
 ### Docker
 
-See detailed [moldordie Docker documentation](https://github.com/matsakelarsson/moldordie/blob/main/docs/3-deployment/deployment-with-docker.rst).
+Each deployed environment, `dev`, `test` and `production`, is a Compose file in the root of the project with its env files under `.envs/`. Build and start one with:
+
+    docker compose -f docker-compose.production.yml build
+    docker compose -f docker-compose.production.yml up -d
 
 {%- endif %}
 

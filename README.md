@@ -69,7 +69,7 @@ Answer the prompts with your own desired [options](docs/1-getting-started/projec
       [1/25] project_name (My Awesome Project): Reddit Clone
       [2/25] project_slug (reddit_clone): reddit
       [3/25] description (Behold My Awesome Project!): A reddit clone.
-      [4/25] author_name (Daniel Roy Greenfeld): Daniel Greenfeld
+      [4/25] author_name (Your Name): Daniel Greenfeld
       [5/25] domain_name (example.com): myreddit.com
       [6/25] email (daniel-greenfeld@myreddit.com): pydanny@gmail.com
       [7/25] version (0.1.0): 0.0.1

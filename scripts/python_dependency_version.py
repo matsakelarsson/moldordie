@@ -5,6 +5,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).parent.parent
 TEMPLATED_ROOT = ROOT / "{{cookiecutter.project_slug}}"
 TEMPLATE_PYPROJECT_TOML = TEMPLATED_ROOT / "pyproject.toml"
@@ -16,17 +18,31 @@ PRE_COMMIT_REPOS = {
     "ruff": "https://github.com/astral-sh/ruff-pre-commit",
     "djlint": "https://github.com/djlint/djLint",
     "django-upgrade": "https://github.com/adamchainz/django-upgrade",
+    "pyproject-fmt": "https://github.com/tox-dev/pyproject-fmt",
 }
+# The generated project runs these only through their hook, so the hook names the version.
+HOOK_ONLY = {"pyproject-fmt"}
 
 
 def main(package_name: str) -> None:
-    new_version = get_template_version(package_name)
+    read_version = get_hook_version if package_name in HOOK_ONLY else get_template_version
+    new_version = read_version(package_name)
     old_version = get_pyproject_toml_version(package_name)
     if old_version == new_version:
         return
 
     update_package_version(package_name, old_version, new_version)
-    subprocess.run(["uv", "lock", "--no-upgrade"], cwd=ROOT, check=False)  # noqa: S607
+    subprocess.run(["uv", "lock", "--no-upgrade"], cwd=ROOT, check=True)  # noqa: S607
+
+
+def get_hook_version(package_name: str) -> str:
+    """The version the generated project's pre-commit hook names for ``package_name``."""
+    config = yaml.safe_load(PRE_COMMIT_CONFIG.read_text())
+    for hook in config["repos"]:
+        if hook["repo"] == PRE_COMMIT_REPOS[package_name]:
+            return str(hook["rev"]).removeprefix("v")
+    msg = f"Could not find the {package_name} hook in the generated .pre-commit-config.yaml"
+    raise RuntimeError(msg)
 
 
 def get_template_version(package_name: str) -> str:

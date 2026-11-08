@@ -8,9 +8,8 @@ up, the commands that run here, and the conventions the code and its tests enfor
 
 ## Generation choices
 
-Generated from [moldordie](https://github.com/matsakelarsson/moldordie) with the answers below.
-They record how this tree was built; nothing reads them at runtime, so editing the table changes
-nothing.
+This project was generated with the answers below. They record how this tree was built; nothing
+reads them at runtime, so editing the table changes nothing.
 
 | Option | Answer |
 | ------ | ------ |
@@ -299,5 +298,3 @@ Rename and replace the model's fields from there; the tests name them. The place
 {%- if cookiecutter.identity_provider != 'none' %}
 - `docs/authentication.rst` — sign-in through the identity provider, and what it trusts
 {%- endif %}
-- [moldordie's own documentation](https://github.com/matsakelarsson/moldordie) — why the
-  project is laid out this way, and what each generation option does

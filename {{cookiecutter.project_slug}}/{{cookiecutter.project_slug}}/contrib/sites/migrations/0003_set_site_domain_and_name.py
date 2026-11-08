@@ -1,8 +1,4 @@
-"""
-To understand why this file is here, please read:
-
-https://github.com/matsakelarsson/moldordie/blob/main/docs/5-help/faq.rst
-"""
+"""Replace the ``example.com`` site with this project's domain and name."""
 from django.conf import settings
 from django.db import migrations
 
