@@ -9,6 +9,7 @@ set -e
 
 finish() {
   # Your cleanup code here
+  docker compose -f docker-compose.production.yml down --volumes --remove-orphans
   docker compose -f docker-compose.local.yml down --remove-orphans
   docker volume rm my_awesome_project_my_awesome_project_local_postgres_data
 
@@ -128,12 +129,6 @@ docker build -f ./compose/production/django/Dockerfile -t django-prod .
 docker run --rm --entrypoint sh django-prod -c \
   'test -s /app/my_awesome_project/static/css/tailwind.css && ! ls /app/.django_tailwind_cli/tailwindcss-* > /dev/null 2>&1'
 
-# Celery reaches Redis through this module. The image installs no dev dependencies, which
-# also bring in what it imports, so only here does a missing production dependency show
-if [ -d compose/production/django/celery ]; then
-  docker run --rm --entrypoint python django-prod -c 'import kombu.transport.redis'
-fi
-
 docker run --rm \
 --env-file .envs/.local/.django \
 --env-file .envs/.local/.postgres \
@@ -157,3 +152,60 @@ docker run --rm \
 -e DJANGO_FRONTEND_ORIGINS=https://app.example.com \
 -e DJANGO_FRONTEND_URL=https://app.example.com \
 django-prod python manage.py check --settings=config.settings.production --deploy --database default --fail-level WARNING
+
+# With Celery, start the processes a project runs, because one that stops on startup looks
+# like any other in the files. The worker has to finish a task and beat has to send one.
+celery_logs() {
+  docker compose -f "$compose" logs celeryworker celerybeat
+}
+
+wait_until() {
+  waited=0
+  until "$@"; do
+    waited=$((waited + 1))
+    if [ "$waited" -gt 120 ]; then
+      celery_logs
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+migrated() {
+  docker compose -f "$compose" exec -T django python manage.py migrate --check
+}
+
+beat_sent_the_task() {
+  docker compose -f "$compose" logs celerybeat | grep -q 'Sending due task integration'
+}
+
+run_a_celery_task() {
+  docker compose -f "$compose" run --rm -T django python manage.py shell -c "
+from django_celery_beat.models import IntervalSchedule, PeriodicTask
+from my_awesome_project.users.tasks import cache_users_count
+cache_users_count.delay().get(timeout=120)
+schedule, _ = IntervalSchedule.objects.get_or_create(every=1, period=IntervalSchedule.SECONDS)
+PeriodicTask.objects.create(name='integration', task=cache_users_count.name, interval=schedule)
+" || { celery_logs; exit 1; }
+  wait_until beat_sent_the_task
+}
+
+if [ -d compose/production/django/celery ]; then
+  # The stacks share a Compose project, so one has to stop before the other starts
+  docker compose -f docker-compose.local.yml down --volumes --remove-orphans
+
+  # The production image installs no dev dependencies, which can hide a package the
+  # project needs and does not declare
+  compose=docker-compose.production.yml
+  docker compose -f "$compose" build django postgres celeryworker celerybeat
+  docker compose -f "$compose" run --rm django python manage.py migrate
+  docker compose -f "$compose" up -d celeryworker celerybeat
+  run_a_celery_task
+  docker compose -f "$compose" down --volumes --remove-orphans
+
+  # A first start on an empty database, where the django service migrates while beat starts
+  compose=docker-compose.local.yml
+  docker compose -f "$compose" up -d django celeryworker celerybeat
+  wait_until migrated
+  run_a_celery_task
+fi
