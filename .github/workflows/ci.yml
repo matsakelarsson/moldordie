@@ -65,6 +65,9 @@ jobs:
             args: "ci_tool=Gitlab"
           - name: Entra & Prometheus without Django Ninja
             args: "ci_tool=Gitlab observability=prometheus identity_provider=entra"
+          # Without OpenTelemetry, whose packages install a dependency Celery has to declare itself
+          - name: Celery
+            args: "use_celery=y"
           - name: Celery, DRF & OpenTelemetry
             args: "use_celery=y rest_api=DRF observability=opentelemetry"
           # The Sentry app without Celery's integration; the bare-metal job has the other arm
